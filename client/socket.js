@@ -105,6 +105,7 @@ var hide_socket = {};
 	hide_socket.connect = function (host)
 	{
 		oO('connecting', host);
+		oO('test');
 		_socket = io.connect(host, {reconnect: false});//, {reconnect: false}
 		_socket.on('connect', on_connect);
 	};

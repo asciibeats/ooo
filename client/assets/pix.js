@@ -112,10 +112,16 @@ var PIX = {};
 		_root.emit('up', true, {x: event.clientX, y: event.clientY});
 	};*/
 
+	function frame (func)
+	{
+		//window.webkitRequestAnimationFrame(func);
+		window.mozRequestAnimationFrame(func);
+	}
+
 	//private
 	function loop (time)
 	{
-		window.webkitRequestAnimationFrame(loop);
+		frame(loop);
 		_elapsed = _time ? (time - _time) : 0;
 		_time = time;
 
@@ -171,7 +177,7 @@ var PIX = {};
 		window.addEventListener('mousedown', on_down);
 		window.addEventListener('mouseup', on_up);
 		//window.addEventListener('mouseout', on_out);
-		window.webkitRequestAnimationFrame(loop);
+		frame(loop);
 		return this;
 	};
 
