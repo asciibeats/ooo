@@ -5,7 +5,7 @@
 
 	function init (images)
 	{
-		hide_pix.open(images);
+		pix.open(images);
 	};
 
 	function preload (assets, callback)
@@ -34,17 +34,21 @@
 
 	function on_load ()
 	{
-		hide_pix.init(_COLOR);
-		//hide_socket.connect(_HOST);
+		pix.init(_COLOR);
+		socket.connect(_HOST);
 
 		var assets =
 		{
-			lane: '/assets/lane.png'
+			hexbg: '/assets/hexbg.png'
 		};
 
 		preload(assets, init);
 	};
 
+	function on_unload ()
+	{
+	}
+
 	window.addEventListener('load', on_load);
-	//window.addEventListener('unload', on_unload);
+	window.addEventListener('unload', on_unload);
 })();

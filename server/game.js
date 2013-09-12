@@ -1,12 +1,13 @@
-var mars_game = {};
-module.exports = mars_game;
+var game = {};
+module.exports = game;
 
-var oO = require('../client/assets/oO');
-var hide_socket = require('./socket');
+var oO = require('../client/assets/oO.js');
+var socket = require('./socket.js');
 
-var _MIN_PLAYERS = 2;
-var _MAX_PLAYERS = 2;
+var _MIN_PLAYERS = 1;
+var _MAX_PLAYERS = 1;
 var _START_DELAY = 3;
+var _TICK_LENGTH = 30;
 
 var _players = {};
 var _games = {};
@@ -29,7 +30,7 @@ Player.prototype.init = function ()
 	{
 		oO('BACK', this.game.id, this.name);
 		this.socket.join(this.game.id);
-		hide_socket.emit_back(this);
+		socket.emit_back(this);
 	}
 	else
 	{
@@ -48,7 +49,7 @@ Player.prototype.init = function ()
 		game.id = oO.fill(_games, game);
 		oO('CREATE', game.id, this.name);
 		this.socket.join(game.id);
-		//hide_socket.emit_invite(this.friends, player.game);
+		//socket.emit_invite(this.friends, player.game);
 	}
 
 	return this.game.state;
@@ -65,7 +66,7 @@ Player.prototype.logout = function ()
 	if (this.game.state.running)
 	{
 		oO('AWAY', this.game.id, this.name);
-		hide_socket.emit_away(this);
+		socket.emit_away(this);
 	}
 	else
 	{
@@ -79,7 +80,6 @@ function Game (player)
 {
 	this.id = null;
 	this.public = true;//temp->false
-	this.timeout = null;
 	this.slots = {};
 
 	this.state = {};
@@ -101,7 +101,7 @@ Game.prototype.join = function (player)
 		this.state.players[player.name] = {};
 		player.game = this;
 		player.socket.join(this.id);
-		hide_socket.emit_join(player);
+		socket.emit_join(player);
 
 		return true;
 	}
@@ -114,7 +114,7 @@ Game.prototype.leave = function (player)
 	if (this.timeout)
 	{
 		clearTimeout(this.timeout);
-		this.timeout = null;
+		delete this.timeout;
 	}
 
 	delete this.slots[player.name];
@@ -122,7 +122,7 @@ Game.prototype.leave = function (player)
 
 	if (oO.size(this.slots) > 0)
 	{
-		hide_socket.emit_leave(player);
+		socket.emit_leave(player);
 	}
 	else
 	{
@@ -147,7 +147,7 @@ Game.prototype.ready = function ()
 	{
 		oO('READY', this.id);
 
-		hide_socket.emit_ready(this, _START_DELAY);
+		socket.emit_ready(this, _START_DELAY);
 		var that = this;
 		this.timeout = setTimeout(function () { that.start() }, _START_DELAY * 1000);
 	}
@@ -158,27 +158,42 @@ Game.prototype.start = function ()
 	oO('START', this.id);
 
 	this.public = false;
-	this.timeout = null;
+	delete this.timeout;
 
-	var players = Object.keys(this.state.players);
-	this.size = players.length;
+	//var players = Object.keys(this.state.players);
+	//this.size = players.length;
 	//maybe randomize players
 
-	for (var i in players)
+	/*for (var i in players)
 	{
 		this.state.players[players[i]].turn = parseInt(i);
-	}
+	}*/
 
-	var cards = [[1,1,2,1,1,1,2,1,2,1,2,1,1],[3,3,3,4,3,3,4,3,3,4,3,3,3],[5,5,5,5,5,5,5,5,5,5,5,5,5]];
+	var board = [];
+	board[0] = [3, 3, 0, 0];
+	board[1] = [0, 1, 1, 3];
+	board[2] = [0, 1, 2, 0];
+	board[3] = [0, 3, 3, 0];
 
-	this.cards = cards;
+	//var cards = [[1,1,2,1,1,1,2,1,2,1,2,1,1],[3,3,3,4,3,3,4,3,3,4,3,3,3],[5,5,5,5,5,5,5,5,5,5,5,5,5]];
+
+	//this.state.card = cards[0].shift();
+	this.state.board = board;
 	this.state.running = true;
-	this.state.board = {};
-	this.state.turn = 0;
-	this.state.card = this.cards[0].shift();
+	//this.state.board = {};
+	//this.state.turn = 0;
 
-	hide_socket.emit_start(this);
+	socket.emit_start(this);
+
+	var that = this;
+	this.interval = setInterval(function () { that.tick() }, _TICK_LENGTH * 1000);
 };
+
+Game.prototype.tick = function ()
+{
+	oO('TICK', this.id);
+	socket.emit_tick(this);
+}
 
 Game.prototype.build = function (x, y)
 {
@@ -192,13 +207,13 @@ Game.prototype.build = function (x, y)
 	this.state.card = this.cards[0].shift();
 };
 
-mars_game.is_valid_name = function (name)
+game.is_valid_name = function (name)
 {
 
 	return (_players[name] ? false : true);
 };
 
-mars_game.register = function (name, pass, mail)
+game.register = function (name, pass, mail)
 {
 	if (!_players[name])
 	{
@@ -208,7 +223,7 @@ mars_game.register = function (name, pass, mail)
 	}
 };
 
-mars_game.login = function (name, pass)
+game.login = function (name, pass)
 {
 	if (_players[name] && !_players[name].socket && (_players[name].pass === pass))
 	{

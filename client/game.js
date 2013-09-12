@@ -1,33 +1,31 @@
-hide_game = {};
+game = {};
 
 (function ()
 {
-	var _name;
-	var _state;
 	var _timer;
 
-	hide_game.init = function (state)//on lobby join or game reconnect
+	game.init = function (state)//on lobby join or game reconnect
 	{
-		_state = state;
+		this.state = state;
 		oO('state', state);
 
 		if (state.running)
 		{
-			hide_pix.show_game(state);
+			pix.game(state);
 		}
 		else
 		{
-			hide_pix.show_lobby(state);
+			pix.lobby(state);
 		}
 	};
 
-	hide_game.join = function (name)//join lobby
+	game.join = function (name)//join lobby
 	{
-		_state.players[name] = 0;
-		hide_pix.join(name);
+		this.state.players[name] = 0;
+		pix.join(name);
 	};
 
-	hide_game.leave = function (name)//leave lobby/game
+	game.leave = function (name)//leave lobby/game
 	{
 		if (_timer)
 		{
@@ -35,15 +33,15 @@ hide_game = {};
 			_timer = null;
 		}
 
-		delete _state.players[name];
-		hide_pix.leave(name);
+		delete this.state.players[name];
+		pix.leave(name);
 	};
 
-	hide_game.ready = function (delay)//lobby countdown
+	game.ready = function (delay)//lobby countdown
 	{
 		function step ()
 		{
-			oO(delay);//(((TICK/PING)))
+			oO(delay);
 			delay--;
 
 			if (delay > 0)
@@ -55,37 +53,36 @@ hide_game = {};
 		step();
 	};
 
-	hide_game.start = function (players, board, turn, card)
+	game.start = function (players, board)
 	{
+		oO('state', this.state);
 		_timer = null;
-		_state.running = true;
-		_state.players = players;
-		_state.board = board;
-		_state.turn = turn;
-		_state.card = card;
+		this.state.running = true;
+		this.state.players = players;
+		this.state.board = board;
 
-		hide_pix.show_game(_state);
+		pix.game(this.state);
 	};
 
-	hide_game.turn = function (x, y, turn, card)
+	game.tick = function (actions, quests)
 	{
-		if (!_state.board[y])
+		if (!this.state.board[y])
 		{
-			_state.board[y] = {};
+			this.state.board[y] = {};
 		}
 
-		_state.board[y][x] = _state.card;
-		_state.turn = turn;
-		_state.card = card;
+		this.state.board[y][x] = this.state.card;
+		this.state.turn = turn;
+		this.state.card = card;
 
-		hide_pix.next_turn();
+		pix.next();
 	};
 
-	hide_game.away = function (name)
+	game.away = function (name)
 	{
 	};
 
-	hide_game.back = function (name)
+	game.back = function (name)
 	{
 	};
 })();

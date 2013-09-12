@@ -1,8 +1,8 @@
-var hide_socket = require('./socket');
-var hide_game = require('./game');
+var socket = require('./socket.js');
+var game = require('./game.js');
 
-hide_game.register('tilla', 'pass');
-hide_game.register('pantra', 'pass');
-hide_game.register('horst', 'pass');
+game.register('tilla', 'pass');
+game.register('pantra', 'pass');
+game.register('horst', 'pass');
 
-hide_socket.open(11133);
+socket.open(11133);
