@@ -5,7 +5,6 @@
 
 Function.prototype.method = function (name, func)
 {
-
 	this.prototype[name] = func;
 };
 
@@ -167,6 +166,7 @@ var PIX = {};
 		_root.context.fillRect(0, 0, _root.width, _root.height);
 
 		document.body.style.margin = 0;
+		//document.body.style.backgroundColor = '#dddddd';
 		document.body.style.overflow = 'hidden';
 		document.body.appendChild(_root.canvas);
 		return this;

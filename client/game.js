@@ -66,7 +66,7 @@ game = {};
 
 	game.tick = function (actions, quests)
 	{
-		if (!this.state.board[y])
+		/*if (!this.state.board[y])
 		{
 			this.state.board[y] = {};
 		}
@@ -75,7 +75,7 @@ game = {};
 		this.state.turn = turn;
 		this.state.card = card;
 
-		pix.next();
+		pix.next();*/
 	};
 
 	game.away = function (name)

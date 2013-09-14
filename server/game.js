@@ -160,28 +160,18 @@ Game.prototype.start = function ()
 	this.public = false;
 	delete this.timeout;
 
-	//var players = Object.keys(this.state.players);
-	//this.size = players.length;
-	//maybe randomize players
-
-	/*for (var i in players)
-	{
-		this.state.players[players[i]].turn = parseInt(i);
-	}*/
-
 	var board = [];
-	board[0] = [3, 3, 0, 0];
-	board[1] = [0, 1, 1, 3];
-	board[2] = [0, 1, 2, 0];
-	board[3] = [0, 3, 3, 0];
+	board[0] = [0, 0, 0, 0, 0, 0, 0, 0];
+	board[1] = [0, 1, 1, 0, 0, 0, 0, 0];
+	board[2] = [0, 0, 1, 0, 0, 0, 0, 0];
+	board[3] = [0, 0, 1, 0, 0, 0, 0, 0];
+	board[4] = [0, 0, 0, 0, 0, 0, 0, 0];
+	board[5] = [0, 0, 0, 0, 0, 0, 0, 0];
+	board[6] = [0, 0, 0, 0, 0, 0, 0, 0];
+	board[7] = [0, 0, 0, 0, 0, 0, 0, 0];
 
-	//var cards = [[1,1,2,1,1,1,2,1,2,1,2,1,1],[3,3,3,4,3,3,4,3,3,4,3,3,3],[5,5,5,5,5,5,5,5,5,5,5,5,5]];
-
-	//this.state.card = cards[0].shift();
 	this.state.board = board;
 	this.state.running = true;
-	//this.state.board = {};
-	//this.state.turn = 0;
 
 	socket.emit_start(this);
 

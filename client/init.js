@@ -1,6 +1,6 @@
 (function ()
 {
-	var _COLOR = '#ffffff';
+	var _COLOR = '#dddddd';
 	var _HOST = 'http://' + window.location.hostname + ':11133';
 
 	function init (images)
