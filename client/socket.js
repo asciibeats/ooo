@@ -22,7 +22,7 @@ socket = {};
 		}
 		else
 		{
-			pix.login();
+			pix.promptLogin();
 		}
 	};
 
@@ -36,8 +36,9 @@ socket = {};
 			this.on('join', function (name) { game.join(name) });
 			this.on('leave', function (name) { game.leave(name) });
 			this.on('ready', function (delay) { game.ready(delay) });
-			this.on('start', function (players, board) { game.start(players, board) });
-			this.on('tick', function (actions, quest) { game.tick(actions, quest) });
+			this.on('start', function (state) { game.start(state) });
+			this.on('tick', function (time) { game.tick(time) });
+			//this.on('spawn', function (x, y, origin) { game.spawn(x, y, origin) });
 			this.on('away', function (name) { game.away(name) });
 			this.on('back', function (name) { game.back(name) });
 
@@ -46,7 +47,7 @@ socket = {};
 		else
 		{
 			oO('access denied');
-			pix.login();
+			pix.promptLogin();
 		}
 	};
 
@@ -61,9 +62,13 @@ socket = {};
 	socket.connect = function (host)
 	{
 		oO('connecting', host);
-		oO('test');
 		_socket = io.connect(host, {reconnect: false});//, {reconnect: false}
 		_socket.on('connect', on_connect);
+	};
+
+	socket.emit_origin = function (origin)
+	{
+		_socket.emit('origin', origin);
 	};
 
 	socket.emit_auth = function (name, pass, mail)

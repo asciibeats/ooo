@@ -7,17 +7,22 @@ pix = {};
 	var _HEX_4H = 4 * _HEX_H;
 	var _HEX_W = Math.round(Math.sqrt(3) * _HEX_H);
 	var _HEX_2W = 2 * _HEX_W;
+	var _MAX_X;
+	var _MAX_Y;
+	var _COLORS = ['#111111', '#aaaaaa', '#cc0000', '#eeeeee'];
+	var _COLORS = ['#1a1334', '#26294a', '#01545a', '#017351', '#03c383', '#aad962', '#fbbf45', '#ef6a32', '#ed0345', '#a12a5e', '#710162', '#110141'];
+	var _HORIZON = 90;
 
-	var _COLORS = ['#000000', '#aaaaaa', '#44cccc', '#eeeeee'];
-
-	var _images;
 	var _name;
 
-	var Map = PIX.Sprite.extend(function (board)
+	var Map = PIX.Sprite.extend(function ()
 	{
-		this.board = board;
-		this.board_w = board[0].length * _HEX_2W;
-		this.board_h = board.length * _HEX_3H;
+		this.board = game.state.board;
+		this.pools = game.state.pools;
+		_MAX_X = this.board[0].length;
+		_MAX_Y = this.board.length;
+		this.board_w = _MAX_X * _HEX_2W;
+		this.board_h = _MAX_Y * _HEX_3H;
 		this.drag_x = 0;
 		this.drag_y = 0;
 		this.drop_x = 0;
@@ -37,11 +42,20 @@ pix = {};
 			this.drag_y = 0;
 		});
 
-		this.on('down', function (data)
+		this.on('click', function (data)
 		{
-			var down_x = Math.floor((this.drop_x + data.down_x) / _HEX_2W) % this.board[0].length;
-			var down_y = Math.floor((this.drop_y + data.down_y) / _HEX_3H) % this.board.length;
-			this.board[down_y][down_x]++;
+			var down_y = Math.floor((this.drop_y + data.down_y) / _HEX_3H) % _MAX_Y;
+
+			if (down_y & 1)
+			{
+				var down_x = Math.floor((this.drop_x + data.down_x) / _HEX_2W) % _MAX_X;
+			}
+			else
+			{
+				var down_x = Math.round((this.drop_x + data.down_x) / _HEX_2W) % _MAX_X;
+			}
+
+			this.board[down_y][down_x] = (this.board[down_y][down_x] + 1) % _COLORS.length;
 		});
 	});
 
@@ -52,7 +66,7 @@ pix = {};
 		var start_x = Math.floor(shift_x / _HEX_2W);
 		var start_y = Math.floor(shift_y / _HEX_3H);
 
-		context.translate(-((shift_x % _HEX_2W)+_HEX_W), -((shift_y % _HEX_3H)+_HEX_H));
+		context.translate(-((shift_x % _HEX_2W) + _HEX_W), -((shift_y % _HEX_3H) + _HEX_H));
 
 		for (var y = start_y; y < start_y + 14; y++)
 		{
@@ -73,17 +87,44 @@ pix = {};
 				context.lineTo(0, _HEX_3H);
 				context.lineTo(0, _HEX_H);
 				context.closePath();
-				//context.drawImage(_images.hexbg, (_HEX_2W * this.board[y % this.board.length][x % this.board[0].length]), 0, _HEX_2W, _HEX_4H, 0, 0, _HEX_2W, _HEX_4H);
-				context.fillStyle = _COLORS[this.board[y % this.board.length][x % this.board[0].length]];
+				//context.drawImage(PIX.images.hexbg, (_HEX_2W * this.board[y % this.board.length][x % this.board[0].length]), 0, _HEX_2W, _HEX_4H, 0, 0, _HEX_2W, _HEX_4H);
+				//context.fillStyle = _COLORS[this.board[y % _MAX_Y][x % _MAX_X]];
+				context.fillStyle = _COLORS[3];
 				context.fill();
-				context.strokeStyle = '#ffffff';
+				context.lineWidth = 3;
+				context.strokeStyle = _COLORS[5];
 				context.stroke();
+
+				if (game.state.pools[y % _MAX_Y] && game.state.pools[y % _MAX_Y][x % _MAX_X])
+				{
+					context.beginPath();
+					context.moveTo(0, _HEX_H);
+					context.lineTo(_HEX_2W, _HEX_3H);
+					context.moveTo(_HEX_2W, _HEX_H);
+					context.lineTo(0, _HEX_3H);
+					context.lineWidth = 1;
+					context.strokeStyle = _COLORS[4];
+					context.stroke();
+				}
+
 				context.translate(_HEX_2W, 0);
 			}
 
 			context.restore();
 			context.translate(0, _HEX_3H);
 		}
+		
+		context.restore();
+		context.save();
+
+		context.beginPath();
+		context.moveTo(0, 0);
+		context.lineTo(700, 0);
+		context.lineTo(700, _HORIZON);
+		context.lineTo(0, _HORIZON);
+		context.closePath();
+		context.fillStyle = _COLORS[2];
+		context.fill();
 	});
 
 	pix.init = function (color)
@@ -93,45 +134,66 @@ pix = {};
 
 	pix.open = function (images)
 	{
-		_images = images;
-		PIX.open();
+		PIX.open(images);
 	};
 
-	pix.login = function ()
-	{
-		//_name = prompt('name?');
-		//var _pass = prompt('pass?');
-
-		_name = 'tilla';
-		var _pass = 'pass';
-
-		socket.emit_auth(_name, _pass);
-	};
-
-	pix.lobby = function (state)
+	pix.showLobby = function (state)
 	{
 		oO('lobby', state.players);
 	};
 
-	pix.game = function (state)
+	pix.showMap = function ()
 	{
-		oO('game', state);
-		var lane = new Map(state.board);
-		PIX.show(lane);
+		var map = new Map();
+		map.relative_y = _HORIZON;
+		PIX.show(map);
+
+		/*
+		if (Object.keys(player.pools).length > 0)
+		{
+			oO('please choose a quest target...');
+		}
+		*/
 	};
 
-	pix.tick = function ()
+	pix.promptLogin = function ()
 	{
-		oO('tick');
+		//_name = prompt('name?');
+		//var _pass = prompt('pass?');
+
+		if (!localStorage.login)
+		{
+			localStorage.login = 0;
+		}
+
+		var _users = [['tilla','pass'],['pantra','pass']];
+		var user = _users[localStorage.login % _users.length];
+		localStorage.login++;
+
+		_name = user[0];
+		var _pass = user[1];
+
+		socket.emit_auth(_name, _pass);
 	};
 
-	pix.join = function (name)
+	pix.promptPool = function (origins)
+	{
+		//var types = new PIX.Sprite(PIX.images.type);
+		var selection = 0;
+		return selection;
+	};
+
+	/*pix.noteTick = function ()
+	{
+	};
+
+	pix.noteJoin = function (name)
 	{
 		oO('join', name);
 	};
 
-	pix.leave = function (name)
+	pix.noteLeave = function (name)
 	{
 		oO('leave', name);
-	};
+	};*/
 })();

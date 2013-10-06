@@ -4,7 +4,7 @@ module.exports = socket;
 var io = require('socket.io');
 var game = require('./game.js');
 
-var _DENY_DELAY = 3;
+var _DENY_DELAY = 1;
 
 var _sockets;
 
@@ -43,7 +43,8 @@ function on_auth (name, pass, mail, callback)
 
 		this.on('disconnect', on_disconnect);
 		this.once('ready', on_ready);
-		this.on('turn', on_turn);
+		//this.on('turn', on_turn);
+		this.on('settle', on_settle);
 
 		player.socket = this;
 		callback(player.init());
@@ -61,7 +62,27 @@ function on_ready ()
 	this.get('player', function (x,player) { player.game.ready() });
 };
 
-function on_turn (x, y)
+function on_settle ()
+{
+	this.get('player', function (error, player)
+	{
+		//var game = player.game;
+		oO('ORIGIN', player.name);
+
+		var settlement = {};
+		settlement.x = 4;
+		settlement.y = 4;
+		settlement.player = player.name;
+		settlement.type = 0;
+
+		player.game.addSettlement(settlement);
+
+		_sockets.to(player.game.id).emit('settle', settlement);
+	});
+	//player.socket.emit('origin', player.name);//to(player.game.id).
+};
+
+/*function on_turn (x, y)
 {
 	this.get('player', function (n, player)
 	{
@@ -74,7 +95,7 @@ function on_turn (x, y)
 			_sockets.to(game.id).emit('turn', x, y, game.state.turn, game.state.card);
 		};
 	});
-};
+};*/
 
 function on_disconnect ()
 {
@@ -84,7 +105,7 @@ function on_disconnect ()
 //module
 socket.open = function (port)
 {
-	_sockets = io.listen(port).sockets;
+	_sockets = io.listen(port).set('log level', 1).sockets;
 	
 	_sockets.on('connection', function (socket)
 	{
@@ -95,13 +116,11 @@ socket.open = function (port)
 
 socket.emit_join = function (player)
 {
-
 	player.socket.broadcast.to(player.game.id).emit('join', player.name);
 };
 
 socket.emit_leave = function (player)
 {
-
 	player.socket.broadcast.to(player.game.id).emit('leave', player.name);
 };
 
@@ -112,7 +131,13 @@ socket.emit_ready = function (game, delay)
 
 socket.emit_start = function (game)
 {
-	_sockets.to(game.id).emit('start', game.state.players, game.state.board);
+	for (var name in game.slots)
+	{
+		var player = game.slots[name];
+		player.socket.emit('info', player.state);//to(player.game.id).
+	}
+
+	_sockets.to(game.id).emit('start', game.state);
 };
 
 socket.emit_tick = function (game)

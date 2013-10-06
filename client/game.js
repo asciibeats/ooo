@@ -1,3 +1,4 @@
+//player = {};
 game = {};
 
 (function ()
@@ -7,22 +8,24 @@ game = {};
 	game.init = function (state)//on lobby join or game reconnect
 	{
 		this.state = state;
-		oO('state', state);
 
-		if (state.running)
+		if (state.time)
 		{
-			pix.game(state);
+			pix.showMap(state);
 		}
 		else
 		{
-			pix.lobby(state);
+			pix.showLobby(state);
 		}
+
+		oO('init', state);
 	};
 
 	game.join = function (name)//join lobby
 	{
 		this.state.players[name] = 0;
-		pix.join(name);
+		oO('join', name);
+		//pix.join(name);
 	};
 
 	game.leave = function (name)//leave lobby/game
@@ -34,7 +37,8 @@ game = {};
 		}
 
 		delete this.state.players[name];
-		pix.leave(name);
+		oO('leave', name);
+		//pix.leave(name);
 	};
 
 	game.ready = function (delay)//lobby countdown
@@ -53,19 +57,20 @@ game = {};
 		step();
 	};
 
-	game.start = function (players, board)
+	game.start = function (state)
 	{
-		oO('state', this.state);
+		oO('START', state);
 		_timer = null;
-		this.state.running = true;
-		this.state.players = players;
-		this.state.board = board;
+		this.state = state;
 
-		pix.game(this.state);
+		pix.showMap(this.state);
+		var origin = pix.promptPool(this.state.origins);
+		socket.emit_origin(origin);
 	};
 
-	game.tick = function (actions, quests)
+	game.tick = function (time)
 	{
+		oO('TICK', time);
 		/*if (!this.state.board[y])
 		{
 			this.state.board[y] = {};
@@ -76,6 +81,18 @@ game = {};
 		this.state.card = card;
 
 		pix.next();*/
+	};
+
+	game.spawn = function (x, y, origin)
+	{
+		oO('ORIGIN', origin);
+
+		if (!this.state.origins[y])
+		{
+			this.state.origins[y] = {};
+		}
+
+		this.state.origins[y][x] = origin;
 	};
 
 	game.away = function (name)

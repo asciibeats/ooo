@@ -40,6 +40,7 @@ var PIX = {};
 	var _time;
 	var _elapsed;
 	var _drag_event;
+	var _click_event;
 
 	var _events = {};
 	_events['down'] = {id: 'mousedown', data: data_down};
@@ -47,29 +48,31 @@ var PIX = {};
 	_events['move'] = {id: 'mousemove', data: data_down};
 	_events['drag'] = {id: 'customdrag', data: data_drag};
 	_events['drop'] = {id: 'mouseup', data: data_drop};
-	_events['click'] = {id: 'dblclick', data: data_down};
+	_events['click'] = {id: 'customclick', data: data_click};
 	_events['out'] = {id: 'mouseout', data: data_down};
 	_events['size'] = {id: 'resize', data: data_down};
 
 	function data_down (event)
 	{
-
 		return {down_x: event.clientX, down_y: event.clientY};
 	}
 
 	function data_drag (event)
 	{
-
 		return {down_x: event.downX, down_y: event.downY, drag_x: event.dragX, drag_y: event.dragY};
 	}
 
 	function data_drop (event)
 	{
-		
 		return {down_x: event.downX, down_y: event.downY, drag_x: event.dragX, drag_y: event.dragY, up_x: event.clientX, up_y: event.clientY};
 	}
 
-	//var _CLICK_MARGIN = 5;
+	function data_click (event)
+	{
+		return {down_x: event.downX, down_y: event.downY, up_x: event.clientX, up_y: event.clientY};
+	}
+
+	var _CLICK_MARGIN = 5;
 	//var _DRAG_MARGIN = 5;
 
 	//helper
@@ -101,8 +104,17 @@ var PIX = {};
 
 	function on_up (event)
 	{
-
 		window.removeEventListener('mousemove', on_drag);
+
+		if (!_drag_event.dragX && !_drag_event.dragY)
+		{
+			_click_event.downX = event.clientX;
+			_click_event.downY = event.clientY;
+			_root.canvas.dispatchEvent(_click_event);
+		}
+
+		_drag_event.dragX = 0;
+		_drag_event.dragY = 0;
 	};
 
 	/*function on_out (event)
@@ -152,7 +164,9 @@ var PIX = {};
 	//public
 	PIX.init = function (color)
 	{
+		this.color = color || '#cccccc'
 		_drag_event = new CustomEvent('customdrag');
+		_click_event = new CustomEvent('customclick');
 		_root = new Stage();/*.on('size', function (data)
 		{
 			this.size(window.innerWidth, window.innerHeight);
@@ -172,8 +186,9 @@ var PIX = {};
 		return this;
 	};
 
-	PIX.open = function ()
+	PIX.open = function (images)
 	{
+		this.images = images || [];
 		window.addEventListener('mousedown', on_down);
 		window.addEventListener('mouseup', on_up);
 		//window.addEventListener('mouseout', on_out);
@@ -404,7 +419,6 @@ var PIX = {};
 	//Just for testing
 	var Box = Actor.extend(function (color)
 	{
-
 		this.color = color;
 	});
 
@@ -418,15 +432,14 @@ var PIX = {};
 	var Sprite = Actor.extend(function (image, image_x, image_y, width, height)
 	{
 		this.image = image;
-		this.image_x = image_x;
-		this.image_y = image_y;
-		this.width = width;
-		this.height = height;
+		this.image_x = image_x || 0;
+		this.image_y = image_y || 0;
+		this.width = width || 100;
+		this.height = height || 100;
 	});
 
 	Sprite.method('draw', function (elapsed, context)
 	{
-
 		context.drawImage(this.image, this.image_x, this.image_y, this.width, this.height, 0, 0, this.width, this.height);
 	});
 
@@ -509,7 +522,6 @@ var PIX = {};
 
 	Stage.method('clear', function ()
 	{
-
 		this.canvas.width = this.canvas.width;
 	});
 

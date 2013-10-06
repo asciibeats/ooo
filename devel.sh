@@ -1,9 +1,13 @@
 #!/bin/bash
 BASEDIR=$(dirname $0)
-xterm -title wmtag_1 -e vim $BASEDIR/client/game.js &
-xterm -title wmtag_1 -e vim $BASEDIR/client/pix.js &
-xterm -title wmtag_1 -e vim $BASEDIR/client/socket.js &
-xterm -title wmtag_2 -e vim $BASEDIR/server/game.js &
-xterm -title wmtag_2 -e vim $BASEDIR/server/socket.js &
-xterm -e node $BASEDIR/server/init.js &
-/usr/bin/mongoose -r $BASEDIR/client -p 11155
+urxvt -title wmtag_1 -e $EDITOR $BASEDIR/client/game.js &
+urxvt -title wmtag_1 -e $EDITOR $BASEDIR/client/pix.js &
+urxvt -title wmtag_1 -e $EDITOR $BASEDIR/client/socket.js &
+urxvt -title wmtag_2 -e $EDITOR $BASEDIR/server/game.js &
+urxvt -title wmtag_2 -e $EDITOR $BASEDIR/server/socket.js &
+urxvt -e $BASEDIR/node.sh &
+$BASEDIR/mongoose.sh
+clear
+
+
+
