@@ -4,10 +4,11 @@ module.exports = game;
 var oO = require('../client/assets/oO.js');
 var socket = require('./socket.js');
 
-var _MIN_PLAYERS = 2;
-var _MAX_PLAYERS = 2;
+var _MIN_PLAYERS = 1;
+var _MAX_PLAYERS = 1;
 var _START_DELAY = 3;
 var _TICK_LENGTH = 30;
+var _SIZE = 8;
 
 var _players = {};
 var _games = {};
@@ -19,8 +20,8 @@ function Player (name, pass, mail)
 	this.mail = mail;
 	this.socket = null;
 	this.game = null;
-	this.friends = {};
-	//this.pools = {};
+	//this.friends = {};
+	this.pools = [];
 	//this.played = 1;//number of games
 	//this.seeked = 1;//times played as seeker(ones because division by zero stuff)
 };
@@ -84,8 +85,11 @@ function Game (player)
 	this.slots = {};
 
 	this.state = {};
-	this.state.players = {};
 	this.state.time = 0;
+	this.state.players = {};
+	this.state.board = [];
+	this.state.build = [];
+	this.state.pools = {};
 
 	this.slots[player.name] = player;
 	this.state.players[player.name] = {};
@@ -161,18 +165,43 @@ Game.prototype.start = function ()
 	this.public = false;
 	delete this.timeout;
 
-	var board = [];
-	board[0] = [0, 0, 0, 0, 0, 0, 0, 0];
-	board[1] = [0, 0, 0, 0, 0, 0, 0, 0];
-	board[2] = [0, 0, 0, 0, 0, 0, 0, 0];
-	board[3] = [0, 0, 0, 0, 0, 0, 0, 0];
-	board[4] = [0, 0, 0, 0, 0, 0, 0, 0];
-	board[5] = [0, 0, 0, 0, 0, 0, 0, 0];
-	board[6] = [0, 0, 0, 0, 0, 0, 0, 0];
-	board[7] = [0, 0, 0, 0, 0, 0, 0, 0];
+	for (var y = 0; y < _SIZE; y++)
+	{
+		this.state.board[y] = [];
 
-	this.state.board = board;
-	this.state.pools = {};
+		for (var x = 0; x < _SIZE; x++)
+		{
+			this.state.board[y][x] = Math.floor(Math.random() * 2);
+		}
+	}
+
+	for (var y = 0; y < _SIZE * 2; y++)
+	{
+		this.state.build[y] = [];
+
+		for (var x = 0; x < _SIZE * 2; x++)
+		{
+			var type = Math.round(Math.random() * 12);
+
+			if (type > 6)
+			{
+				this.state.build[y][x] = type - 6;
+			}
+			else
+			{
+				this.state.build[y][x] = 0;
+			}
+			/*if (((x == 0) && (y % 3 == 0)) || (y == 0))
+			{
+				this.state.build[y][x] = Math.round(Math.random() * 5) + 1;
+			}
+			else
+			{
+				this.state.build[y][x] = 0;
+			}*/
+		}
+	}
+
 	this.state.time = 1;
 
 	socket.emit_start(this);
@@ -186,7 +215,7 @@ Game.prototype.tick = function ()
 	this.state.time++;
 	oO('TICK', this.id, this.state.time);
 	socket.emit_tick(this);
-}
+};
 
 /*Game.prototype.build = function (x, y)
 {
@@ -200,15 +229,16 @@ Game.prototype.tick = function ()
 	this.state.card = this.cards[0].shift();
 };*/
 
-Game.prototype.addPool = function (pool)
+Game.prototype.addPool = function (x, y, type, player)
 {
-	if (!this.state.pools[pool.y])
+	if (!this.state.pools[y])
 	{
-		this.state.pools[pool.y] = {};
+		this.state.pools[y] = {};
 	}
 
-	this.state.pools[pool.y][pool.x] = pool;
-}
+	this.state.pools[y][x] = type;
+	player.pools.push([x, y]);
+};
 
 game.is_valid_name = function (name)
 {

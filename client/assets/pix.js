@@ -41,6 +41,7 @@ var PIX = {};
 	var _elapsed;
 	var _drag_event;
 	var _click_event;
+	var _size_event;
 
 	var _events = {};
 	_events['down'] = {id: 'mousedown', data: data_down};
@@ -50,7 +51,12 @@ var PIX = {};
 	_events['drop'] = {id: 'mouseup', data: data_drop};
 	_events['click'] = {id: 'customclick', data: data_click};
 	_events['out'] = {id: 'mouseout', data: data_down};
-	_events['size'] = {id: 'resize', data: data_down};
+	_events['size'] = {id: 'customsize', data: data_size};
+
+	function data_size (event)
+	{
+		return {width: window.innerWidth, height: window.innerHeight};
+	}
 
 	function data_down (event)
 	{
@@ -80,8 +86,9 @@ var PIX = {};
 	//events
 	function on_resize (event)
 	{
-		_root.size(window.innerWidth, window.innerHeight);
-		_root.draw(0);
+		//_root.size(window.innerWidth, window.innerHeight);
+		//_root.draw(0);
+		_root.canvas.dispatchEvent(_size_event);
 	};
 	
 	function on_down (event)
@@ -162,29 +169,68 @@ var PIX = {};
 	};
 
 	//public
-	PIX.init = function (color)
+	PIX.init = function (options)
 	{
-		this.color = color || '#cccccc'
+		this.color = options.color || '#cccccc';
 		_drag_event = new CustomEvent('customdrag');
 		_click_event = new CustomEvent('customclick');
-		_root = new Stage();/*.on('size', function (data)
+		_size_event = new CustomEvent('customsize');
+		_root = new Stage();
+
+		if (options.fullscreen)
 		{
-			this.size(window.innerWidth, window.innerHeight);
-			this.draw(0);
-		});*/
+			_root.size(window.innerWidth, window.innerHeight);
+		}
+		else
+		{
+			_root.size(options.width || 100, options.height || 100);
+		}
 
-		window.addEventListener('resize', on_resize);
-		on_resize();//ersetzen durch dispatchEvent()!!! damit auch alle anderen listener das kriegen
-
-		_root.context.fillStyle = color;
-		_root.context.fillRect(0, 0, _root.width, _root.height);
+		//_root.context.fillStyle = options.color;
+		//_root.context.fillRect(0, 0, _root.width, _root.height);
 
 		document.body.style.margin = 0;
+		//_root.canvas.style.overflow = 'hidden';
 		//document.body.style.backgroundColor = '#dddddd';
 		document.body.style.overflow = 'hidden';
 		document.body.appendChild(_root.canvas);
 		return this;
-	};
+	}
+
+	PIX.fullscreen = function ()
+	{
+		oO('FULLSCREEN');
+		if (!document.FullScreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement)
+		{
+			if (document.documentElement.requestFullscreen)
+			{
+				document.documentElement.requestFullscreen();
+			}
+			else if (document.documentElement.mozRequestFullScreen)
+			{
+				document.documentElement.mozRequestFullScreen();
+			}
+			else if (document.documentElement.webkitRequestFullscreen)
+			{
+				document.documentElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+			}
+		}
+		else
+		{
+			if (document.cancelFullScreen)
+			{
+				document.cancelFullScreen();
+			}
+			else if (document.mozCancelFullScreen)
+			{
+				document.mozCancelFullScreen();
+			}
+			else if (document.webkitCancelFullScreen)
+			{
+				document.webkitCancelFullScreen();
+			}
+		}
+	}
 
 	PIX.open = function (images)
 	{
@@ -192,6 +238,7 @@ var PIX = {};
 		window.addEventListener('mousedown', on_down);
 		window.addEventListener('mouseup', on_up);
 		//window.addEventListener('mouseout', on_out);
+		window.addEventListener('resize', on_resize);
 		frame(loop);
 		return this;
 	};
@@ -373,38 +420,29 @@ var PIX = {};
 		return false;
 	});
 
-	/*Actor.method('trigger', function (name, data)
+	/*Actor.method('trigger', function (name, event)
 	{
-		if (this.listen[name])
+		if (this.listener[name])
 		{
-			var listen = this.listen[name];
-
-			for (var i = 0; i < listen.length; i++)
-			{
-				if (listen[i].call(this, data))
-				{
-					return true;
-				}
-			}
+			this.listener[name](event);
 		}
 	});*/
 
 	Actor.method('on', function (name, func)
 	{
-		var that = this;
-
 		if (this.listeners[name])
 		{
 			this.off(name);
 		}
 
+		var that = this;
+
 		this.listeners[name] = function (event)
 		{
 			func.call(that, _events[name].data(event));
-		};
+		}
 
 		_root.canvas.addEventListener(_events[name].id, this.listeners[name]);
-
 		return this;
 	});
 
@@ -455,6 +493,12 @@ var PIX = {};
 	Scene.method('show', function (actor)
 	{
 		actor.parent = this;
+
+		if (actor.listeners['size'])
+		{
+			actor.listeners['size'](_size_event);
+		}
+
 		//actor.trigger('size');
 		oO.add(this.actors, actor, actor.depth, actor.id);
 		return this;

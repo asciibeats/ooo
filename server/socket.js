@@ -44,7 +44,7 @@ function on_auth (name, pass, mail, callback)
 		this.on('disconnect', on_disconnect);
 		this.once('ready', on_ready);
 		//this.on('turn', on_turn);
-		this.on('settle', on_settle);
+		this.on('pool', on_pool);
 
 		player.socket = this;
 		callback(player.init());
@@ -59,27 +59,19 @@ function on_auth (name, pass, mail, callback)
 
 function on_ready ()
 {
-	this.get('player', function (x,player) { player.game.ready() });
+	this.get('player', function (error, player) { player.game.ready() });
 };
 
-function on_settle ()
+function on_pool (x, y, type)
 {
 	this.get('player', function (error, player)
 	{
-		//var game = player.game;
-		oO('ORIGIN', player.name);
+		oO('POOL', player.name);
+		player.game.addPool(x, y, type, player);
 
-		var settlement = {};
-		settlement.x = 4;
-		settlement.y = 4;
-		settlement.player = player.name;
-		settlement.type = 0;
-
-		player.game.addSettlement(settlement);
-
-		_sockets.to(player.game.id).emit('settle', settlement);
+		player.socket.emit(x, y);
+		_sockets.to(player.game.id).emit('pool', x, y, type);
 	});
-	//player.socket.emit('origin', player.name);//to(player.game.id).
 };
 
 /*function on_turn (x, y)

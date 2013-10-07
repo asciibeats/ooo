@@ -1,4 +1,3 @@
-//player = {};
 game = {};
 
 (function ()
@@ -64,8 +63,8 @@ game = {};
 		this.state = state;
 
 		pix.showMap(this.state);
-		var origin = pix.promptPool(this.state.origins);
-		socket.emit_origin(origin);
+		//var origin = pix.promptPool(this.state.pools);
+		socket.emit_pool(4, 4, 1);
 	};
 
 	game.tick = function (time)
@@ -83,16 +82,28 @@ game = {};
 		pix.next();*/
 	};
 
-	game.spawn = function (x, y, origin)
+	game.pool = function (x, y, type)
 	{
-		oO('ORIGIN', origin);
+		oO('POOL', x, y, type);
 
-		if (!this.state.origins[y])
+		if (!this.state.pools[y])
 		{
-			this.state.origins[y] = {};
+			this.state.pools[y] = {};
 		}
 
-		this.state.origins[y][x] = origin;
+		this.state.pools[y][x] = type;
+	};
+
+	game.pool = function (x, y, type)
+	{
+		oO('POOL', x, y, type);
+
+		if (!this.state.pools[y])
+		{
+			this.state.pools[y] = {};
+		}
+
+		this.state.pools[y][x] = type;
 	};
 
 	game.away = function (name)

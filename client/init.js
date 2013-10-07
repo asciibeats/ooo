@@ -5,7 +5,7 @@
 
 	function init (images)
 	{
-		pix.open(images);
+		PIX.open(images);
 	};
 
 	function preload (assets, callback)
@@ -34,12 +34,14 @@
 
 	function on_load ()
 	{
-		pix.init(_COLOR);
+		//PIX.init({color: _COLOR, width: 400, height: 270});
+		PIX.init({color: _COLOR, fullscreen: true});
 		socket.connect(_HOST);
 
 		var assets =
 		{
-			hexbg: '/assets/hexbg.png'
+			hexbg: '/assets/hexbg.png',
+			objects: '/assets/objects.png'
 		};
 
 		preload(assets, init);
