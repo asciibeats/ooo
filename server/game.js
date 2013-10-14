@@ -8,7 +8,7 @@ var _MIN_PLAYERS = 1;
 var _MAX_PLAYERS = 1;
 var _START_DELAY = 3;
 var _TICK_LENGTH = 30;
-var _SIZE = 8;
+var _SIZE = 6;
 
 var _players = {};
 var _games = {};
@@ -24,7 +24,7 @@ function Player (name, pass, mail)
 	this.pools = [];
 	//this.played = 1;//number of games
 	//this.seeked = 1;//times played as seeker(ones because division by zero stuff)
-};
+}
 
 Player.prototype.init = function ()
 {
@@ -76,7 +76,7 @@ Player.prototype.logout = function ()
 	}
 
 	this.socket = null;
-};
+}
 
 function Game (player)
 {
@@ -94,7 +94,7 @@ function Game (player)
 	this.slots[player.name] = player;
 	this.state.players[player.name] = {};
 	player.game = this;
-};
+}
 
 Game.prototype.join = function (player)
 {

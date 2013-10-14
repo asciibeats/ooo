@@ -1,5 +1,33 @@
 socket = {};
 
+/*function dataPaths(object, prefix, callback)
+{
+	for (var key in object)
+	{
+		var path = prefix + key;
+
+		//if (Object.prototype.toString.call(object[key]) == "[object Object]")
+		if (typeof object[key] == 'object')
+		{
+			dataPaths(object[key],  path + '/', callback);
+		}
+		else
+		{
+			callback(path);
+		}
+	}
+}
+
+var test = {};
+test.a = 'hallo';
+test.b = {};
+test.b.c = 3;
+test.b.d = [];
+test.b.d[2] = 'welt';
+test.b.d[360] = 'welt';
+
+dataPaths(test, '/', function (path) { oO(path) });*/
+
 (function ()
 {
 	//var _host;

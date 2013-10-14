@@ -15,14 +15,14 @@ function deny_access (socket, callback)
 	{
 		socket.once('auth', on_auth);
 		callback(null);
-	};
-};
+	}
+}
 
 //events
-function on_name (name, callback)
+/*function on_name (name, callback)
 {
 	callback(game.is_valid_name(name));
-};
+}*/
 
 function on_auth (name, pass, mail, callback)
 {
@@ -55,12 +55,12 @@ function on_auth (name, pass, mail, callback)
 		oO('DENIED', name);
 		setTimeout(deny_access(this, callback), _DENY_DELAY * 1000);
 	}
-};
+}
 
 function on_ready ()
 {
 	this.get('player', function (error, player) { player.game.ready() });
-};
+}
 
 function on_pool (x, y, type)
 {
@@ -72,7 +72,7 @@ function on_pool (x, y, type)
 		player.socket.emit(x, y);
 		_sockets.to(player.game.id).emit('pool', x, y, type);
 	});
-};
+}
 
 /*function on_turn (x, y)
 {
@@ -92,7 +92,7 @@ function on_pool (x, y, type)
 function on_disconnect ()
 {
 	this.get('player', function (x,player) { player.logout() });
-};
+}
 
 //module
 socket.open = function (port)
@@ -101,48 +101,48 @@ socket.open = function (port)
 	
 	_sockets.on('connection', function (socket)
 	{
-		socket.on('name', on_name);
+		//socket.on('name', on_name);
 		socket.once('auth', on_auth);
 	});
-};
+}
 
 socket.emit_join = function (player)
 {
 	player.socket.broadcast.to(player.game.id).emit('join', player.name);
-};
+}
 
 socket.emit_leave = function (player)
 {
 	player.socket.broadcast.to(player.game.id).emit('leave', player.name);
-};
+}
 
 socket.emit_ready = function (game, delay)
 {
 	_sockets.to(game.id).emit('ready', delay);
-};
+}
 
 socket.emit_start = function (game)
 {
-	for (var name in game.slots)
+	/*for (var name in game.slots)
 	{
 		var player = game.slots[name];
 		player.socket.emit('info', player.state);//to(player.game.id).
-	}
+	}*/
 
 	_sockets.to(game.id).emit('start', game.state);
-};
+}
 
 socket.emit_tick = function (game)
 {
 	_sockets.to(game.id).emit('tick', game.state.time);
-};
+}
 
 socket.emit_away = function (player)
 {
 	_sockets.to(player.game.id).emit('away', player.name);
-};
+}
 
 socket.emit_back = function (player)
 {
 	_sockets.to(player.game.id).emit('back', player.name);
-};
+}
