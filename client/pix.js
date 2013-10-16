@@ -6,17 +6,23 @@ pix = {};
 	var _HEX_2H = 2*_HEX_H
 	var _HEX_3H = 3 * _HEX_H
 	var _HEX_4H = 4 * _HEX_H
-	//var _HEX_W = Math.round(Math.sqrt(3) * _HEX_H)
+	//var _HEX_W = Math.sqrt(3) * _HEX_H
 	var _HEX_W = 28
 	var _HEX_2W = 2 * _HEX_W
+
+	var _HEX_D = Math.sqrt(_HEX_W * _HEX_W + _HEX_3H * _HEX_3H)
+	var _HEX_M = _HEX_D / 2
+	var _HEX_X = _HEX_W / _HEX_D
+	var _HEX_Y = _HEX_3H / _HEX_D
+	oO('NORM', _HEX_X, _HEX_Y)
 
 	/*var _OBJ_W = 7
 	var _OBJ_2W = 2 * _OBJ_W
 	var _OBJ_H = 8
 	var _OBJ_S = 16*/
-	var _OBJ_W = 14
+	var _OBJ_W = _HEX_W / 2
 	var _OBJ_2W = 2 * _OBJ_W
-	var _OBJ_H = 24
+	var _OBJ_H = _HEX_3H / 2
 	var _OBJ_S = 42
 
 	var _SIZE
@@ -39,8 +45,10 @@ pix = {};
 		dx = Math.abs(dx)
 		dy = Math.abs(dy)
 		dz = Math.abs(dz)
-		var cost = ((dx + dy + dz) >> 1)
-		oO('COST', cost)
+		var max = Math.max(dx, dy, dz)
+		var min = Math.min(dx, dy, dz)
+		oO('COST', max, (_SIZE - max) + min)
+		//oO('COST', _SIZE - max + min)
 		return
 		dx = Math.min(12 - dx, dx)
 		dy = Math.min(8 - dy, dy)
@@ -80,8 +88,8 @@ pix = {};
 		_SIZE = board.length
 
 		this.build = build
-		this.board_w = _SIZE * _HEX_2W
-		this.board_h = _SIZE * _HEX_3H
+		_BOARD_W = _SIZE * _HEX_2W
+		_BOARD_H = _SIZE * _HEX_3H
 		this.drag_x = 0
 		this.drag_y = 0
 		this.drop_x = 0
@@ -113,8 +121,6 @@ pix = {};
 				land.x = x - (y >> 1)
 				land.y = y
 				land.z = - land.x - y
-				//land.x += 16
-				//land.z += 16
 				land.n = []
 
 				for (var i in nmask)
@@ -128,11 +134,6 @@ pix = {};
 
 		this.board[0][0].type = 8
 		this.cmode = 7
-		var a = this.board[2][1]
-		var b = this.board[1][3]
-		oO('A', a.x, a.y, a.z)
-		oO('B', b.x, b.y, b.z)
-		path_cost(a, b)
 
 		this.on('drag', function (data)
 		{
@@ -142,23 +143,46 @@ pix = {};
 
 		this.on('drop', function (data)
 		{
-			this.drop_x = ((this.drop_x - this.drag_x) + this.board_w) % this.board_w
-			this.drop_y = ((this.drop_y - this.drag_y) + this.board_h) % this.board_h
+			this.drop_x = ((this.drop_x - this.drag_x) + _BOARD_W) % _BOARD_W
+			this.drop_y = ((this.drop_y - this.drag_y) + _BOARD_H) % _BOARD_H
 			this.drag_x = 0
 			this.drag_y = 0
 		})
 
 		this.on('click', function (data)
 		{
-			var down_y = Math.floor((this.drop_y + data.down_y - _HORIZON + _HEX_H) / _HEX_3H) % _SIZE
+			var raw_x = (this.drop_x + data.down_x) % _BOARD_W
+			var raw_y = (this.drop_y + data.down_y - _HORIZON) % _BOARD_H
+			var rel_x = raw_x % _HEX_W
+			var rel_y = raw_y % _HEX_3H
+			var min_x = (raw_x - rel_x) / _HEX_W
+			var min_y = (raw_y - rel_y) / _HEX_3H
 
-			if (down_y & 1)
+			if ((min_x & 1) == (min_y & 1))
 			{
-				var down_x = Math.floor((this.drop_x + data.down_x) / _HEX_2W) % _SIZE
+				if ((rel_x * _HEX_X + rel_y * _HEX_Y) < _HEX_M)
+				{
+					var down_x = (min_x >> 1) % _SIZE
+					var down_y = min_y % _SIZE
+				}
+				else
+				{
+					var down_x = ((min_x + 1) >> 1) % _SIZE
+					var down_y = (min_y + 1) % _SIZE
+				}
 			}
 			else
 			{
-				var down_x = Math.round((this.drop_x + data.down_x) / _HEX_2W) % _SIZE
+				if (((rel_x - _HEX_W) * -_HEX_X + rel_y * _HEX_Y) < _HEX_M)
+				{
+					var down_x = ((min_x + 1) >> 1) % _SIZE
+					var down_y = min_y % _SIZE
+				}
+				else
+				{
+					var down_x = (min_x >> 1) % _SIZE
+					var down_y = (min_y + 1) % _SIZE
+				}
 			}
 
 			if (this.cmode == 7)
@@ -316,15 +340,15 @@ pix = {};
 				}
 			}
 		}
-		while (open.length > 0);
+		while (open.length > 0)
 
 		return null
 	});
 
 	Map.method('draw', function (elapsed, context)
 	{
-		var shift_x = (this.drop_x - this.drag_x + this.board_w) % this.board_w
-		var shift_y = (this.drop_y - this.drag_y + this.board_h) % this.board_h
+		var shift_x = (this.drop_x - this.drag_x + _BOARD_W) % _BOARD_W
+		var shift_y = (this.drop_y - this.drag_y + _BOARD_H) % _BOARD_H
 		var start_x = Math.floor(shift_x / _HEX_2W)
 		var start_y = Math.floor(shift_y / _HEX_3H)
 		var end_x = start_x + Math.ceil(this.width / _HEX_2W) + 2

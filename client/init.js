@@ -40,8 +40,7 @@
 
 		var assets =
 		{
-			hexbg: '/assets/hexbg.png',
-			objects: '/assets/objects.png'
+			hexbg: '/assets/hexbg.png'
 		};
 
 		preload(assets, init);
