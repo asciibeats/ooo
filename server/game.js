@@ -8,7 +8,7 @@ var _MIN_PLAYERS = 1;
 var _MAX_PLAYERS = 1;
 var _START_DELAY = 3;
 var _TICK_LENGTH = 30;
-var _SIZE = 6;
+var _SIZE = 16;
 
 var _players = {};
 var _games = {};
