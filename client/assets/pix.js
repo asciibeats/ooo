@@ -199,7 +199,7 @@ var PIX = {};
 
 	PIX.fullscreen = function ()
 	{
-		oO('FULLSCREEN');
+		util('FULLSCREEN');
 		if (!document.FullScreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement)
 		{
 			if (document.documentElement.requestFullscreen)
@@ -500,7 +500,7 @@ var PIX = {};
 		}
 
 		//actor.trigger('size');
-		oO.add(this.actors, actor, actor.depth, actor.id);
+		util.add(this.actors, actor, actor.depth, actor.id);
 		return this;
 	});
 
@@ -508,7 +508,7 @@ var PIX = {};
 	{
 		if (actor)
 		{
-			oO.remove(this.actors, actor.depth, actor.id);
+			util.remove(this.actors, actor.depth, actor.id);
 		}
 		else
 		{
@@ -520,7 +520,7 @@ var PIX = {};
 
 	Scene.method('draw', function (elapsed, context)
 	{
-		oO.each2d(this.actors, function (actor)
+		util.each2d(this.actors, function (actor)
 		{
 			context.save();
 			context.globalAlpha = actor.alpha;
@@ -581,7 +581,7 @@ var PIX = {};
 	{
 		var offset_y = 0;
 
-		oO.each2d(this.actors, function (actor)
+		util.each2d(this.actors, function (actor)
 		{
 			actor.relative_y = offset_y;
 			offset_y += actor.height + this.spacing;

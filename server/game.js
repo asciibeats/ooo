@@ -1,17 +1,45 @@
 var game = {};
 module.exports = game;
 
-var oO = require('../client/assets/oO.js');
 var socket = require('./socket.js');
+var util = require('../client/assets/util.js');
 
 var _MIN_PLAYERS = 1;
 var _MAX_PLAYERS = 1;
 var _START_DELAY = 3;
 var _TICK_LENGTH = 30;
 var _SIZE = 16;
+var _NMASK = [[[-1, -1], [0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0]], [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 0]]];
+
+var _ACTION_BUILD = 0;
+var _ACTION_CAPTURE = 1;
 
 var _players = {};
 var _games = {};
+
+game.is_valid_name = function (name)
+{
+	return (_players[name] ? false : true);
+}
+
+game.register = function (name, pass, mail)
+{
+	if (!_players[name])
+	{
+		console.log('REGISTER %s', name);
+		_players[name] = new Player(name, pass, mail);
+		return _players[name];
+	}
+}
+
+game.login = function (name, pass)
+{
+	if (_players[name] && !_players[name].socket && (_players[name].pass === pass))
+	{
+		console.log('LOGIN %s', name);
+		return _players[name];
+	}
+}
 
 function Player (name, pass, mail)
 {
@@ -21,100 +49,126 @@ function Player (name, pass, mail)
 	this.socket = null;
 	this.game = null;
 	//this.friends = {};
-	this.pools = [];
 	//this.played = 1;//number of games
 	//this.seeked = 1;//times played as seeker(ones because division by zero stuff)
 }
 
-Player.prototype.init = function ()
+Player.prototype.login = function (sock)
 {
+	this.socket = sock;
+
 	if (this.game)
 	{
-		oO('BACK', this.game.id, this.name);
+		console.log('BACK %d %s', this.game.id, this.name);
 		this.socket.join(this.game.id);
 		socket.emit_back(this);
+		return this.game;
 	}
-	else
+}
+
+Player.prototype.stats = function ()
+{
+	return {};
+}
+
+Player.prototype.create_game = function (options)
+{
+	var game = new Game(options);
+	console.log('CREATE %d %s', game.id, this.name);
+	game.join(this);
+	return game;
+}
+
+Player.prototype.join_game = function (options)
+{
+	for (var id in _games)
 	{
-		for (var id in _games)
+		if (_games[id].join(this))
 		{
-			if (_games[id].join(this))
-			{
-				break;
-			}
+			return this.game;
 		}
 	}
 
-	if (!this.game)
-	{
-		var game = new Game(this);
-		game.id = oO.fill(_games, game);
-		oO('CREATE', game.id, this.name);
-		this.socket.join(game.id);
-		//socket.emit_invite(this.friends, player.game);
-	}
-
-	return this.game.state;
-};
+	return this.create_game();
+}
 
 /*Player.prototype.ratio = function ()
 {
-
 	return (this.played / this.seeked);
 };*/
 
 Player.prototype.logout = function ()
 {
-	if (this.game.state.time)
+	if (this.game)
 	{
-		oO('AWAY', this.game.id, this.name);
-		socket.emit_away(this);
-	}
-	else
-	{
-		this.game.leave(this);
+		if (this.game.time)
+		{
+			console.log('AWAY %d %s', this.game.id, this.name);
+			socket.emit_away(this);
+		}
+		else
+		{
+			this.game.leave(this);
+		}
 	}
 
 	this.socket = null;
 }
 
-function Game (player)
+function Game (options)
 {
-	this.id = null;
-	this.public = true;//temp->false
+	//map size
+	this.size = options.size || 16;
+	//is it open to the public to join
+	this.open = true;//temp->false
+
+	//joined players
+	//player objectreferences
 	this.slots = {};
+	//player stats
+	this.stats = {};
+	//private player knowledge
+	this.realms = {};
 
-	this.state = {};
-	this.state.time = 0;
-	this.state.players = {};
-	this.state.board = [];
-	this.state.build = [];
-	this.state.pools = {};
+	//number of ticks past overall
+	this.time = 0;
+	//hextile types (plain, forest, mountain...)
+	this.board = [];
+	this.neigh = [];
+	//COMBINE BOARD & BUILD!!!! -> SO KNOWLEDGE OF BOARD IMPLIES KNOWLEDGE OF BUILD TO PLAYER
+	//the objects on top of tiles (trees, buildings...)
+	//this.build = [];
+	this.id = util.fill(_games, this);
+}
 
-	this.slots[player.name] = player;
-	this.state.players[player.name] = {};
-	player.game = this;
+Game.prototype.number_of_players = function ()
+{
+	return Object.keys(this.slots).length;
 }
 
 Game.prototype.join = function (player)
 {
-	if (this.public && !this.timeout && (oO.size(this.slots) < _MAX_PLAYERS))//letzte bedingung trifft net zu da autostart??
+	if (this.open && !this.timeout && (this.number_of_players() < _MAX_PLAYERS))
 	{
-		oO('JOIN', this.id, player.name);
-
+		console.log('JOIN %d %s', this.id, player.name);
 		this.slots[player.name] = player;
-		this.state.players[player.name] = {};
+		this.stats[player.name] = player.stats();
 		player.game = this;
 		player.socket.join(this.id);
 		socket.emit_join(player);
 
+		if (this.number_of_players() === _MAX_PLAYERS)
+		{
+			this.ready();
+		}
+
 		return true;
 	}
-};
+}
 
 Game.prototype.leave = function (player)
 {
-	oO('LEAVE', this.id, player.name);
+	console.log('LEAVE %d %s', this.id, player.name);
 
 	if (this.timeout)
 	{
@@ -123,9 +177,9 @@ Game.prototype.leave = function (player)
 	}
 
 	delete this.slots[player.name];
-	delete this.state.players[player.name];
+	delete this.stats[player.name];
 
-	if (oO.size(this.slots) > 0)
+	if (this.number_of_players() > 0)
 	{
 		socket.emit_leave(player);
 	}
@@ -136,48 +190,72 @@ Game.prototype.leave = function (player)
 
 	player.socket.leave(this.id);
 	player.game = null;
-};
-
-Game.prototype.check = function ()
-{
-	if (!this.state.time && (oO.size(this.slots) === _MAX_PLAYERS))
-	{
-		this.ready();
-	}
-};
+}
 
 Game.prototype.ready = function ()
 {
-	if (!this.timeout && (oO.size(this.slots) >= _MIN_PLAYERS))
+	if (!this.timeout && (this.number_of_players() >= _MIN_PLAYERS))
 	{
-		oO('READY', this.id);
-
+		console.log('READY %d', this.id);
 		socket.emit_ready(this, _START_DELAY);
 		var that = this;
 		this.timeout = setTimeout(function () { that.start() }, _START_DELAY * 1000);
 	}
-};
+}
 
 Game.prototype.start = function ()
 {
-	oO('START', this.id);
-
-	this.public = false;
+	console.log('START %d', this.id);
+	this.open = false;
+	this.time = 1;
 	delete this.timeout;
 
+	//generate random board
 	for (var y = 0; y < _SIZE; y++)
 	{
-		this.state.board[y] = [];
+		this.board[y] = [];
+		this.neigh[y] = [];
 
 		for (var x = 0; x < _SIZE; x++)
 		{
-			this.state.board[y][x] = Math.floor(Math.random() * 2);
+			var tile = {};
+			tile.x = x;
+			tile.y = y;
+			tile.type = Math.floor(Math.random() * 4) + 1;
+			this.board[y][x] = tile;
+			this.neigh[y][x] = [];
 		}
+	}
+
+	//build up neighbor connections
+	for (var y = 0; y < _SIZE; y++)
+	{
+		var nmask = _NMASK[y & 1];
+
+		for (var x = 0; x < _SIZE; x++)
+		{
+			var neigh = this.neigh[y][x];
+
+			for (var i in nmask)
+			{
+				var nx = (x + nmask[i][0] + _SIZE) % _SIZE;
+				var ny = (y + nmask[i][1] + _SIZE) % _SIZE;
+				neigh[i] = this.board[ny][nx];
+			}
+		}
+	}
+
+	//generate random build
+	/*var seeds = [];
+
+	for (var i = 0; i < 5; i++)
+	{
+		seeds[i] = {x: Math.floor(Math.random() * _SIZE * 2), y: Math.floor(Math.random() * _SIZE * 2)};
 	}
 
 	for (var y = 0; y < _SIZE * 2; y++)
 	{
-		this.state.build[y] = [];
+		this.build[y] = [];
 
 		for (var x = 0; x < _SIZE * 2; x++)
 		{
@@ -185,81 +263,101 @@ Game.prototype.start = function ()
 
 			if (type > 6)
 			{
-				this.state.build[y][x] = type - 6;
+				this.build[y][x] = type - 6;
 			}
 			else
 			{
-				this.state.build[y][x] = 0;
+				this.build[y][x] = 0;
 			}
-			/*if (((x == 0) && (y % 3 == 0)) || (y == 0))
-			{
-				this.state.build[y][x] = Math.round(Math.random() * 5) + 1;
-			}
-			else
-			{
-				this.state.build[y][x] = 0;
-			}*/
 		}
+	}*/
+
+	//assign startingpoint (and hero) to each player
+	//separieren:was alle wissen(allgemeines)/spielerwissen/serverdata
+	var id = 0;
+	var x = 0;
+	var y = 0;
+
+	for (var name in this.slots)
+	{
+		var realm = {};
+		realm.id = id;
+		realm.x = x;
+		realm.y = y;
+		realm.name = 'Mordor';
+		
+		realm.population = {count: 10, stats: {anger: 0, health: 1}};
+		realm.characters = [];
+		realm.succession = [];
+
+		realm.gain = 10;
+		realm.affect = {};
+		realm.affect[id] = 5;//rest geht in entdeckung?
+		realm.coins = {};
+		realm.coins[id] = 5;
+		realm.discover = 5;
+		this.realms[name] = realm;
+		var neigh = this.neigh[y][x];
+
+		for (var i in neigh)
+		{
+			neigh[i].realm = id;
+		}
+
+		id++;
 	}
 
-	this.state.time = 1;
-
 	socket.emit_start(this);
-
 	var that = this;
 	this.interval = setInterval(function () { that.tick() }, _TICK_LENGTH * 1000);
-};
+}
 
 Game.prototype.tick = function ()
 {
-	this.state.time++;
-	oO('TICK', this.id, this.state.time);
+	this.time++;
+	console.log('TICK %d %d', this.id, this.time);
+
+	//calc changes
+	for (var name in this.realms)
+	{
+		var realm = this.realms[name];
+
+		while (var action = realm.actions.pop())
+		{
+			if (action.type == _ACTION_BUILD)
+			{
+				this.build(name, action.data);
+			}
+			else if (action.type == _ACTION_CAPTURE)
+			{
+			}
+		}
+	}
+
 	socket.emit_tick(this);
-};
+}
 
-/*Game.prototype.build = function (x, y)
+Game.prototype.build = function (name, data)
 {
-	if (!this.state.board[y])
-	{
-		this.state.board[y] = {};
-	}
+	//verify consitency
+	////if no build at that place und player darf da
+	//raise updated-flag
+	this.update.build.push(tile);
+	//update game
+	this.board[action.y][action.x].type = 7;
+}
 
-	this.state.board[y][x] = this.state.card;
-	this.state.turn = (this.state.turn + 1) % this.size;
-	this.state.card = this.cards[0].shift();
-};*/
-
-Game.prototype.addPool = function (x, y, type, player)
+Game.prototype.reveal = function (name, x, y)
 {
-	if (!this.state.pools[y])
-	{
-		this.state.pools[y] = {};
-	}
+	util.add(this.realms[name].board, this.board[y][x], y, x);
+}
 
-	this.state.pools[y][x] = type;
-	player.pools.push([x, y]);
-};
-
-game.is_valid_name = function (name)
+Game.prototype.capture = function (name, x, y)
 {
-	return (_players[name] ? false : true);
-};
+	this.board[y][x].realm = name;
+}
 
-game.register = function (name, pass, mail)
+Game.prototype.retreat = function (tile)
 {
-	if (!_players[name])
-	{
-		oO('REGISTER', name);
-		_players[name] = new Player(name, pass, mail);
-		return _players[name];
-	}
-};
-
-game.login = function (name, pass)
-{
-	if (_players[name] && !_players[name].socket && (_players[name].pass === pass))
-	{
-		oO('LOGIN', name);
-		return _players[name];
-	}
-};
+	delete this.board[y][x].realm;
+}

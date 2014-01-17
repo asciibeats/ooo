@@ -1,127 +1,166 @@
 socket = {};
 
-/*function dataPaths(object, prefix, callback)
-{
-	for (var key in object)
-	{
-		var path = prefix + key;
-
-		//if (Object.prototype.toString.call(object[key]) == "[object Object]")
-		if (typeof object[key] == 'object')
-		{
-			dataPaths(object[key],  path + '/', callback);
-		}
-		else
-		{
-			callback(path);
-		}
-	}
-}
-
-var test = {};
-test.a = 'hallo';
-test.b = {};
-test.b.c = 3;
-test.b.d = [];
-test.b.d[2] = 'welt';
-test.b.d[360] = 'welt';
-
-dataPaths(test, '/', function (path) { oO(path) });*/
-
 (function ()
 {
-	//var _host;
 	var _socket;
 	var _name;
 	var _pass;
-	var _auth = false;//temp
-	//var _time_sync = 0;
+	var _timer;
+	var _options;
 
-	//events
-	function on_connect ()
+	//callbacks
+	function cb_name (value)
 	{
-		this.on('disconnect', on_disconnect);
-
-		if (_auth)//if credentials in local storage
+		if (value)
 		{
-			oO('...geht weiter');
-			//game.note_hide();
-			_socket.emit('auth', _name, _pass, null, on_init);
+			oO('name is valid');
 		}
 		else
 		{
-			pix.promptLogin();
+			oO('choose another name');
 		}
 	}
 
-	function on_init (state)
+	function cb_auth (board, realm)
 	{
-		if (state)
+		if (board)
 		{
-			_auth = true;
-			//save credentials to local storage
+			localStorage.name = _name;
+			localStorage.pass = _pass;
 
-			this.on('join', function (name) { game.join(name) });
-			this.on('leave', function (name) { game.leave(name) });
-			this.on('ready', function (delay) { game.ready(delay) });
-			this.on('start', function (state) { game.start(state) });
-			this.on('tick', function (time) { game.tick(time) });
-			this.on('pool', function (x, y, type) { game.pool(x, y, type) });
-			this.on('away', function (name) { game.away(name) });
-			this.on('back', function (name) { game.back(name) });
-
-			game.init(state);
+			if (realm)
+			{
+				oO('continue', realm);
+				pix.show_world(board, realm);
+			}
+			else
+			{
+				oO('granted');
+				pix.prompt_main();
+			}
 		}
 		else
 		{
-			oO('access denied');
-			pix.promptLogin();
+			oO('denied');
+			delete localStorage.name;
+			delete localStorage.pass;
+			pix.prompt_login();
 		}
+	}
+
+	function cb_lobby (players)
+	{
+		pix.show_lobby(players);
+	}
+
+	//inbound
+	function on_connect ()
+	{
+		this.on('disconnect', on_disconnect);
+		this.on('join', on_join);
+		this.on('leave', on_leave);
+		this.on('ready', on_ready);
+		this.on('start', on_start);
+		this.on('tick', on_tick);
+		this.on('away', on_away);
+		this.on('back', on_back);
+		pix.prompt_login();
 	}
 
 	function on_disconnect ()
 	{
 		oO('connection down, please wait...');
-		//game.note_show('bla');
 		_socket.removeAllListeners();
 		_socket.on('connect', on_connect);
 	}
 
+	function on_join (name)
+	{
+		oO('join', name);
+		_players[name] = {};
+	}
+
+	function on_leave (name)
+	{
+		if (_timer)
+		{
+			clearTimeout(_timer);
+			_timer = null;
+		}
+
+		delete _players[name];
+		oO('leave', name);
+	}
+
+	function on_ready (delay)
+	{
+		function step ()
+		{
+			oO(delay);
+			delay--;
+
+			if (delay > 0)
+			{
+				_timer = setTimeout(step, 1000);
+			}
+		}
+
+		step();
+	}
+
+	function on_start (board, realm)
+	{
+		oO('start', realm);
+		pix.show_world(board, realm);
+	}
+
+	function on_tick (time)
+	{
+		//oO('tick', time);
+	}
+
+	function on_away (name)
+	{
+		oO('away', name);
+	}
+
+	function on_back (name)
+	{
+		oO('back', name);
+	}
+
+	//outbound
 	socket.connect = function (host)
 	{
 		oO('connecting', host);
-		_socket = io.connect(host, {reconnect: false});//, {reconnect: false}
+		_socket = io.connect(host, {reconnect: false});
 		_socket.on('connect', on_connect);
 	}
 
-	socket.emit_pool = function (x, y, type)
+	socket.emit_name = function (name)
 	{
-		if (_name == 'tilla')
-		{
-			_socket.emit('pool', 0, 0, 0);
-		}
-		else
-		{
-			_socket.emit('pool', 1, 1, 1);
-		}
-
-		//_socket.emit('pool', x, y, type);
+		_socket.emit('name', name, cb_name);
 	}
 
 	socket.emit_auth = function (name, pass, mail)
 	{
 		_name = name;
 		_pass = pass;
-		_socket.emit('auth', name, pass, mail, on_init);
+		_socket.emit('auth', name, pass, mail, cb_auth);
+	}
+
+	socket.emit_create = function (options)
+	{
+		_socket.emit('create', options, cb_lobby);
+	}
+
+	socket.emit_join = function (options)
+	{
+		_socket.emit('join', options, cb_lobby);
 	}
 
 	socket.emit_ready = function ()
 	{
 		_socket.emit('ready');
-	}
-
-	socket.emit_turn = function (x, y)
-	{
-		_socket.emit('turn', x, y);
 	}
 })();

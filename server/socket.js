@@ -14,84 +14,83 @@ function deny_access (socket, callback)
 	return function ()
 	{
 		socket.once('auth', on_auth);
-		callback(null);
+		callback(false);
 	}
 }
 
 //events
-/*function on_name (name, callback)
+function on_name (name, callback)
 {
 	callback(game.is_valid_name(name));
-}*/
+}
 
 function on_auth (name, pass, mail, callback)
 {
-	var player;
-
 	if (mail)
 	{
-		player = game.register(name, pass, mail);
+		var player = game.register(name, pass, mail);
 	}
 	else
 	{
-		player = game.login(name, pass);
+		var player = game.login(name, pass);
 	}
 
 	if (player)
 	{
+		console.log('GRANTED %s', name);
 		this.set('player', player);
-
-		this.on('disconnect', on_disconnect);
+		this.once('disconnect', on_disconnect);
+		this.on('create', on_create);
+		this.on('join', on_join);
 		this.once('ready', on_ready);
-		//this.on('turn', on_turn);
-		this.on('pool', on_pool);
+		var gamee = player.login(this);
 
-		player.socket = this;
-		callback(player.init());
-		player.game.check();
+		if (gamee)
+		{
+			var realm = gamee.realms[player.name];
+			this.set('realm', realm);
+			callback(gamee.board, realm);
+		}
+		else
+		{
+			callback(true);
+		}
 	}
 	else
 	{
-		oO('DENIED', name);
+		console.log('DENIED %s', name);
 		setTimeout(deny_access(this, callback), _DENY_DELAY * 1000);
 	}
 }
 
-function on_ready ()
-{
-	this.get('player', function (error, player) { player.game.ready() });
-}
-
-function on_pool (x, y, type)
+function on_create (options, callback)//spielparameter mit übergeben
 {
 	this.get('player', function (error, player)
 	{
-		oO('POOL', player.name);
-		player.game.addPool(x, y, type, player);
-
-		player.socket.emit(x, y);
-		_sockets.to(player.game.id).emit('pool', x, y, type);
+		var game = player.create_game(options);
+		callback(game.stats);
 	});
 }
 
-/*function on_turn (x, y)
+function on_join (options, callback)
 {
-	this.get('player', function (n, player)
+	this.get('player', function (error, player)
 	{
-		var game = player.game;
-
-		if (game.state.players[player.name].turn === game.state.turn)
-		{
-			oO('TURN', x, y);
-			game.build(x, y);
-			_sockets.to(game.id).emit('turn', x, y, game.state.turn, game.state.card);
-		};
+		var game = player.join_game(options);
+		callback(game.stats);
 	});
-};*/
+}
+
+function on_ready ()
+{
+	//sicherstellen das nur der master das spiel frühzeitig starten kann
+	////on('ready')nur für pl1
+	this.get('player', function (error, player) { player.game.ready() });
+}
 
 function on_disconnect ()
 {
-	this.get('player', function (x,player) { player.logout() });
+	this.get('player', function (error, player) { player.logout() });
 }
 
 //module
@@ -123,26 +122,26 @@ socket.emit_ready = function (game, delay)
 
 socket.emit_start = function (game)
 {
-	/*for (var name in game.slots)
+	for (var name in game.slots)
 	{
-		var player = game.slots[name];
-		player.socket.emit('info', player.state);//to(player.game.id).
-	}*/
-
-	_sockets.to(game.id).emit('start', game.state);
+		var socket = game.slots[name].socket;
+		var realm = game.realms[name];
+		socket.set('realm', realm);
+		socket.emit('start', game.board, realm);
+	}
 }
 
 socket.emit_tick = function (game)
 {
-	_sockets.to(game.id).emit('tick', game.state.time);
+	_sockets.to(game.id).emit('tick', game.time);
 }
 
 socket.emit_away = function (player)
 {
-	_sockets.to(player.game.id).emit('away', player.name);
+	player.socket.broadcast.to(player.game.id).emit('away', player.name);
 }
 
 socket.emit_back = function (player)
 {
-	_sockets.to(player.game.id).emit('back', player.name);
+	player.socket.broadcast.to(player.game.id).emit('back', player.name);
 }

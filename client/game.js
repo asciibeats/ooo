@@ -10,13 +10,13 @@ game = {};
 
 		if (state.time)
 		{
-			pix.showMap(state);
 		}
 		else
 		{
 			pix.showLobby(state);
 		}
 
+		//oO('init', state.players);
 		oO('init', state);
 	}
 
@@ -56,15 +56,13 @@ game = {};
 		step();
 	}
 
-	game.start = function (state)
+	game.start = function (info)
 	{
-		oO('START', state);
+		oO('START', info);
 		_timer = null;
-		this.state = state;
+		this.info = info;
 
-		pix.showMap(this.state);
-		//var origin = pix.promptPool(this.state.pools);
-		socket.emit_pool(4, 4, 1);
+		pix.showMap(this.info);
 	}
 
 	game.tick = function (time)
@@ -82,35 +80,28 @@ game = {};
 		pix.next();*/
 	}
 
-	game.pool = function (x, y, type)
-	{
-		oO('POOL', x, y, type);
-
-		if (!this.state.pools[y])
-		{
-			this.state.pools[y] = {};
-		}
-
-		this.state.pools[y][x] = type;
-	}
-
-	game.pool = function (x, y, type)
-	{
-		oO('POOL', x, y, type);
-
-		if (!this.state.pools[y])
-		{
-			this.state.pools[y] = {};
-		}
-
-		this.state.pools[y][x] = type;
-	}
-
 	game.away = function (name)
 	{
 	}
 
 	game.back = function (name)
 	{
+	}
+
+	game.build = function (x, y, type)
+	{
+		this.state.build[y][x] = type;
+	}
+
+	game.pool = function (x, y)
+	{
+		if (!this.state.pool[y])
+		{
+			this.state.pool[y] = {};
+		}
+
+		this.state.pool[y][x] = {};
+		this.state.build[y][x] = _BUILD_CAMP;
+		socket.emitPool(board_x, board_y);
 	}
 })();
