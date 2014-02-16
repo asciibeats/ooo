@@ -318,7 +318,8 @@ Game.prototype.tick = function ()
 	console.log('TICK %d %d', this.id, this.time);
 
 	//calc changes
-	for (var name in this.realms)
+	//return;
+	/*for (var name in this.realms)
 	{
 		var realm = this.realms[name];
 
@@ -332,7 +333,7 @@ Game.prototype.tick = function ()
 			{
 			}
 		}
-	}
+	}*/
 
 	socket.emit_tick(this);
 }
