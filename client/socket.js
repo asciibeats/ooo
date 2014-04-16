@@ -1,8 +1,86 @@
-socket = {};
+royal = {};
+
+royal.Socketman = function (state)
+{
+	this.state = state;
+	this.events = {};
+	this.sockjs = null;
+}
+
+royal.Socketman.prototype.connect = function (url)
+{
+	this.sockjs = new SockJS(url);
+	var that = this;
+
+	this.sockjs.onopen = function ()
+	{
+		that.send(_HELLO);
+		console.log('OPEN');
+	}
+
+	this.sockjs.onmessage = function (string)
+	{
+		var data = JSON.parse(string);
+		var type = data.shift();
+		console.log('DATA[' + type + ']');
+		that.act(type, data);
+	}
+
+	this.sockjs.onclose = function ()
+	{
+		console.log('CLOSE');
+	}
+}
+
+royal.Socketman.prototype.send = function ()
+{
+	this.sockjs.send(JSON.stringify(arguments));
+}
+
+royal.Socketman.prototype.on = function (Number type, Array expect, Object action)
+{
+	this.events[type] = {};
+	this.events[type].action = action;
+	this.events[type].expect = {};
+
+	for (var i in expect)
+	{
+		this.events[type].expect[expect[i]] = true;
+	}
+}
+
+royal.Socketman.prototype.trigger = function (type, data)
+{
+	if (this.events[this.state].expect[type])
+	{
+		this.events[type].action.apply(this, data);
+		this.state = type;
+	}
+}
 
 (function ()
 {
-	var _socket;
+	var _NULL = 0;
+	var _SPAWN = 1;
+	var _ACCEPT = 2;
+	var _ACTION = 3;
+	var _TICK = 4;
+	var _TOCK = 5;
+
+	socket.on(_SPAWN, [_INIT], function (token, games)
+	{
+	});
+
+	socket.on(_INIT, [_JOIN, _HOST], function (token, games)
+	{
+	});
+
+	socket.on(_JOIN, [_LOBBY], function (token, games)
+	{
+	});
+
+
+	//var _socket;
 	var _name;
 	var _pass;
 	var _timer;
@@ -44,7 +122,7 @@ socket = {};
 			oO('denied');
 			delete localStorage.name;
 			delete localStorage.pass;
-			pix.prompt_login();
+			pix.show_login();
 		}
 	}
 
@@ -54,24 +132,20 @@ socket = {};
 	}
 
 	//inbound
-	function on_connect ()
+	function on_open ()
 	{
-		this.on('disconnect', on_disconnect);
-		this.on('join', on_join);
-		this.on('leave', on_leave);
-		this.on('ready', on_ready);
-		this.on('start', on_start);
-		this.on('tick', on_tick);
-		this.on('away', on_away);
-		this.on('back', on_back);
-		pix.prompt_login();
+		console.log('open');
+		_socket.send('muddi');
 	}
 
-	function on_disconnect ()
+	function on_message (message)
 	{
-		oO('connection down, please wait...');
-		_socket.removeAllListeners();
-		_socket.on('connect', on_connect);
+		console.log(JSON.stringify(message));
+	}
+
+	function on_close ()
+	{
+		console.log('close');
 	}
 
 	function on_join (name)
@@ -127,14 +201,6 @@ socket = {};
 	function on_back (name)
 	{
 		oO('back', name);
-	}
-
-	//outbound
-	socket.connect = function (host)
-	{
-		oO('connecting', host);
-		_socket = io.connect(host, {reconnect: false});
-		_socket.on('connect', on_connect);
 	}
 
 	socket.emit_name = function (name)

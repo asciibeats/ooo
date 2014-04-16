@@ -1,124 +1,9 @@
-var game = {};
-module.exports = game;
-
-var socket = require('./socket.js');
-var util = require('../client/assets/util.js');
-
-var _MIN_PLAYERS = 1;
-var _MAX_PLAYERS = 1;
-var _START_DELAY = 3;
-var _TICK_LENGTH = 30;
-var _SIZE = 16;
 var _NMASK = [[[-1, -1], [0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0]], [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 0]]];
 
-var _ACTION_BUILD = 0;
-var _ACTION_CAPTURE = 1;
-
-var _players = {};
-var _games = {};
-
-game.is_valid_name = function (name)
-{
-	return (_players[name] ? false : true);
-}
-
-game.register = function (name, pass, mail)
-{
-	if (!_players[name])
-	{
-		console.log('REGISTER %s', name);
-		_players[name] = new Player(name, pass, mail);
-		return _players[name];
-	}
-}
-
-game.login = function (name, pass)
-{
-	if (_players[name] && !_players[name].socket && (_players[name].pass === pass))
-	{
-		console.log('LOGIN %s', name);
-		return _players[name];
-	}
-}
-
-function Player (name, pass, mail)
-{
-	this.name = name;//unique
-	this.pass = pass;
-	this.mail = mail;
-	this.socket = null;
-	this.game = null;
-	//this.friends = {};
-	//this.played = 1;//number of games
-	//this.seeked = 1;//times played as seeker(ones because division by zero stuff)
-}
-
-Player.prototype.login = function (sock)
-{
-	this.socket = sock;
-
-	if (this.game)
-	{
-		console.log('BACK %d %s', this.game.id, this.name);
-		this.socket.join(this.game.id);
-		socket.emit_back(this);
-		return this.game;
-	}
-}
-
-Player.prototype.stats = function ()
-{
-	return {};
-}
-
-Player.prototype.create_game = function (options)
-{
-	var game = new Game(options);
-	console.log('CREATE %d %s', game.id, this.name);
-	game.join(this);
-	return game;
-}
-
-Player.prototype.join_game = function (options)
-{
-	for (var id in _games)
-	{
-		if (_games[id].join(this))
-		{
-			return this.game;
-		}
-	}
-
-	return this.create_game();
-}
-
-/*Player.prototype.ratio = function ()
-{
-	return (this.played / this.seeked);
-};*/
-
-Player.prototype.logout = function ()
-{
-	if (this.game)
-	{
-		if (this.game.time)
-		{
-			console.log('AWAY %d %s', this.game.id, this.name);
-			socket.emit_away(this);
-		}
-		else
-		{
-			this.game.leave(this);
-		}
-	}
-
-	this.socket = null;
-}
-
-function Game (options)
+function Game (settings)
 {
 	//map size
-	this.size = options.size || 16;
+	this.size = settings[0];
 	//is it open to the public to join
 	this.open = true;//temp->false
 
@@ -141,74 +26,40 @@ function Game (options)
 	this.id = util.fill(_games, this);
 }
 
-Game.prototype.number_of_players = function ()
+module.exports = Game;
+
+Game.prototype.empty = function ()
 {
-	return Object.keys(this.slots).length;
+	return (Object.keys(this.slots).length === 0);
 }
 
-Game.prototype.join = function (player)
+Game.prototype.full = function ()
 {
-	if (this.open && !this.timeout && (this.number_of_players() < _MAX_PLAYERS))
+	return (Object.keys(this.slots).length === this.num_slots);
+}
+
+Game.prototype.join = function (id, power)
+{
+	if (this.open && !this.full() && !this.slots[id])
 	{
-		console.log('JOIN %d %s', this.id, player.name);
-		this.slots[player.name] = player;
-		this.stats[player.name] = player.stats();
-		player.game = this;
-		player.socket.join(this.id);
-		socket.emit_join(player);
-
-		if (this.number_of_players() === _MAX_PLAYERS)
-		{
-			this.ready();
-		}
-
+		this.slots[id] = {};
 		return true;
 	}
 }
 
-Game.prototype.leave = function (player)
+Game.prototype.leave = function (id)
 {
-	console.log('LEAVE %d %s', this.id, player.name);
-
-	if (this.timeout)
+	if (this.open && this.slots[id])
 	{
-		clearTimeout(this.timeout);
-		delete this.timeout;
-	}
-
-	delete this.slots[player.name];
-	delete this.stats[player.name];
-
-	if (this.number_of_players() > 0)
-	{
-		socket.emit_leave(player);
-	}
-	else
-	{
-		delete _games[this.id];
-	}
-
-	player.socket.leave(this.id);
-	player.game = null;
-}
-
-Game.prototype.ready = function ()
-{
-	if (!this.timeout && (this.number_of_players() >= _MIN_PLAYERS))
-	{
-		console.log('READY %d', this.id);
-		socket.emit_ready(this, _START_DELAY);
-		var that = this;
-		this.timeout = setTimeout(function () { that.start() }, _START_DELAY * 1000);
+		delete this.slots[id];
+		return true;
 	}
 }
 
 Game.prototype.start = function ()
 {
-	console.log('START %d', this.id);
 	this.open = false;
 	this.time = 1;
-	delete this.timeout;
 
 	//generate random board
 	for (var y = 0; y < _SIZE; y++)
@@ -307,35 +158,24 @@ Game.prototype.start = function ()
 		id++;
 	}
 
-	socket.emit_start(this);
-	var that = this;
-	this.interval = setInterval(function () { that.tick() }, _TICK_LENGTH * 1000);
 }
 
-Game.prototype.tick = function ()
+Game.prototype.tick = function (id, actions)
 {
-	this.time++;
-	console.log('TICK %d %d', this.id, this.time);
-
-	//calc changes
-	//return;
-	/*for (var name in this.realms)
+	if (this.running && this.slots[id])
 	{
-		var realm = this.realms[name];
+		//this.slots[id].time++;
+		return true;
+	}
+}
 
-		while (var action = realm.actions.pop())
-		{
-			if (action.type == _ACTION_BUILD)
-			{
-				this.build(name, action.data);
-			}
-			else if (action.type == _ACTION_CAPTURE)
-			{
-			}
-		}
-	}*/
-
-	socket.emit_tick(this);
+Game.prototype.tock = function ()
+{
+	if (this.running && this.slots[id])//wenn alle ticks da sind
+	{
+		//update game
+		return true;
+	}
 }
 
 Game.prototype.build = function (name, data)

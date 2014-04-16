@@ -3,43 +3,52 @@ pix = {};
 (function ()
 {
 	var _world;
+	var _map;//smaller abstract tiles
 	var _realms = {};
 
-	pix.prompt_login = function ()
+	pix.show_login = function (player, callback)
 	{
-		if (localStorage.name && localStorage.pass)
+		if (false && localStorage.name && localStorage.pass)
 		{
 			var name = localStorage.name;
 			var pass = localStorage.pass;
 		}
 		else
 		{
+			//_login = new Prompt('please login', {id: _STRING, pass: _STRING});
+			//PIX.show(_login);
 			var name = prompt('name?');
 			var pass = prompt('pass?');
 			//var mail = prompt('mail?');
 		}
 
-		socket.emit_auth(name, pass);
+		//je nach player power (median aller lebenden chars) geile flammen links u rechts vom namen oder so. so decals drumrum halt:oder fpr besondere achievements
+		//upleveln kann man nur durch untergebene (chars die weniger power haben und irgendwelche beziehungen haben; diplomat?)
+		//hexbauten schalten karten frei->deckbuilding
+		//karten haben rechargetime(manche bestimmt auch net!?=0)
+		player.name = name;
+		callback(name, pass);
 	}
 
-	pix.prompt_main = function ()
+	pix.show_main = function (callback)
 	{
-		var option = parseInt(prompt('(1)create game/(2)join random/(3)play with friends?'));
-		var options = {};
-
-		if (option == 1)
-		{
-			socket.emit_create(options);
-		}
-		else if (option == 2)
-		{
-			socket.emit_join(options);
-		}
+		console.log('### MAIN ###');
+		var option = parseInt(prompt('(1)host game/(2)join game'));
+		callback(option);
 	}
 
-	pix.show_lobby = function (stats)
+	pix.show_setup = function (setup, callback)
 	{
-		oO('lobby', stats);
+		console.log('### SETUP ###');
+		console.log(JSON.stringify(setup));
+		callback(setup);
+	}
+
+	pix.show_lobby = function (list, callback)
+	{
+		console.log('### LOBBY ###');
+		console.log(JSON.stringify(list));
+		callback(parseInt(prompt('id?')));
 	}
 
 	pix.show_world = function (size, realm)
@@ -145,6 +154,57 @@ pix = {};
 
 		return low;
 	}
+
+	//options/statistics/communication(logbuch/prompts)
+	//flow:where?->what?(select realm->select action->special func)
+
+	var Terminal = PIX.Sprite.extend(function ()
+	{
+		this.active = false;
+		this.command = 'login %id% %pass%';
+		this.history = 'lalalal';
+		this.font = '12px Arial';
+
+		this.on('press', function (data)
+		{
+			if (this.active)
+			{
+				if (key == enter)
+				{
+					//execute and add to history
+				}
+				else
+				{
+					//add char to command
+					this.command += key;
+				}
+			}
+		});
+
+		this.on('click', function (data)
+		{
+			if (this.active)
+			{
+			}
+		});
+	});
+
+	Terminal.method('draw', function (elapsed, context)
+	{
+		context.save();
+		context.font = this.font;
+		//context.textAlign = 'left';
+		//context.textBaseline = 'middle';
+		context.fillText(this.command, 0, 0);
+		context.fillText(this.history, 0, 0);
+		context.restore();
+		//draw input prompt
+		//draw log lines
+	});
+
+	Terminal.method('log', function (elapsed, context)
+	{
+	});
 
 	var World = PIX.Sprite.extend(function (board, realm)
 	{
