@@ -5,11 +5,17 @@ if (typeof module === 'object')
 	module.exports = cmn;
 }
 
+/*cmn.Leader = function ()
+{
+}*/
+
 cmn.Player = function ()
 {
 	this.chars = [];
 	this.games = [];
 	this.friends = [];
+	this.banned = [];//if you host a game, these players wont be allowed to join
+	this.messages = [];
 }
 
 cmn.Player.prototype.login = function (name, pass)
@@ -34,39 +40,78 @@ cmn.Player.prototype.load = function (state)
 	this.friends = state[2];
 }
 
+cmn.Player.prototype.store = function (message)
+{
+	this.messages.push(message);
+}
+
+cmn.Player.prototype.join = function (id)
+{
+	this.games[id] = true;
+}
+
+cmn.Player.prototype.leave = function (id)
+{
+	delete this.games[id];
+}
+
 cmn.Player.prototype.toState = function ()
 {
 	return [this.chars, this.games, this.friends];
 }
 
-cmn.Game = function (setup)
+cmn.Game = function (rules, name)
 {
-	this.open = false;
 	this.time = 0;
-	this.slots = setup[0];
-	this.free = setup[1];
-	this.size = setup[2].length;
-	this.board = setup[2];
+	this.open = true;//temp->false
+	this.invited = {};
+	this.banned = {};
+	//this.admins = {};
+	//this.admins[name] = true;
+	this.seats = {};
+	this.seats[name] = {};
+	this.rules = rules;
+	this.free = rules[0] - 1;
+	//this.size = setup[2].length;
+	//this.board = setup[2];
 }
 
 cmn.Game.prototype.NMASK = [[[-1, -1], [0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0]], [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 0]]];
 
-cmn.Game.prototype.join = function (name, stats)
+cmn.Game.prototype.toState = function ()
 {
-	if (this.open && this.free)
+	return ['state'];
+}
+
+cmn.Game.prototype.join = function (name)
+{
+	if ((this.open || this.invited[name]) && !this.banned[name] && this.free)
 	{
-		this.slots[id] = {};
-		return true;
+		var others = Object.keys(this.seats);
+		this.seats[name] = {};
+		this.free--;
+		return others;
 	}
 }
 
-cmn.Game.prototype.leave = function (id)
+cmn.Game.prototype.leave = function (name)
 {
-	if (this.open && this.slots[id])
+	if (!this.time && this.seats[name])
 	{
-		delete this.slots[id];
-		return true;
+		delete this.seats[name];
+		this.free++;
+		return Object.keys(this.seats);
 	}
+}
+
+cmn.Game.prototype.admin = function (name)
+{
+	this.admins[name] = true;
+}
+
+cmn.Game.prototype.joined = function ()
+{
+	return Object.keys(this.seats);
 }
 
 cmn.Game.prototype.start = function ()

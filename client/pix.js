@@ -37,18 +37,27 @@ pix = {};
 		callback(option);
 	}
 
-	pix.show_setup = function (setup, callback)
+	pix.show_rules = function (rules, callback)
 	{
-		console.log('### SETUP ###');
-		console.log(JSON.stringify(setup));
-		callback(setup);
+		console.log('### RULES ###');
+		console.log(JSON.stringify(rules));
+		var map = [1, 1];//separate show_map?!!
+		callback(rules, map);
 	}
 
-	pix.show_lobby = function (list, callback)
+	pix.show_list = function (list, callback)
 	{
-		console.log('### LOBBY ###');
+		console.log('### LIST ###');
 		console.log(JSON.stringify(list));
 		callback(parseInt(prompt('id?')));
+	}
+
+	pix.show_lobby = function (id, rules, map, callback)
+	{
+		console.log('### LOBBY ###');
+		console.log(id, rules, map);
+		//console.log(JSON.stringify(list));
+		//callback(parseInt(prompt('id?')));
 	}
 
 	pix.show_world = function (size, realm)

@@ -1,25 +1,30 @@
 var t1l = require('./t1l.js');
-var cmn = require('../client/cmn.js');
 
-var DELAY = 1;
+var DENY_DELAY = 1;
+var START_DELAY = 10;
 
 var CLOSE = -2;
 var OPEN = -1;
 var NULL = 0;
 
-var SPAWN = 1;
-var SYNC = 2;
+var LOGIN = 1;
+var READY = 2;
 var HOST = 3;
 var JOIN = 4;
 var LOBBY = 5;
 var TICK = 6;
 var DENY = 7;
+var LEAVE = 8;
+var AWAY = 9;
+var BACK = 10;
+var START = 11;
 
 var players = {};
 var games = {};
 var online = {};
 var sockets = {};
-//var chars = {};
+//var leaders = {};
+var timeout = {};
 
 function unique (name)
 {
@@ -31,9 +36,31 @@ function register (name, pass)
 	if (unique(name))
 	{
 		console.log('REGISTER %s', name);
-		var player = new cmn.Player();
+		var player = new t1l.Player();
 		player.login(name, pass);
 		players[name] = player;
+	}
+}
+
+function broadcast (names, message, store)
+{
+	for (var i in names)
+	{
+		var socket = online[names[i]];
+
+		if (socket)
+		{
+			socket.send(message);
+		}
+		else if (store)
+		{
+			var player = players[name];
+
+			if (player)
+			{
+				player.store(message);
+			}
+		}
 	}
 }
 
@@ -42,9 +69,112 @@ register('b', 'b');
 
 var sockman = new t1l.Sockman();
 
-sockman.on(OPEN, [SPAWN], function ()
+sockman.on(OPEN, [LOGIN], function ()
 {
 	console.log('%d OPEN', this.id);
+});
+
+sockman.on(LOGIN, [LOGIN, HOST, JOIN], function (name, pass)
+{
+	var player = players[name];
+
+	if (player && !online[name] && (player.pass === pass))
+	{
+		console.log('%d LOGIN %s', this.id, name);
+		sockets[this.id] = player;
+		online[name] = this;
+		var rules = [2,2,3];
+		var list = Object.keys(games);
+		//todo: list of online friends
+		this.send([LOGIN, player.toState(), rules, list]);
+		var message = null;
+
+		while (message = player.messages.pop())
+		{
+			//send stored messages
+			this.send(message);
+		}
+
+		for (var name in player.friends)
+		{
+			//send online notification
+			var socket = online[name];
+
+			if (socket)
+			{
+				socket.send([ONLINE, name]);
+			}
+		}
+	}
+	else
+	{
+		console.log('%d DENY %s', this.id, name);
+		var that = this;
+		setTimeout(function () { that.send([DENY]) }, DENY_DELAY * 1000);
+	}
+});
+
+sockman.on(HOST, [], function (rules, map)
+{
+	var player = sockets[this.id];
+	var game = new t1l.Game(rules, player.name);
+
+	if (map)
+	{
+		//game.usemap(map);
+		game.map = map;
+	}
+	else
+	{
+		//game.genesis();//according to rules(eg diagonal symmetric)
+		game.map = [0, 0, 1, 1];
+	}
+
+	game.id = t1l.fill(games, game);
+	console.log('%d HOST %d %s %s', this.id, game.id, rules, map);
+	player.join(game.id);
+	this.send([LOBBY, game.id, game.rules, game.map]);
+});
+
+sockman.on(JOIN, [], function (id)
+{
+	var game = games[id];
+
+	if (!game)
+	{
+		//game does not exist
+		return 777;
+	}
+
+	var player = sockets[this.id];
+	var others = game.join(player.name);
+
+	if (others)
+	{
+		console.log('%d JOIN %d', this.id, id);
+		player.join(id);
+		broadcast(others, [JOIN, id, player.name]);
+		this.send([LOBBY, id, game.rules, game.map]);
+
+		if (!game.free)
+		{
+			console.log('READY %d %d', game.id, START_DELAY);
+			broadcast(game.joined(), [READY, id, START_DELAY]);
+
+			timeout[game.id] = setTimeout(function ()
+			{
+				console.log('START %d', game.id);
+				delete timeout[game.id];
+				//game.start();
+				broadcast(game.joined(), [START, game.id]);
+			}, START_DELAY * 1000);
+		}
+	}
+	else
+	{
+		//join failed (banned? full? closed?)
+		return 555;
+	}
 });
 
 sockman.on(CLOSE, [], function ()
@@ -53,52 +183,50 @@ sockman.on(CLOSE, [], function ()
 
 	if (player)
 	{
+		for (var id in player.games)
+		{
+			var game = games[id];
+
+			if (game.time)//running
+			{
+				console.log('%d AWAY %d', this.id, game.id);
+				//var others = game.away(player.name);
+				//broadcast(others, [AWAY, game.id, player.name]);
+			}
+			else
+			{
+				console.log('%d LEAVE %d', this.id, game.id);
+				player.leave(game.id);
+				var others = game.leave(player.name);
+
+				if (others.length)
+				{
+					if (timeout[game.id])
+					{
+						clearTimeout(timeout[game.id]);
+						delete timeout[game.id];
+					}
+
+					broadcast(others, [LEAVE, game.id, player.name]);
+				}
+				else
+				{
+					delete games[game.id];
+				}
+			}
+		}
+
+		for (var name in player.friends)
+		{
+			//send offline notification
+		}
+
 		console.log('%d LOGOUT %s', this.id, player.name);
 		delete sockets[this.id];
 		delete online[player.name];
 	}
 
 	console.log('%d CLOSE', this.id);
-});
-
-sockman.on(SPAWN, [SPAWN, HOST, JOIN], function (name, pass)
-{
-	var player = players[name];
-
-	if (player && !online[name] && (player.pass === pass))
-	{
-		console.log('%d ACCEPTED %s', this.id, name);
-		sockets[this.id] = player;
-		online[name] = true;
-		this.send(SYNC, player.toState(), [1,2,3], Object.keys(games));
-	}
-	else
-	{
-		console.log('%d REJECTED %s', this.id, name);
-		var that = this;
-		setTimeout(function () { that.send(DENY) }, DELAY * 1000);
-	}
-});
-
-sockman.on(JOIN, [], function (id)
-{
-	console.log('%d JOIN %s', this.id, id);
-	var game = games[id];
-
-	if (!game)
-	{
-		return 777;
-	}
-
-	//game.join(this.id);
-});
-
-sockman.on(HOST, [], function (setup)
-{
-	console.log('%d HOST %s', this.id, setup);
-	var game = new cmn.Game(setup);
-	game.id = t1l.fill(games, game);
-	//game.join(this.id);
 });
 
 sockman.open(11133);

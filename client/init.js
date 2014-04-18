@@ -33,24 +33,117 @@
 		var OPEN = -1;
 		var NULL = 0;
 
-		var SPAWN = 1;
-		var SYNC = 2;
+		var LOGIN = 1;
+		var READY = 2;
 		var HOST = 3;
 		var JOIN = 4;
 		var LOBBY = 5;
 		var TICK = 6;
 		var DENY = 7;
+		var LEAVE = 8;
+		var AWAY = 9;
+		var BACK = 10;
+		var START = 11;
 
-		var SETUP = [1,2];
 		var player = null;
-		//PIX.open(images);
+		//var games = null;
 		var sockman = new t1l.Sockman();
+		var timeout = {};
 
-		sockman.on(OPEN, [DENY, SYNC], function ()
+		function ready (id, delay)
+		{
+			console.log('READY %d %d', id, delay);
+			delay--;
+
+			if (delay > 0)
+			{
+				timeout[id] = setTimeout(function () { ready(id, delay) }, 1000);
+			}
+			else
+			{
+				delete timeout[id];
+			}
+		}
+
+		sockman.on(OPEN, [DENY, LOGIN], function ()
 		{
 			console.log('OPEN');
-			player = new cmn.Player();
-			pix.show_login(player, this.pack(SPAWN))
+			player = new t1l.Player();
+			pix.show_login(player, this.pack(LOGIN))
+		});
+
+		sockman.on(LOGIN, [LOBBY, JOIN], function (state, rules, list)
+		{
+			console.log('LOGIN');
+			//player.load(state);
+			//rule: symmetric map(achse=diagonale;andere achsen braucht man nicht)
+			//rule: hidden map: u dont see anything at first
+
+			if (player.name == 'a')
+			{
+				pix.show_rules(rules, this.pack(HOST));
+			}
+			else
+			{
+				pix.show_list(list, this.pack(JOIN));
+			}
+		});
+
+		sockman.on(DENY, [DENY, LOGIN], function ()
+		{
+			console.log('DENIED');
+			pix.show_login(player, this.pack(LOGIN))
+		});
+
+		sockman.on(LOBBY, [JOIN, LEAVE, READY], function (id, rules, map)
+		{
+			console.log('LOBBY');
+			//games[id] = new Game(rules, map);
+			pix.show_lobby(id, rules, map, this.pack(LEAVE));
+		});
+
+		sockman.on(JOIN, [JOIN, LEAVE, READY], function (id, name)
+		{
+			console.log('JOIN %d %s', id, name);
+			//games[id].join(name);
+		});
+
+		sockman.on(LEAVE, [JOIN, LEAVE, READY], function (id, name)
+		{
+			console.log('LEAVE %d %s', id, name);
+			//games[id].leave(name);
+
+			if (timeout[id])
+			{
+				clearTimeout(timeout[id]);
+				delete timeout[id];
+			}
+		});
+
+		sockman.on(READY, [LEAVE, START], function (id, delay)
+		{
+			ready(id, delay);
+		});
+
+		sockman.on(START, [AWAY, BACK, TICK], function (id)
+		{
+			console.log('START %d', id);
+			//pix.show_start(id, this.pack(TICK));
+		});
+
+		sockman.on(AWAY, [AWAY, BACK, TICK], function (id, name)
+		{
+			console.log('AWAY %d %s', id, name);
+		});
+
+		sockman.on(BACK, [AWAY, BACK, TICK], function (id, name)
+		{
+			console.log('BACK %d %s', id, name);
+		});
+
+		sockman.on(TICK, [AWAY, BACK, TICK], function (id, actions)
+		{
+			console.log('BACK %d %s', id, actions);//actions={'a':[1,2,3],'b':[1,2]}
 		});
 
 		sockman.on(CLOSE, [], function (code)
@@ -58,27 +151,7 @@
 			console.log('CLOSE %d', code);
 		});
 
-		sockman.on(SYNC, [LOBBY, TICK], function (state, setup, list)
-		{
-			console.log('SYNC');
-			player.load(state);
-
-			if (player.name == 'a')
-			{
-				pix.show_setup(setup, this.pack(HOST));
-			}
-			else
-			{
-				pix.show_lobby(list, this.pack(JOIN));
-			}
-		});
-
-		sockman.on(DENY, [DENY, SYNC], function ()
-		{
-			console.log('DENIED');
-			pix.show_login(player, this.pack(SPAWN))
-		});
-
+		//PIX.open(images);
 		sockman.connect(URL);
 	}
 

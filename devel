@@ -3,7 +3,6 @@ BASEDIR=$(dirname $0)
 urxvt -title wmtag_1 -e $EDITOR $BASEDIR/client/pix.js &
 urxvt -title wmtag_1 -e $EDITOR $BASEDIR/client/t1l.js &
 urxvt -title wmtag_1 -e $EDITOR $BASEDIR/client/init.js &
-urxvt -title wmtag_2 -e $EDITOR $BASEDIR/client/cmn.js &
 urxvt -title wmtag_2 -e $EDITOR $BASEDIR/server/t1l.js &
 urxvt -title wmtag_2 -e $EDITOR $BASEDIR/server/init.js &
 urxvt -e $BASEDIR/node &
