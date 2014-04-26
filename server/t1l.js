@@ -4,6 +4,9 @@ var sockjs = require('sockjs');
 //var NULL = 0;
 //var OPEN = -1;
 //var CLOSE = -2;
+var TARGET = 0;
+var PATH = 1;
+var ORIGIN = 2;
 
 t1l = {};
 module.exports = t1l;
@@ -107,18 +110,20 @@ t1l.Sockman.prototype.trigger = function (socket, type, data)
 {
 	if (this.events[type] && ((type < 0) || this.events[socket.state].expect[type]))
 	{
-		if (this.events[type].action)
+		try
 		{
-			var error = this.events[type].action.apply(socket, data);
-		}
+			if (this.events[type].action)
+			{
+				this.events[type].action.apply(socket, data);
+			}
 
-		if (error)
-		{
-			console.log('%d ERROR %d', socket.id, error);
-		}
-		else
-		{
 			socket.state = type;
+		}
+		catch (e)
+		{
+			console.log('%d EXCEPTION %d', socket.id, e);
+			//socket.ecount++;
+			//disconnect?
 		}
 	}
 }
@@ -131,7 +136,7 @@ t1l.Player = function ()
 {
 	this.chars = [];
 	this.games = [];
-	this.friends = [];
+	this.groups = [];
 	this.banned = [];//if you host a game, these players wont be allowed to join
 	this.messages = [];
 }
@@ -155,7 +160,7 @@ t1l.Player.prototype.load = function (state)
 	//jäger&sammler/holzzeit/steinzeit
 	this.chars = state[0];
 	this.games = state[1];
-	this.friends = state[2];
+	this.groups = state[2];
 }
 
 t1l.Player.prototype.store = function (message)
@@ -175,7 +180,7 @@ t1l.Player.prototype.leave = function (id)
 
 t1l.Player.prototype.toState = function ()
 {
-	return [this.chars, this.games, this.friends];
+	return [Object.keys(this.chars), Object.keys(this.games), Object.keys(this.groups)];
 }
 
 t1l.Game = function (rules, name)
@@ -187,11 +192,48 @@ t1l.Game = function (rules, name)
 	//this.admins = {};
 	//this.admins[name] = true;
 	this.seats = {};
-	this.seats[name] = {};
+	this.seats[name] = true;
 	this.rules = rules;
 	this.free = rules[0] - 1;
-	//this.size = setup[2].length;
-	//this.board = setup[2];
+	this.size = rules[1];//has to be even
+	this.board = [];
+	this.neigh = [];
+
+	//generate random board
+	for (var y = 0; y < this.size; y++)
+	{
+		this.board[y] = [];
+
+		for (var x = 0; x < this.size; x++)
+		{
+			var tile = {};
+			tile.x = x;
+			tile.y = y;
+			tile.type = Math.floor(Math.random() * 4) + 1;
+			this.board[y][x] = tile;
+		}
+	}
+
+	//build up neighbor connections
+	for (var y = 0; y < this.size; y++)
+	{
+		var nmask = this.NMASK[y & 1];
+		this.neigh[y] = [];
+
+		for (var x = 0; x < this.size; x++)
+		{
+			var neigh = [];
+
+			for (var i in nmask)
+			{
+				var nx = (x + nmask[i][0] + this.size) % this.size;
+				var ny = (y + nmask[i][1] + this.size) % this.size;
+				neigh[i] = this.board[ny][nx];
+			}
+
+			this.neigh[y][x] = neigh;
+		}
+	}
 }
 
 t1l.Game.prototype.NMASK = [[[-1, -1], [0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0]], [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 0]]];
@@ -206,7 +248,7 @@ t1l.Game.prototype.join = function (name)
 	if ((this.open || this.invited[name]) && !this.banned[name] && this.free)
 	{
 		var others = Object.keys(this.seats);
-		this.seats[name] = {};
+		this.seats[name] = true;
 		this.free--;
 		return others;
 	}
@@ -222,11 +264,6 @@ t1l.Game.prototype.leave = function (name)
 	}
 }
 
-t1l.Game.prototype.admin = function (name)
-{
-	this.admins[name] = true;
-}
-
 t1l.Game.prototype.joined = function ()
 {
 	return Object.keys(this.seats);
@@ -236,113 +273,90 @@ t1l.Game.prototype.start = function ()
 {
 	this.open = false;
 	this.time = 1;
+	this.stats = [];
+	this.history = [];
+	this.actions = [];
+	var id = 0;
 
-	//generate random board
-	for (var y = 0; y < _SIZE; y++)
+	for (var name in this.seats)
 	{
-		this.board[y] = [];
-		this.neigh[y] = [];
+		this.stats[id] = {};
+		this.seats[name] = id;
+		var x = 0;
+		var y = 0;
+		this.history[0][y][x].push([id, TARGET, 0]);
+		id++;
+	}
+}
 
-		for (var x = 0; x < _SIZE; x++)
-		{
-			var tile = {};
-			tile.x = x;
-			tile.y = y;
-			tile.type = Math.floor(Math.random() * 4) + 1;
-			this.board[y][x] = tile;
-			this.neigh[y][x] = [];
-		}
+t1l.Game.prototype.update = function (x, y, action)
+{
+	if (!this.history[this.time])
+	{
+		this.history[this.time] = {};
 	}
 
-	//build up neighbor connections
-	for (var y = 0; y < _SIZE; y++)
+	var history = this.history[this.time];
+
+	if (!history[y])
 	{
-		var nmask = NMASK[y & 1];
+		history[y] = {};
+	}
 
-		for (var x = 0; x < _SIZE; x++)
+	if (!history[y][x])
+	{
+		history[y][x] = [];
+	}
+
+	history[y][x].push(action);
+}
+
+t1l.Game.prototype.tick = function (name, actions)
+{
+	if (!this.time)
+	{
+		throw 888;
+	}
+
+	var seat = this.seats[name];
+
+	if (seat == undefined)
+	{
+		throw 543;
+	}
+
+	for (var i in actions)
+	{
+		//[x,y,path[],[type, args[]]]
+		var x = actions[i][0];
+		var y = actions[i][1];
+		var path = actions[i][2];
+		var id = this.actions.length;
+		this.actions.push(actions[i][3]);
+
+		var last = path.length - 1;
+		var nmask = this.NMASK[y & 1];
+
+		this.update(x, y, [seat, type, TARGET, path[0]]);
+
+		for (var j in path)
 		{
-			var neigh = this.neigh[y][x];
+			var step = path[j];
+			x = (x + nmask[step][0] + this.size) % this.size;
+			y = (y + nmask[step][1] + this.size) % this.size;
 
-			for (var i in nmask)
+			if (j == last)
 			{
-				var nx = (x + nmask[i][0] + _SIZE) % _SIZE;
-				var ny = (y + nmask[i][1] + _SIZE) % _SIZE;
-				neigh[i] = this.board[ny][nx];
-			}
-		}
-	}
-
-	//generate random build
-	/*var seeds = [];
-
-	for (var i = 0; i < 5; i++)
-	{
-		seeds[i] = {x: Math.floor(Math.random() * _SIZE * 2), y: Math.floor(Math.random() * _SIZE * 2)};
-	}
-
-	for (var y = 0; y < _SIZE * 2; y++)
-	{
-		this.build[y] = [];
-
-		for (var x = 0; x < _SIZE * 2; x++)
-		{
-			var type = Math.round(Math.random() * 12);
-
-			if (type > 6)
-			{
-				this.build[y][x] = type - 6;
+				this.update(x, y, [seat, type, ORIGIN, (step + 3) % 6]);
 			}
 			else
 			{
-				this.build[y][x] = 0;
+				this.update(x, y, [seat, type, PATH, step, (step + 3) % 6]);
 			}
 		}
-	}*/
-
-	//assign startingpoint (and hero) to each player
-	//separieren:was alle wissen(allgemeines)/spielerwissen/serverdata
-	var id = 0;
-	var x = 0;
-	var y = 0;
-
-	for (var name in this.slots)
-	{
-		var realm = {};
-		realm.id = id;
-		realm.x = x;
-		realm.y = y;
-		realm.name = 'Mordor';
-		
-		realm.population = {count: 10, stats: {anger: 0, health: 1}};
-		realm.characters = [];
-		realm.succession = [];
-
-		realm.gain = 10;
-		realm.affect = {};
-		realm.affect[id] = 5;//rest geht in entdeckung?
-		realm.coins = {};
-		realm.coins[id] = 5;
-		realm.discover = 5;
-		this.realms[name] = realm;
-		var neigh = this.neigh[y][x];
-
-		for (var i in neigh)
-		{
-			neigh[i].realm = id;
-		}
-
-		id++;
 	}
 
-}
-
-t1l.Game.prototype.tick = function (id, actions)
-{
-	if (this.running && this.slots[id])
-	{
-		//this.slots[id].time++;
-		return true;
-	}
+	this.stats[seat].time++;
 }
 
 /*Game.prototype.tock = function ()

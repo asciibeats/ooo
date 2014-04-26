@@ -6,9 +6,9 @@ pix = {};
 	var _map;//smaller abstract tiles
 	var _realms = {};
 
-	pix.show_login = function (player, callback)
+	pix.show_login = function (callback)
 	{
-		if (false && localStorage.name && localStorage.pass)
+		if (localStorage.name && localStorage.pass)
 		{
 			var name = localStorage.name;
 			var pass = localStorage.pass;
@@ -26,23 +26,23 @@ pix = {};
 		//upleveln kann man nur durch untergebene (chars die weniger power haben und irgendwelche beziehungen haben; diplomat?)
 		//hexbauten schalten karten frei->deckbuilding
 		//karten haben rechargetime(manche bestimmt auch net!?=0)
-		player.name = name;
+		//rule: symmetric map(achse=diagonale;andere achsen braucht man nicht)
+		//rule: hidden map: u dont see anything at first
 		callback(name, pass);
 	}
 
-	pix.show_main = function (callback)
+	/*pix.show_main = function (callback)
 	{
 		console.log('### MAIN ###');
 		var option = parseInt(prompt('(1)host game/(2)join game'));
 		callback(option);
-	}
+	}*/
 
-	pix.show_rules = function (rules, callback)
+	pix.show_rules = function (ruleset, callback)
 	{
 		console.log('### RULES ###');
-		console.log(JSON.stringify(rules));
-		var map = [1, 1];//separate show_map?!!
-		callback(rules, map);
+		console.log(JSON.stringify(ruleset));
+		callback(ruleset[0]);
 	}
 
 	pix.show_list = function (list, callback)
@@ -52,18 +52,16 @@ pix = {};
 		callback(parseInt(prompt('id?')));
 	}
 
-	pix.show_lobby = function (id, rules, map, callback)
+	pix.show_lobby = function (id, game, callback)
 	{
 		console.log('### LOBBY ###');
-		console.log(id, rules, map);
-		//console.log(JSON.stringify(list));
+		console.log(id, JSON.stringify(game.rules));
 		//callback(parseInt(prompt('id?')));
 	}
 
-	pix.show_world = function (size, realm)
+	pix.show_board = function (board)
 	{
-		_world = new World(size, realm);
-		PIX.show(_world);
+		PIX.show(new Board(board));
 	}
 
 	var _ISTATE_DEFAULT = 0;
@@ -215,8 +213,11 @@ pix = {};
 	{
 	});
 
-	var World = PIX.Sprite.extend(function (board, realm)
+	var Board = PIX.Sprite.extend(function (size)//, realm
 	{
+		this.size = size;
+		this.board = [];
+		this.neigh = [];
 		_SIZE = util.size(board);
 		_STUFF = _SIZE << 1;
 		_SIZEH = _SIZE >>> 1;
@@ -440,7 +441,7 @@ pix = {};
 		});
 	});
 
-	World.method('reveal', function (tiles)
+	Board.method('reveal', function (tiles)
 	{
 		for (var i in tiles)
 		{
@@ -455,7 +456,7 @@ pix = {};
 		}
 	});
 
-	World.method('path', function (a, b)
+	Board.method('path', function (a, b)
 	{
 		var tiles = {};
 		var done = {};
@@ -542,7 +543,7 @@ pix = {};
 		return null;
 	});
 
-	World.method('draw', function (elapsed, context)
+	Board.method('draw', function (elapsed, context)
 	{
 		//prepare board-drawing
 		var shift_x = (this.drop_x - this.drag_x + _BOARD_W) % _BOARD_W;

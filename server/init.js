@@ -1,7 +1,7 @@
 var t1l = require('./t1l.js');
 
 var DENY_DELAY = 1;
-var START_DELAY = 10;
+var START_DELAY = 3;
 
 var CLOSE = -2;
 var OPEN = -1;
@@ -20,6 +20,7 @@ var BACK = 10;
 var START = 11;
 
 var players = {};
+var groups = {};
 var games = {};
 var online = {};
 var sockets = {};
@@ -83,10 +84,9 @@ sockman.on(LOGIN, [LOGIN, HOST, JOIN], function (name, pass)
 		console.log('%d LOGIN %s', this.id, name);
 		sockets[this.id] = player;
 		online[name] = this;
-		var rules = [2,2,3];
 		var list = Object.keys(games);
-		//todo: list of online friends
-		this.send([LOGIN, player.toState(), rules, list]);
+		//todo: send list of friends online 
+		this.send([LOGIN, list]);
 		var message = null;
 
 		while (message = player.messages.pop())
@@ -114,26 +114,14 @@ sockman.on(LOGIN, [LOGIN, HOST, JOIN], function (name, pass)
 	}
 });
 
-sockman.on(HOST, [], function (rules, map)
+sockman.on(HOST, [], function (rules)
 {
 	var player = sockets[this.id];
 	var game = new t1l.Game(rules, player.name);
-
-	if (map)
-	{
-		//game.usemap(map);
-		game.map = map;
-	}
-	else
-	{
-		//game.genesis();//according to rules(eg diagonal symmetric)
-		game.map = [0, 0, 1, 1];
-	}
-
 	game.id = t1l.fill(games, game);
-	console.log('%d HOST %d %s %s', this.id, game.id, rules, map);
+	console.log('%d HOST %d %s %s', this.id, game.id, rules);
 	player.join(game.id);
-	this.send([LOBBY, game.id, game.rules, game.map]);
+	this.send([LOBBY, game.id, game.rules, game.joined()]);
 });
 
 sockman.on(JOIN, [], function (id)
@@ -154,7 +142,7 @@ sockman.on(JOIN, [], function (id)
 		console.log('%d JOIN %d', this.id, id);
 		player.join(id);
 		broadcast(others, [JOIN, id, player.name]);
-		this.send([LOBBY, id, game.rules, game.map]);
+		this.send([LOBBY, id, game.rules, game.board]);
 
 		if (!game.free)
 		{
@@ -165,8 +153,12 @@ sockman.on(JOIN, [], function (id)
 			{
 				console.log('START %d', game.id);
 				delete timeout[game.id];
-				//game.start();
-				broadcast(game.joined(), [START, game.id]);
+				game.start();
+
+				for (var name in game.seats)
+				{
+					online[name].send([START, game.id, game.seats[name]]);
+				}
 			}, START_DELAY * 1000);
 		}
 	}
@@ -175,6 +167,28 @@ sockman.on(JOIN, [], function (id)
 		//join failed (banned? full? closed?)
 		return 555;
 	}
+});
+
+sockman.on(TICK, [TICK], function (id, actions)
+{
+	var player = sockets[this.id];
+
+	if (!player)
+	{
+		throw 233;
+	}
+
+	var game = games[id];
+
+	if (!game)
+	{
+		throw 777;
+	}
+
+	game.tick(player.name, actions);
+
+	//if all players did their tick, update clients
+	//if (game.complete())
 });
 
 sockman.on(CLOSE, [], function ()
@@ -211,6 +225,7 @@ sockman.on(CLOSE, [], function ()
 				}
 				else
 				{
+					console.log('delete');
 					delete games[game.id];
 				}
 			}

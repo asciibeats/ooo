@@ -1,6 +1,6 @@
 (function ()
 {
-	var COLOR = '#dddddd';
+	var COLOR = '#00ffdd';
 	var URL = 'http://' + window.location.hostname + ':11133';
 
 	function preload (assets, callback)
@@ -27,7 +27,7 @@
 		}
 	}
 
-	function connect (images)
+	function init (images)
 	{
 		var CLOSE = -2;
 		var OPEN = -1;
@@ -45,9 +45,13 @@
 		var BACK = 10;
 		var START = 11;
 
-		var player = null;
-		//var games = null;
-		var sockman = new t1l.Sockman();
+		var RULESET = [[2, 2, 0]];
+
+		var name = null;
+		var id = null;
+		var games = {};
+		//var groups = {};
+		var sockman = new T1L.Sockman();
 		var timeout = {};
 
 		function ready (id, delay)
@@ -68,67 +72,104 @@
 		sockman.on(OPEN, [DENY, LOGIN], function ()
 		{
 			console.log('OPEN');
-			player = new t1l.Player();
-			pix.show_login(player, this.pack(LOGIN))
-		});
 
-		sockman.on(LOGIN, [LOBBY, JOIN], function (state, rules, list)
-		{
-			console.log('LOGIN');
-			//player.load(state);
-			//rule: symmetric map(achse=diagonale;andere achsen braucht man nicht)
-			//rule: hidden map: u dont see anything at first
-
-			if (player.name == 'a')
+			pix.show_login(function ($name, pass)
 			{
-				pix.show_rules(rules, this.pack(HOST));
-			}
-			else
-			{
-				pix.show_list(list, this.pack(JOIN));
-			}
+				name = $name;
+				sockman.send([LOGIN, name, pass]);
+			});
 		});
 
 		sockman.on(DENY, [DENY, LOGIN], function ()
 		{
-			console.log('DENIED');
-			pix.show_login(player, this.pack(LOGIN))
+			console.log('DENY');
+
+			pix.show_login(function ($name, pass)
+			{
+				name = $name;
+				sockman.send([LOGIN, name, pass]);
+			});
 		});
 
-		sockman.on(LOBBY, [JOIN, LEAVE, READY], function (id, rules, map)
+		sockman.on(LOGIN, [LOBBY, JOIN], function (list)
+		{
+			console.log('LOGIN');
+
+			if (name == 'a')
+			{
+				pix.show_rules(RULESET, function (rules)
+				{
+					sockman.send([HOST, rules]);
+				});
+			}
+			else
+			{
+				pix.show_list(list, function (id)
+				{
+					sockman.send([JOIN, id]);
+				});
+			}
+		});
+
+		sockman.on(LOBBY, [JOIN, LEAVE, READY], function (id, rules, names)
 		{
 			console.log('LOBBY');
-			//games[id] = new Game(rules, map);
-			pix.show_lobby(id, rules, map, this.pack(LEAVE));
+			var game = new T1L.Game(rules, names);
+			games[id] = game;
+
+			pix.show_lobby(id, game, function (id)
+			{
+				sockman.send([LEAVE, id]);
+			});
 		});
 
 		sockman.on(JOIN, [JOIN, LEAVE, READY], function (id, name)
 		{
-			console.log('JOIN %d %s', id, name);
-			//games[id].join(name);
+			var game = games[id];
+
+			if (game)
+			{
+				console.log('JOIN %d %s', id, name);
+				game.join(name);
+			}
 		});
 
 		sockman.on(LEAVE, [JOIN, LEAVE, READY], function (id, name)
 		{
-			console.log('LEAVE %d %s', id, name);
-			//games[id].leave(name);
+			var game = games[id];
 
-			if (timeout[id])
+			if (game)
 			{
-				clearTimeout(timeout[id]);
-				delete timeout[id];
+				console.log('LEAVE %d %s', id, name);
+				game.leave(name);
+
+				if (timeout[id])
+				{
+					clearTimeout(timeout[id]);
+					delete timeout[id];
+				}
 			}
 		});
 
 		sockman.on(READY, [LEAVE, START], function (id, delay)
 		{
-			ready(id, delay);
+			if (games[id])
+			{
+				ready(id, delay);
+			}
 		});
 
-		sockman.on(START, [AWAY, BACK, TICK], function (id)
+		sockman.on(START, [AWAY, BACK, TICK], function (id, me)
 		{
-			console.log('START %d', id);
-			//pix.show_start(id, this.pack(TICK));
+			var game = games[id];
+
+			if (game)
+			{
+				console.log('START %d %d', id, me);
+				PIX.hide();
+				PIX.show(game);
+				game.start(me);
+			}
 		});
 
 		sockman.on(AWAY, [AWAY, BACK, TICK], function (id, name)
@@ -151,15 +192,24 @@
 			console.log('CLOSE %d', code);
 		});
 
-		//PIX.open(images);
-		sockman.connect(URL);
+		//PIX.show(new T1L.Intro('#ff0000'));
+		var game = new T1L.Game([2, 8], ['a', 'b']);
+		PIX.show(game);
+		PIX.open(images);
+		game.start(0);
+		game.reveal({0:{0:8},5:{1:2,2:2,3:2},1:{1:2,2:2},3:{1:2,2:2},4:{1:2,2:1,3:1},2:{1:1,2:1,3:2}});
+		//game.progress([]);
+		game.build({1:{1:0},2:{2:1}});
+		//var path = game.board.path(game.board.tiles[1][1], game.board.tiles[5][3]);
+		//console.log(path.cost);
+		//sockman.connect(URL);
 	}
 
 	function load ()
 	{
 		PIX.init({color: COLOR, fullscreen: true});
 		var assets = {hexbg: 'assets/hexbg.png'};
-		preload(assets, connect);
+		preload(assets, init);
 	}
 
 	function unload ()

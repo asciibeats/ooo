@@ -171,11 +171,11 @@ var PIX = {};
 	//public
 	PIX.init = function (options)
 	{
-		this.color = options.color || '#cccccc';
 		_drag_event = new CustomEvent('customdrag');
 		_click_event = new CustomEvent('customclick');
 		_size_event = new CustomEvent('customsize');
 		_root = new Stage();
+		//_root.color = options.color || '#cccccc';
 
 		if (options.fullscreen)
 		{
@@ -186,12 +186,15 @@ var PIX = {};
 			_root.size(options.width || 100, options.height || 100);
 		}
 
-		//_root.context.fillStyle = options.color;
-		//_root.context.fillRect(0, 0, _root.width, _root.height);
+		if (options.color)
+		{
+			_root.context.fillStyle = options.color;
+			_root.context.fillRect(0, 0, _root.width, _root.height);
+		}
 
 		document.body.style.margin = 0;
 		//_root.canvas.style.overflow = 'hidden';
-		//document.body.style.backgroundColor = '#dddddd';
+		//document.body.style.backgroundColor = '#ff0000';
 		document.body.style.overflow = 'hidden';
 		document.body.appendChild(_root.canvas);
 		return this;
@@ -199,7 +202,6 @@ var PIX = {};
 
 	PIX.fullscreen = function ()
 	{
-		util('FULLSCREEN');
 		if (!document.FullScreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement)
 		{
 			if (document.documentElement.requestFullscreen)
@@ -241,7 +243,27 @@ var PIX = {};
 		window.addEventListener('resize', on_resize);
 		frame(loop);
 		return this;
-	};
+	}
+
+	function tree (actor)
+	{
+		if (actor.actors)
+		{
+			for (var i in actor.actors)
+			{
+				return actor.id + '/' + tree(actor.actors[i]);
+			}
+		}
+		else
+		{
+			return actor.id + "\n";
+		}
+	}
+
+	PIX.tree = function ()
+	{
+		console.log(tree(_root));
+	}
 
 	PIX.show = function (actor)
 	{
@@ -450,7 +472,6 @@ var PIX = {};
 	{
 		_root.canvas.removeEventListener(_events[name].id, this.listeners[name]);
 		delete this.listeners[name];
-		
 		return this;
 	});
 
@@ -490,7 +511,8 @@ var PIX = {};
 		//this.padding = 0;
 	});
 
-	Scene.method('show', function (actor)
+	//Scene.method('show', function (actor)
+	Scene.prototype.show = function (actor)
 	{
 		actor.parent = this;
 
@@ -502,7 +524,8 @@ var PIX = {};
 		//actor.trigger('size');
 		util.add(this.actors, actor, actor.depth, actor.id);
 		return this;
-	});
+	}
+	//});
 
 	Scene.method('hide', function (actor)
 	{
@@ -535,13 +558,16 @@ var PIX = {};
 	});
 
 	//Scene with Canvas (BaseActor)
-	var Stage = Scene.extend(function ()
+	var Stage = function ()
 	{
 		this.canvas = document.createElement('canvas');
 		this.context = this.canvas.getContext('2d');
 		this.update = true;
 		this.once = false;
-	});
+	}
+
+	Stage.prototype = new Scene();
+	Stage.prototype.constructor = Stage;
 
 	Stage.method('size', function (width, height)
 	{
