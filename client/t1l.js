@@ -2,34 +2,33 @@ T1L = {};
 
 (function ()
 {
-	var _ISTATE_DEFAULT = 0;
-	var _ISTATE_SETTLE = 1;
-	var _ISTATE_QUEST_1 = 2;
-	var _ISTATE_QUEST_2 = 3;
-
-	var _BUILD_CAMP = 1;
-
-	var _OBJ_W = HEX_W / 2;
-	var _OBJ_2W = 2 * _OBJ_W;
-	var _OBJ_H = HEX_3H / 2;
-	var _OBJ_S = 42;
-	var _BUILD = ['#017351', '#03c383', '#aad962', '#fbbf45', '#ef6a32', '#ed0345', '#a12a5e', '#710162', '#110141', '#fff'];
-
-
 	var ACTIONS = [[0, 1], [2, 3]];//building->[]
-	var COSTS = [1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+	var BUILD = 1;
+	var EMPTY = 2;
+	var BOTH = 3;
+	var AMASK = [BUILD, EMPTY, BOTH, EMPTY];//available on builds or empty only or both???
+	var ACOSTS = [1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+	var PCOSTS = [1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 	var COLORS = ['#bbbbbb', '#26294a', '#01545a', '#017351', '#03c383', '#aad962', '#fbbf45', '#ef6a32', '#ed0345', '#a12a5e', '#710162', '#110141'];
 	var NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
+
 	var HEX_H = 19;
 	var HEX_2H = 2 * HEX_H;
 	var HEX_3H = 3 * HEX_H;
 	var HEX_4H = 4 * HEX_H;
 	var HEX_W = Math.sqrt(3) * HEX_H;
 	var HEX_2W = 2 * HEX_W;
+
 	var HEX_D = Math.sqrt(HEX_W * HEX_W + HEX_3H * HEX_3H);
 	var HEX_M = HEX_D / 2;
 	var HEX_X = HEX_W / HEX_D;
 	var HEX_Y = HEX_3H / HEX_D;
+
+	//temp for path draw
+	var HEX_H1 = HEX_H / 2;
+	var HEX_W1 = HEX_W / 2;
+	var HEX_H2 = HEX_4H - HEX_H1; 
+	var HEX_W2 = HEX_2W - HEX_W1; 
 
 	var Board = PIX.Sprite.extend(function (size)
 	{
@@ -51,6 +50,7 @@ T1L = {};
 		this.down_y = 0;
 		//this.mark_x = 1;
 		//this.mark_y = 0;
+		this.index = [];
 		this.tiles = [];
 		//this.neigh = [];
 		var i = 0;
@@ -60,13 +60,14 @@ T1L = {};
 		{
 			this.tiles[y] = [];
 
-			for (var x = 0; x < size; x++)
+			for (var x = 0; x < size; x++, i++)
 			{
 				var tile = {};
-				tile.i = i++;
+				tile.i = i;
 				tile.x = x - (y >> 1);
 				tile.y = y;
 				tile.z = - tile.x - y;
+				this.index[i] = tile;
 				this.tiles[y][x] = tile;
 			}
 		}
@@ -148,12 +149,15 @@ T1L = {};
 			}
 
 			var target = this.tiles[tile_y][tile_x];
-			var options = this.area(target, 6);
+			var options = this.findArea(target, 6);
 			var actions = Object.keys(options);
+			//return;
+			//optimist trait
 
 			var effects = [];
 			effects[0] = function (origin, target)
 			{
+				//add a marker until server ack(next tick)
 				target.building = 0;
 			}
 
@@ -161,39 +165,46 @@ T1L = {};
 			{
 				//einzugsgebiet markieren!!!!!!!!!!!
 				var choice = parseInt(prompt(JSON.stringify(actions)));
-				var origin = options[choice][0];
-				effects[choice](origin, target);
+				var origins = options[choice];
+
+				/*for (var i in origins)
+				{
+					var origin = origins[i].origin;
+				}*/
+
+				var path = this.findPath(origins[0].origin, target);
+				this.showPath(path);
 			}
 		});
 	});
 
-	Board.method('area', function (origin, cost)
+	Board.method('findArea', function (target, cost)
 	{
-		var tiles = {};
 		var done = {};
-		var open = [origin.i];
-
-		origin.g = 0;
-		tiles[origin.i] = origin;
+		var open = [target.i];
+		target.g = 0;
 
 		do
 		{
-			var current = tiles[open.pop()];
-			done[current.i] = true;
+			var current = this.index[open.pop()];
+			done[current.i] = current.g;
+			//console.log('#', current.i);
 
 			for (var i in current.steps)
 			{
 				var next = current.steps[i];
 
-				if ((next.terrain == undefined) || done[next.i])
+				if ((next.terrain == undefined) || (done[next.i] != undefined))
 				{
+					//console.log('1', next.i);
 					continue;
 				}
 
-				var next_c = COSTS[next.terrain];
+				var next_c = PCOSTS[next.terrain];
 
 				if (!next_c)
 				{
+					//console.log('2', next.i);
 					continue;
 				}
 
@@ -201,6 +212,7 @@ T1L = {};
 
 				if (next_g > cost)
 				{
+					//console.log('3', next.i);
 					continue;
 				}
 
@@ -218,46 +230,64 @@ T1L = {};
 				if (tile_i === null)
 				{
 					next.g = next_g;
-					tiles[next.i] = next;
-					open.push(next.i);
-					//open.splice(sorted_index(tiles, open, next, 'f'), 0, next.i);
+					open.splice(sorted_index(this.index, open, next, 'g'), 0, next.i);
+					//console.log('4', next.i);
 					continue;
 				}
 
-				var tile = tiles[tile_i];
+				var tile = this.index[tile_i];
 
 				if (next_g < tile.g)
 				{
 					tile.g = next_g;
+					//console.log('5', next.i);
+					//continue;
 				}
+				
+				//console.log('6', next.i);
 			}
 		}
 		while (open.length)
 
 		var options = {};
+		var context = target.building ? BUILD : EMPTY;
 
 		for (var i in done)
 		{
-			var tile = tiles[i];
-			var building = tile.building;
+			var origin = this.index[i];
+			//origin.terrain = 6;
+			var building = origin.building;
 
 			if (building == undefined)
 			{
 				continue;
 			}
 
+			var origin_c = done[i];
 			var actions = ACTIONS[building];
 
 			for (var i in actions)
 			{
 				var action = actions[i];
 
+				if (!(AMASK[action] & context))
+				{
+					continue;
+				}
+
+				var action_c = origin_c + ACOSTS[action];
+
+				if (action_c > cost)
+				{
+					continue;
+				}
+
 				if (!options[action])
 				{
 					options[action] = [];
 				}
 
-				options[action].push(tile);
+				options[action].push({origin: origin, cost: action_c});
 			}
 		}
 
@@ -326,24 +356,28 @@ T1L = {};
 		return low;
 	}
 
-	Board.method('path', function (origin, target)
+	Board.method('showPath', function (path)
 	{
-		var tiles = {};
+		console.log('PATH', path.target.i, JSON.stringify(path.steps));
+		//add values to this.marks[];
+	});
+
+	Board.method('findPath', function (origin, target)
+	{
 		var done = {};
-		var move = {};
+		var crumbs = {};
 
 		origin.g = 0;
 		origin.f = this.distance(origin, target);
-		tiles[origin.i] = origin;
 
 		var open = [origin.i];
 
 		do
 		{
-			var current = tiles[open.pop()];
+			var current = this.index[open.pop()];
 			done[current.i] = true;
 
-			for (var i in current.steps)
+			for (var i = 0; i < 6; i++)
 			{
 				var next = current.steps[i];
 
@@ -352,7 +386,7 @@ T1L = {};
 					continue;
 				}
 
-				var next_c = COSTS[next.terrain];
+				var next_c = PCOSTS[next.terrain];
 
 				if (!next_c)
 				{
@@ -363,27 +397,23 @@ T1L = {};
 
 				if (next.i == target.i)
 				{
-					var steps = [next];
-					next = current;
+					var steps = [(i + 3) % 6];
 
-					while (move[next.i] != undefined)
+					while (current.i != origin.i)
 					{
-						next.building = 6;
-						steps.push(next);
-						next = tiles[move[next.i]];
+						i = (crumbs[current.i] + 3) % 6;
+						steps.push(i);
+						current = current.steps[i];
 					}
 
-					steps.push(origin);
-					origin.building = 8;
-					//steps.reverse();
-					return {steps: steps, cost: next_g};
+					return {target: target, steps: steps, cost: next_g};
 				}
 
 				var tile_i = null;
 
-				for (var i in open)
+				for (var j in open)
 				{
-					if (open[i] == next.i)
+					if (open[j] == next.i)
 					{
 						tile_i = next.i;
 						break;
@@ -392,19 +422,18 @@ T1L = {};
 
 				if (tile_i === null)
 				{
-					move[next.i] = current.i;
+					crumbs[next.i] = i;
 					next.g = next_g;
 					next.f = next_g + this.distance(next, target);
-					tiles[next.i] = next;
-					open.splice(sorted_index(tiles, open, next, 'f'), 0, next.i);
+					open.splice(sorted_index(this.index, open, next, 'f'), 0, next.i);
 					continue;
 				}
 
-				var tile = tiles[tile_i];
+				var tile = this.index[tile_i];
 
 				if (next_g < tile.g)
 				{
-					move[tile.i] = current.i;
+					crumbs[tile.i] = i;
 					tile.g = next_g;
 					tile.f = next_g + this.distance(tile, target);
 				}
@@ -449,9 +478,9 @@ T1L = {};
 		var end_x = start_x + Math.ceil(this.width / HEX_2W);
 		var end_y = start_y + Math.ceil(this.height / HEX_3H);
 
-		/*context.font = '12px Arial';
+		context.font = '12px Arial';
 		context.textAlign = 'center';
-		context.textBaseline = 'middle';*/
+		context.textBaseline = 'middle';
 
 		//context.save();
 		context.translate(-((shift_x % HEX_2W) + HEX_W), -((shift_y % HEX_3H) + HEX_2H));
@@ -499,6 +528,62 @@ T1L = {};
 					context.fillRect(30, 30, 10, 10);
 				}
 
+				if (tile.path != undefined)
+				{
+					context.strokeStyle = COLORS[7];
+					context.lineWidth = 8;
+
+					if (tile.path & 1)
+					{
+						context.beginPath();
+						context.moveTo(HEX_W, HEX_2H);
+						context.lineTo(HEX_W2, HEX_H1);
+						context.stroke();
+					}
+
+					if (tile.path & 2)
+					{
+						context.beginPath();
+						context.moveTo(HEX_W, HEX_2H);
+						context.lineTo(HEX_2W, HEX_2H);
+						context.stroke();
+					}
+
+					if (tile.path & 4)
+					{
+						context.beginPath();
+						context.moveTo(HEX_W, HEX_2H);
+						context.lineTo(HEX_W2, HEX_H2);
+						context.stroke();
+					}
+
+					if (tile.path & 8)
+					{
+						context.beginPath();
+						context.moveTo(HEX_W, HEX_2H);
+						context.lineTo(HEX_W1, HEX_H2);
+						context.stroke();
+					}
+
+					if (tile.path & 16)
+					{
+						context.beginPath();
+						context.moveTo(HEX_W, HEX_2H);
+						context.lineTo(0, HEX_2H);
+						context.stroke();
+					}
+
+					if (tile.path & 32)
+					{
+						context.beginPath();
+						context.moveTo(HEX_W, HEX_2H);
+						context.lineTo(HEX_W1, HEX_H1);
+						context.stroke();
+					}
+				}
+
+				context.fillStyle = COLORS[9];
+				context.fillText(tile.i, HEX_W, HEX_2H);
 				context.translate(HEX_2W, 0);
 			}
 
@@ -656,25 +741,17 @@ T1L = {};
 
 	T1L.Game.prototype.reveal = function (types)
 	{
-		for (var y in types)
+		for (var i in types)
 		{
-			for (var x in types[y])
-			{
-				this.board.tiles[y][x].terrain = types[y][x];
-			}
+			this.board.index[i].terrain = types[i];
 		}
 	}
 
 	T1L.Game.prototype.build = function (buildings)
 	{
-		for (var y in buildings)
+		for (var i in buildings)
 		{
-			for (var x in buildings[y])
-			{
-				var building = buildings[y][x];
-				this.board.tiles[y][x].building = building;
-				//this.origins[building].push([x, y]);
-			}
+			this.board.index[i].building = buildings[i];
 		}
 	}
 

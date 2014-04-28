@@ -7,6 +7,7 @@ var sockjs = require('sockjs');
 var TARGET = 0;
 var PATH = 1;
 var ORIGIN = 2;
+var NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
 
 t1l = {};
 module.exports = t1l;

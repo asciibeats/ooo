@@ -197,9 +197,9 @@
 		PIX.show(game);
 		PIX.open(images);
 		game.start(0);
-		game.reveal({0:{0:8},5:{1:2,2:2,3:2},1:{1:2,2:2},3:{1:2,2:2},4:{1:2,2:1,3:1},2:{1:1,2:1,3:2}});
+		game.reveal({0:8,9:2,17:1});
 		//game.progress([]);
-		game.build({1:{1:0},2:{2:1}});
+		game.build({9:0});
 		//var path = game.board.path(game.board.tiles[1][1], game.board.tiles[5][3]);
 		//console.log(path.cost);
 		//sockman.connect(URL);
