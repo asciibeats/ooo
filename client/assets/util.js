@@ -96,7 +96,7 @@ util = {};
 	{
 		var pointer = object;
 		var loops = arguments.length - 1;
-		var key;
+		var key = null;
 
 		for (var i = 2; i < loops; i++)
 		{
