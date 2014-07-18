@@ -9,6 +9,30 @@ var PATH = 1;
 var ORIGIN = 2;
 var NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
 
+//terrain
+var PLAINS = 1;
+
+//items
+var TIME = 0;
+var WOOD = 1;
+var APPLE = 2;
+
+//quests
+var FIREPLACE = 5;
+
+var ACTIONS = [];
+
+ACTIONS[FIREPLACE] = function (i, watch)
+{
+	do
+	{
+		this.game.board.occupant[i] = this.seat;
+	}
+	while (i = watch.pop())
+
+	//return [1];//event?eventqueue
+}
+
 t1l = {};
 module.exports = t1l;
 
@@ -122,7 +146,7 @@ t1l.Sockman.prototype.trigger = function (socket, type, data)
 		}
 		catch (e)
 		{
-			console.log('%d EXCEPTION %d', socket.id, e);
+			console.log('%d EXCEPTION %s', socket.id, e);
 			//socket.ecount++;
 			//disconnect?
 		}
@@ -179,9 +203,259 @@ t1l.Player.prototype.leave = function (id)
 	delete this.games[id];
 }
 
-t1l.Player.prototype.toState = function ()
+var rough = 0.3;
+
+function diamond (x1, y2, d)
 {
-	return [Object.keys(this.chars), Object.keys(this.games), Object.keys(this.groups)];
+	var x2 = (x1 + d) % this.size;
+
+	if (this.tiles[y2][x2] != undefined)
+	{
+		return [];
+	}
+
+	var y1 = (y2 - d + this.size) % this.size;
+	var y3 = (y2 + d) % this.size;
+	var x3 = (x2 + d) % this.size;
+
+	var h = this.tiles[y2][x1];
+	h += this.tiles[y1][x2];
+	h += this.tiles[y2][x3];
+	h += this.tiles[y3][x2];
+	h /= 4;
+	h += ((Math.random() * 2 - 1) / (this.size - d)) * rough;
+	//h += (Math.random() / (this.size - d)) * rough;
+
+	this.tiles[y2][x2] = h;
+	return [[x1, y1], [x2, y1], [x1, y2], [x2, y2]];
+}
+
+function square (x1, y1, d)
+{
+	var x2 = x1 + d;
+	var y2 = (y1 + d) % this.size;
+
+	if (this.tiles[y2][x2] != undefined)
+	{
+		return [];
+	}
+
+	var x3 = (x2 + d) % this.size;
+	var y3 = (y2 + d) % this.size;
+
+	var h = this.tiles[y1][x1];
+	h += this.tiles[y1][x3];
+	h += this.tiles[y3][x1];
+	h += this.tiles[y3][x3];
+	h /= 4;
+	h += ((Math.random() * 2 - 1) / (this.size - d)) * rough;
+	//h += (Math.random() / (this.size - d)) * rough;
+
+	this.tiles[y2][x2] = h;
+	var x0 = (x1 - d + this.size) % this.size;
+	return [[x0, y2], [x1, y1], [x2, y2], [x1, y3]];
+}
+
+//man muss sich einbunkern können (wenn das terrain es erlaubt)
+
+/*function regroup (tile, group)
+{
+	if (tile.group == undefined)
+	{
+		var type = tile.type;
+
+		if (!this.groups[group])
+		{
+			this.groups[group] = [];
+		}
+
+		if (!this.grpmap[type])
+		{
+			this.grpmap[type] = {};
+		}
+
+		this.groups[group].push(tile.i);
+		this.grpmap[type][group] = true;
+		tile.group = group;
+
+		for (var i = 0; i < 6; i++)
+		{
+			var next = tile.steps[i];
+
+			if (next.type == tile.type)
+			{
+				regroup.call(this, next, group);
+			}
+		}
+	}
+}*/
+
+//plattentektonik -> berge
+//sonne scheint, erhitzt erde je nach oberfläche/äquator -> luftdruck/wind & luftfeuchtigkeit
+//luft steigt an bergen auf und regnet ab -> flüsse
+var BASETYPES = [0,1,2,3,4,1];
+
+function regroup (tile)
+{
+	if (('group' in tile) && ('i' in tile.group))
+	{
+		this.groups.splice(tile.group.i, 1);
+		delete tile.group.i;
+	}
+
+	var group = {};
+	group.type = BASETYPES[tile.type];
+	group.tiles = [tile];
+	group.borders = {};//todo
+	group.steps = [];//todo
+	group.i = this.groups.length;
+	this.groups.push(group);
+	tile.group = group;
+
+	if (group.type in this.types)
+	{
+		console.log('NEXT GROUP %d', group.type);
+		this.types[group.type].push(group);
+	}
+	else
+	{
+		console.log('FIRST GROUP %d', group.type);
+		this.types[group.type] = [group];
+	}
+
+	var open = [tile];
+
+	do
+	{
+		var current = open.pop();
+
+		for (var i = 0; i < current.steps.length; i++)
+		{
+			var next = current.steps[i];
+
+			if (BASETYPES[next.type] != group.type)
+			{
+				/*if ('group' in next)
+				{
+					if (next.group.i in group.borders)
+					{
+						group.borders[next.group.i]++;
+					}
+					else
+					{
+						group.borders[next.group.i] = 1;
+						next.group.borders[next.group] = 1;
+					}
+				}*/
+			}
+			else if (next.group != group)
+			{
+				next.group = group;
+				group.tiles.push(next);
+				open.push(next);
+			}
+		}
+	}
+	while (open.length > 0)
+}
+
+function Board (size)
+{
+	this.size = size;
+	this.index = [];
+	this.groups = [];
+	this.types = [];
+
+	this.terrain =
+	[
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,2,2,2,1,1,1,1,1,1,2,2,2,2,2,0,
+		0,2,2,2,1,1,1,1,2,2,2,2,2,2,2,0,
+		0,1,2,2,2,1,1,1,1,2,2,2,2,2,2,0,
+		0,1,1,1,1,1,1,1,1,2,3,3,2,2,1,0,
+		0,1,1,1,2,1,2,1,1,1,3,3,3,2,1,0,
+		0,1,1,1,2,2,2,2,1,3,3,3,1,1,1,0,
+		0,1,1,1,1,2,2,3,3,4,3,1,1,1,1,0,
+		0,1,1,1,1,1,3,3,4,4,3,1,1,1,1,0,
+		0,1,1,1,1,3,3,4,4,3,3,1,1,1,2,0,
+		0,1,1,1,2,2,2,3,3,3,2,1,1,2,2,0,
+		0,2,2,2,2,2,2,1,1,2,2,2,1,2,2,0,
+		0,2,2,2,2,1,1,1,1,1,1,1,1,2,2,0,
+		0,1,2,2,1,1,1,1,1,1,2,2,1,1,1,0,
+		0,1,1,1,1,1,1,1,1,2,2,2,2,2,1,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	];
+
+	/*for (var y = 0; y < size; y++)
+	{
+		this.tiles[y] = [];
+	}
+
+	var squares = [];
+	var diamonds = [];
+
+	var d = size >> 1;
+	this.tiles[0][0] = 0.999;
+	this.tiles[d][d] = 0.0;
+	squares = squares.concat(diamond.call(this, 0, 0, d));
+	squares = squares.concat(diamond.call(this, d, d, d));
+
+	for (d >>= 1; d > 0; d >>= 1)
+	{
+		while (squares.length)
+		{
+			var s = squares.pop();
+			//console.log('SQ', s[0], s[1], d);
+			diamonds = diamonds.concat(square.call(this, s[0], s[1], d));
+		}
+
+		while (diamonds.length)
+		{
+			var s = diamonds.pop();
+			//console.log('DI', s[0], s[1], d);
+			squares = squares.concat(diamond.call(this, s[0], s[1], d));
+		}
+	}*/
+
+	//creating tiles from terrain
+	for (var i = 0; i < this.terrain.length; i++)
+	{
+		var tile = {};
+		tile.i = i;
+		tile.type = this.terrain[i];
+		this.index[i] = tile;
+	}
+
+	//building up neighbor connections
+	for (var y = 0, i = 0; y < size; y++)
+	{
+		var nmask = NMASK[y & 1];
+
+		for (var x = 0; x < size; x++, i++)
+		{
+			var steps = [];
+
+			for (var j in nmask)
+			{
+				var nx = (x + nmask[j][0] + size) % size;
+				var ny = (y + nmask[j][1] + size) % size;
+				steps[j] = this.index[ny * size + nx];
+			}
+
+			this.index[i].steps = steps;
+		}
+	}
+
+	//separate groups
+	for (var i = 0; i < this.index.length; i++)
+	{
+		var tile = this.index[i];
+
+		if (!('group' in tile))
+		{
+			regroup.call(this, tile);
+		}
+	}
 }
 
 t1l.Game = function (rules, name)
@@ -197,51 +471,7 @@ t1l.Game = function (rules, name)
 	this.rules = rules;
 	this.free = rules[0] - 1;
 	this.size = rules[1];//has to be even
-	this.board = [];
-	this.neigh = [];
-
-	//generate random board
-	for (var y = 0; y < this.size; y++)
-	{
-		this.board[y] = [];
-
-		for (var x = 0; x < this.size; x++)
-		{
-			var tile = {};
-			tile.x = x;
-			tile.y = y;
-			tile.type = Math.floor(Math.random() * 4) + 1;
-			this.board[y][x] = tile;
-		}
-	}
-
-	//build up neighbor connections
-	for (var y = 0; y < this.size; y++)
-	{
-		var nmask = this.NMASK[y & 1];
-		this.neigh[y] = [];
-
-		for (var x = 0; x < this.size; x++)
-		{
-			var neigh = [];
-
-			for (var i in nmask)
-			{
-				var nx = (x + nmask[i][0] + this.size) % this.size;
-				var ny = (y + nmask[i][1] + this.size) % this.size;
-				neigh[i] = this.board[ny][nx];
-			}
-
-			this.neigh[y][x] = neigh;
-		}
-	}
-}
-
-t1l.Game.prototype.NMASK = [[[-1, -1], [0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0]], [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 0]]];
-
-t1l.Game.prototype.toState = function ()
-{
-	return ['state'];
+	this.board = new Board(this.size);
 }
 
 t1l.Game.prototype.join = function (name)
@@ -270,51 +500,44 @@ t1l.Game.prototype.joined = function ()
 	return Object.keys(this.seats);
 }
 
+//helper
+function template (size)
+{
+	var actions = [];
+
+	for (var seat = 0; seat < size; seat++)
+	{
+		actions[seat] = [];
+	}
+
+	return actions;
+}
+
 t1l.Game.prototype.start = function ()
 {
 	this.open = false;
 	this.time = 1;
-	this.stats = [];
-	this.history = [];
-	this.actions = [];
-	var id = 0;
+	this.ticks = 0;
+	this.realms = [];
+	var seat = 0;
+	var groups = Object.keys(this.board.types[PLAINS]);
+	var size = Object.keys(this.seats).length;
 
 	for (var name in this.seats)
 	{
-		this.stats[id] = {};
-		this.seats[name] = id;
-		var x = 0;
-		var y = 0;
-		this.history[0][y][x].push([id, TARGET, 0]);
-		id++;
+		var group = this.board.types[PLAINS][groups.splice(Math.floor(Math.random() * groups.length), 1)[0]];//pick random group
+
+		var stats = {};
+		stats[group.i] = [0, 0, 1, 1, 2];
+
+		this.realms[seat] = [stats, [template(size)]];
+		this.seats[name] = seat++;
 	}
 }
 
-t1l.Game.prototype.update = function (x, y, action)
+t1l.Game.prototype.tick = function (name, quests, callback)
 {
-	if (!this.history[this.time])
-	{
-		this.history[this.time] = {};
-	}
-
-	var history = this.history[this.time];
-
-	if (!history[y])
-	{
-		history[y] = {};
-	}
-
-	if (!history[y][x])
-	{
-		history[y][x] = [];
-	}
-
-	history[y][x].push(action);
-}
-
-t1l.Game.prototype.tick = function (name, actions)
-{
-	if (!this.time)
+	if (this.time == 0)
 	{
 		throw 888;
 	}
@@ -326,39 +549,72 @@ t1l.Game.prototype.tick = function (name, actions)
 		throw 543;
 	}
 
-	for (var i in actions)
+	var realm = this.realms[seat];
+
+	if (realm[1][this.time] != undefined)
 	{
-		//[x,y,path[],[type, args[]]]
-		var x = actions[i][0];
-		var y = actions[i][1];
-		var path = actions[i][2];
-		var id = this.actions.length;
-		this.actions.push(actions[i][3]);
-
-		var last = path.length - 1;
-		var nmask = this.NMASK[y & 1];
-
-		this.update(x, y, [seat, type, TARGET, path[0]]);
-
-		for (var j in path)
-		{
-			var step = path[j];
-			x = (x + nmask[step][0] + this.size) % this.size;
-			y = (y + nmask[step][1] + this.size) % this.size;
-
-			if (j == last)
-			{
-				this.update(x, y, [seat, type, ORIGIN, (step + 3) % 6]);
-			}
-			else
-			{
-				this.update(x, y, [seat, type, PATH, step, (step + 3) % 6]);
-			}
-		}
+		throw 4444;
 	}
 
-	this.stats[seat].time++;
+	realm[1][this.time] = template(this.size);
+	realm[1][this.time][seat] = quests;
+	this.ticks++;
+
+	if (this.ticks < this.realms.length)
+	{
+		return;
+	}
+
+	this.time++;
+	this.ticks = 0;
+
+	//apply all quests (reihenfolge?)
+	/*for (var i = 0, j = quests.length; i < j; i++)
+	{
+		var type = quests[i][0];
+		var args = quests[i][1];
+		//subtract from items
+		//realm.results[this.time][i] = ACTIONS[type].apply({game: this, seat: seat}, args);
+	}*/
+
+	callback();
 }
+
+//realm health(basispunkte) + foods produced = actionpoints
+////if no food produced decrease health by 1
+
+//domination zone an besetzte geb angrenzende tiles reichweite r (abhängig von powerlevel)
+//EARLYGAME: discover!!!
+//MIDGAME: diplomacy!!!
+//ENDGAME: world quests!!!
+//quests sind ereigniskarten
+//ereigniskarten kann man als gruppe spielen
+//Missgeschicke schicken :DDDD NASSER SCHUH!!(relativ teuer müssen die sein, darf nur dosiert passieren)
+//diplomatiekarten müssen vom gegner bestätigt werd und kosten auch erst bei bestätigung etwas(für alle gleichviel?)
+//questbelohnung: reveal & evtl mehr
+//quests in nicht aufgedeckter karte haben höhreren level als in revealt
+//keine quests in realm???
+//input/output raster min 1/2 (freier oder eingeschränkter input)
+//anfangspreis für beta7alpha bla 5$ endpreis 15$ (transparent machen!!!)
+//oder 3€ bis 9€
+//nicht tiles direkt angreifen!!(tiles als belohnung->je höher defense desto mehr kostet es tiles einzunehmen))
+//besetztes gebiet vergrößert sich durch bauen (target + x tiles (bei outpost 7/3? fireplace 1))
+//nur auf nicht besetzten gebieten können ereignisse ausgelöst werden
+//mann sollte also keine löcher lassen
+//realms sind bei beginn schon komplett ausgeteilt
+//bestimmtes gebäude (stall?:) eröffnet diplomatie und die erste runde nachbarn(die auch diese gebäude haben)
+//nullsec/lowsec/highsec
+//if you get killed you are out of the game
+//you can only get killed if your headquarters are taken
+
+/*t1l.Game.prototype.quests = function (seat)
+{
+	var time = this.time - 1;
+	var obj = {};
+	obj.quests = this.realms[seat].quests[time];
+	obj.results = this.realms[seat].results[time];
+	return obj;
+}*/
 
 /*Game.prototype.tock = function ()
 {

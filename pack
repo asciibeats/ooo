@@ -1,0 +1,3 @@
+#!/bin/sh
+cd $(dirname $0)
+zip -r ${PWD##*/}.zip package.json index.html client server assets node_modules

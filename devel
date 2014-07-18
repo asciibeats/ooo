@@ -1,10 +1,10 @@
 #!/bin/bash
-BASEDIR=$(dirname $0)
-urxvt -title wmtag_1 -e $EDITOR $BASEDIR/client/t1l.js &
-urxvt -title wmtag_1 -e $EDITOR $BASEDIR/client/init.js &
-urxvt -title wmtag_2 -e $EDITOR $BASEDIR/server/t1l.js &
-urxvt -title wmtag_2 -e $EDITOR $BASEDIR/server/init.js &
-urxvt -e $BASEDIR/node &
+base=$(dirname $0)
+urxvt -title wmtag_1 -e $EDITOR $base/client/game.js &
+urxvt -title wmtag_1 -e $EDITOR $base/client/init.js &
+urxvt -title wmtag_2 -e $EDITOR $base/server/t1l.js &
+urxvt -title wmtag_2 -e $EDITOR $base/server/init.js &
+urxvt -title wmtag_log -e $base/node &
 clear
-http-server $BASEDIR/client -p 11155
+http-server $base -p 11155
 clear

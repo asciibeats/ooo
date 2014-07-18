@@ -18,9 +18,11 @@ var LEAVE = 8;
 var AWAY = 9;
 var BACK = 10;
 var START = 11;
+var TOCK = 12;
+var CONTINUE = 13;
 
 var players = {};
-var groups = {};
+//var groups = {};
 var games = {};
 var online = {};
 var sockets = {};
@@ -40,6 +42,33 @@ function register (name, pass)
 		var player = new t1l.Player();
 		player.login(name, pass);
 		players[name] = player;
+	}
+}
+
+function toothers (name, names, message, store)
+{
+	for (var i in names)
+	{
+		if (names[i] == name)
+		{
+			continue;
+		}
+
+		var socket = online[names[i]];
+
+		if (socket)
+		{
+			socket.send(message);
+		}
+		else if (store)
+		{
+			var player = players[name];
+
+			if (player)
+			{
+				player.store(message);
+			}
+		}
 	}
 }
 
@@ -75,36 +104,41 @@ sockman.on(OPEN, [LOGIN], function ()
 	console.log('%d OPEN', this.id);
 });
 
-sockman.on(LOGIN, [LOGIN, HOST, JOIN], function (name, pass)
+sockman.on(LOGIN, [LOGIN, HOST, JOIN, TICK], function (name, pass)
 {
 	var player = players[name];
 
 	if (player && !online[name] && (player.pass === pass))
 	{
-		console.log('%d LOGIN %s', this.id, name);
+		console.log('%d LOGIN %s %s', this.id, name, pass);
 		sockets[this.id] = player;
 		online[name] = this;
-		var list = Object.keys(games);
-		//todo: send list of friends online 
-		this.send([LOGIN, list]);
-		var message = null;
 
-		while (message = player.messages.pop())
+		for (var id in player.games)
+		{
+			var game = games[id];
+			console.log('%d BACK %d', this.id, game.id);
+			var names = game.joined();
+			var seat = game.seats[name];
+			var realm = game.realms[seat];
+			this.send([CONTINUE, game.id, game.rules, names, game.board.terrain, game.time, seat, realm]);
+			toothers(name, names, [BACK, game.id, player.name]);
+		}
+
+		if (!game)
+		{
+			var list = Object.keys(games);
+			this.send([LOGIN, list]);
+		}
+
+		/*for (var i = 0, j = message = player.messages.pop())
 		{
 			//send stored messages
 			this.send(message);
-		}
+		}*/
 
-		for (var name in player.friends)
-		{
-			//send online notification
-			var socket = online[name];
-
-			if (socket)
-			{
-				socket.send([ONLINE, name]);
-			}
-		}
+		//var names = Object.keys(player.friends);
+		//broadcast(names, [ONLINE, name]);
 	}
 	else
 	{
@@ -114,17 +148,17 @@ sockman.on(LOGIN, [LOGIN, HOST, JOIN], function (name, pass)
 	}
 });
 
-sockman.on(HOST, [], function (rules)
+sockman.on(HOST, [TICK], function (rules)
 {
 	var player = sockets[this.id];
 	var game = new t1l.Game(rules, player.name);
 	game.id = t1l.fill(games, game);
-	console.log('%d HOST %d %s %s', this.id, game.id, rules);
-	player.join(game.id);
-	this.send([LOBBY, game.id, game.rules, game.joined()]);
+	console.log('%d HOST %d %s', this.id, game.id, JSON.stringify(rules));
+	//player.join(game.id);
+	this.send([LOBBY, game.id, game.rules, game.joined(), game.board.terrain]);
 });
 
-sockman.on(JOIN, [], function (id)
+sockman.on(JOIN, [TICK], function (id)
 {
 	var game = games[id];
 
@@ -140,9 +174,8 @@ sockman.on(JOIN, [], function (id)
 	if (others)
 	{
 		console.log('%d JOIN %d', this.id, id);
-		player.join(id);
 		broadcast(others, [JOIN, id, player.name]);
-		this.send([LOBBY, id, game.rules, game.board]);
+		this.send([LOBBY, game.id, game.rules, game.joined(), game.board.terrain]);
 
 		if (!game.free)
 		{
@@ -157,7 +190,13 @@ sockman.on(JOIN, [], function (id)
 
 				for (var name in game.seats)
 				{
-					online[name].send([START, game.id, game.seats[name]]);
+					players[name].join(game.id);
+					var seat = game.seats[name];
+					var realm = game.realms[seat];
+					//var history = game.history(seat);
+					var spawn = 10;
+					var socket = online[name];
+					socket.send([START, game.id, game.time, seat, realm]);//history.quests, history.results
 				}
 			}, START_DELAY * 1000);
 		}
@@ -169,7 +208,7 @@ sockman.on(JOIN, [], function (id)
 	}
 });
 
-sockman.on(TICK, [TICK], function (id, actions)
+sockman.on(TICK, [TICK], function (id, quests)
 {
 	var player = sockets[this.id];
 
@@ -185,10 +224,21 @@ sockman.on(TICK, [TICK], function (id, actions)
 		throw 777;
 	}
 
-	game.tick(player.name, actions);
+	console.log('%d TICK %s', this.id, JSON.stringify(quests));
 
-	//if all players did their tick, update clients
-	//if (game.complete())
+	game.tick(player.name, quests, function ()
+	{
+		console.log('COMPLETE');
+		//broadcast(game.joined(), [TOCK, id]);
+
+		for (var name in game.seats)
+		{
+			var socket = online[name];
+			//var seat = game.seats[name];
+			//var history = game.history(seat);
+			socket.send([TOCK, id]);
+		}
+	});
 });
 
 sockman.on(CLOSE, [], function ()
@@ -204,8 +254,14 @@ sockman.on(CLOSE, [], function ()
 			if (game.time)//running
 			{
 				console.log('%d AWAY %d', this.id, game.id);
-				//var others = game.away(player.name);
-				//broadcast(others, [AWAY, game.id, player.name]);
+				
+				for (var name in game.seats)
+				{
+					if (online[name] && (name != player.name))
+					{
+						online[name].send([AWAY, game.id, player.name]);
+					}
+				}
 			}
 			else
 			{
