@@ -1,0 +1,17 @@
+
+
+/*Player.prototype.load = function (state)
+{
+	//bank:geld gegen ware
+	//hoher rat:richtbarkeit bei verletzung eines vertrages
+	//häusertiles->einwohner->arbeiter/entdecker(quests)/krieger
+	//felder sind gebäude mit timeout(bei timeout ernte)
+	//tile für druiden (waldquests)
+	//questen funktioniert so: tile aussuchen (partychef festgelegt durch tile;wiese->mensch;wald->elf;berg->zwerg;wasser->pirat)->partymitglieder an umliegenden feldern ausrichten
+	//krieger->nicht ausgespielt->defensiv
+	//krieger->ausgespielt->angriff
+	//jäger&sammler/holzzeit/steinzeit
+	this.chars = state[0];
+	this.games = state[1];
+	this.groups = state[2];
+}*/

@@ -1,12 +1,6 @@
-var http = require('http');
-var sockjs = require('sockjs');
+var jupiter = {};
+module.exports = jupiter;
 
-//var NULL = 0;
-//var OPEN = -1;
-//var CLOSE = -2;
-var TARGET = 0;
-var PATH = 1;
-var ORIGIN = 2;
 var NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
 
 //terrain
@@ -33,131 +27,7 @@ ACTIONS[FIREPLACE] = function (i, watch)
 	//return [1];//event?eventqueue
 }
 
-t1l = {};
-module.exports = t1l;
-
-t1l.fill = function (object, value)
-{
-	var keys = Object.keys(object);
-
-	for (var id = 0; id < keys.length; id++)
-	{
-		if (id != keys[id])
-		{
-			break;
-		}
-	}
-
-	object[id] = value;
-	return id;
-}
-
-t1l.Sockman = function ()
-{
-	this.sockets = {};
-	this.events = {};
-	this.http = null;
-	this.sockjs = null;
-}
-
-t1l.Sockman.prototype.open = function  (port)
-{
-	console.log('OPEN %d', port);
-	this.http = http.createServer();
-	this.sockjs = sockjs.createServer();
-	this.sockjs.installHandlers(this.http);//, {prefix: '/socket'}
-	var that = this;
-
-	this.sockjs.on('connection', function (conn)
-	{
-		var socket = {};
-		socket.state = 0;
-		socket.conn = conn;
-		socket.id = t1l.fill(that.sockets, socket);
-
-		socket.send = function (message)
-		{
-			conn.write(JSON.stringify(message));
-		}
-
-		socket.close = function (code)
-		{
-			conn.close(code);
-		}
-
-		that.trigger(socket, -1);
-
-		conn.on('data', function (string)
-		{
-			var data = JSON.parse(string);
-
-			if (!Array.isArray(data))
-			{
-				console.log('ERROR %d', 666);
-				return;
-			}
-
-			var type = data.shift();
-
-			if (type > 0)
-			{
-				that.trigger(socket, type, data);
-			}
-			else
-			{
-				console.log('%d ERROR %d', socket.id, 345);
-			}
-		});
-
-		conn.on('close', function ()
-		{
-			that.trigger(socket, -2);
-			delete that.sockets[socket.id];
-		});
-	});
-
-	this.http.listen(port);//, '0.0.0.0'
-}
-
-t1l.Sockman.prototype.on = function (type, expect, action)
-{
-	this.events[type] = {};
-	this.events[type].action = action;
-	this.events[type].expect = {};
-
-	for (var i in expect)
-	{
-		this.events[type].expect[expect[i]] = true;
-	}
-}
-
-t1l.Sockman.prototype.trigger = function (socket, type, data)
-{
-	if (this.events[type] && ((type < 0) || this.events[socket.state].expect[type]))
-	{
-		try
-		{
-			if (this.events[type].action)
-			{
-				this.events[type].action.apply(socket, data);
-			}
-
-			socket.state = type;
-		}
-		catch (e)
-		{
-			console.log('%d EXCEPTION %s', socket.id, e);
-			//socket.ecount++;
-			//disconnect?
-		}
-	}
-}
-
-/*t1l.Leader = function ()
-{
-}*/
-
-t1l.Player = function ()
+jupiter.Player = function ()
 {
 	this.chars = [];
 	this.games = [];
@@ -166,13 +36,13 @@ t1l.Player = function ()
 	this.messages = [];
 }
 
-t1l.Player.prototype.login = function (name, pass)
+jupiter.Player.prototype.login = function (name, pass)
 {
 	this.name = name;
 	this.pass = pass;
 }
 
-t1l.Player.prototype.load = function (state)
+jupiter.Player.prototype.load = function (state)
 {
 	//bank:geld gegen ware
 	//hoher rat:richtbarkeit bei verletzung eines vertrages
@@ -188,17 +58,17 @@ t1l.Player.prototype.load = function (state)
 	this.groups = state[2];
 }
 
-t1l.Player.prototype.store = function (message)
+jupiter.Player.prototype.store = function (message)
 {
 	this.messages.push(message);
 }
 
-t1l.Player.prototype.join = function (id)
+jupiter.Player.prototype.join = function (id)
 {
 	this.games[id] = true;
 }
 
-t1l.Player.prototype.leave = function (id)
+jupiter.Player.prototype.leave = function (id)
 {
 	delete this.games[id];
 }
@@ -314,12 +184,10 @@ function regroup (tile)
 
 	if (group.type in this.types)
 	{
-		console.log('NEXT GROUP %d', group.type);
 		this.types[group.type].push(group);
 	}
 	else
 	{
-		console.log('FIRST GROUP %d', group.type);
 		this.types[group.type] = [group];
 	}
 
@@ -458,7 +326,7 @@ function Board (size)
 	}
 }
 
-t1l.Game = function (rules, name)
+jupiter.Game = function (rules, name)
 {
 	this.time = 0;
 	this.open = true;//temp->false
@@ -474,7 +342,7 @@ t1l.Game = function (rules, name)
 	this.board = new Board(this.size);
 }
 
-t1l.Game.prototype.join = function (name)
+jupiter.Game.prototype.join = function (name)
 {
 	if ((this.open || this.invited[name]) && !this.banned[name] && this.free)
 	{
@@ -485,9 +353,9 @@ t1l.Game.prototype.join = function (name)
 	}
 }
 
-t1l.Game.prototype.leave = function (name)
+jupiter.Game.prototype.leave = function (name)
 {
-	if (!this.time && this.seats[name])
+	if (!this.running && this.seats[name])
 	{
 		delete this.seats[name];
 		this.free++;
@@ -495,7 +363,7 @@ t1l.Game.prototype.leave = function (name)
 	}
 }
 
-t1l.Game.prototype.joined = function ()
+jupiter.Game.prototype.joined = function ()
 {
 	return Object.keys(this.seats);
 }
@@ -513,10 +381,10 @@ function template (size)
 	return actions;
 }
 
-t1l.Game.prototype.start = function ()
+jupiter.Game.prototype.start = function ()
 {
 	this.open = false;
-	this.time = 1;
+	this.running = true;
 	this.ticks = 0;
 	this.realms = [];
 	var seat = 0;
@@ -528,14 +396,15 @@ t1l.Game.prototype.start = function ()
 		var group = this.board.types[PLAINS][groups.splice(Math.floor(Math.random() * groups.length), 1)[0]];//pick random group
 
 		var stats = {};
-		stats[group.i] = [0, 0, 1, 1, 2];
+		stats[group.i] = [1, 10, [0, 1, 2], [3, 3, 4]];//level, population(actionspoints), skills (infinite;cost something), items (limited;for free)
+		//every resource you dont use levels up those production facilities!?
 
-		this.realms[seat] = [stats, [template(size)]];
+		this.realms[seat] = [stats, []];
 		this.seats[name] = seat++;
 	}
 }
 
-t1l.Game.prototype.tick = function (name, quests, callback)
+jupiter.Game.prototype.tick = function (name, quests, callback)
 {
 	if (this.time == 0)
 	{
@@ -607,7 +476,7 @@ t1l.Game.prototype.tick = function (name, quests, callback)
 //if you get killed you are out of the game
 //you can only get killed if your headquarters are taken
 
-/*t1l.Game.prototype.quests = function (seat)
+/*jupiter.Game.prototype.quests = function (seat)
 {
 	var time = this.time - 1;
 	var obj = {};

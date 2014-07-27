@@ -5,52 +5,31 @@ var oO = {};
 //jupiter kings
 
 //TODO
-//Object.create polyfill? gibts broswer die canvas haben aber nicht Object.create??
+//Object.create polyobjFill? gibts broswer die canvas haben aber nicht Object.create??
 
-//HELPER
 (function ()
 {
-	oO.wrap = function (i, n)
+	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+	var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
+
+	function intWrap (i, n)
 	{
 		return (((i % n) + n) % n);
 	}
 
-	oO.print = function ()
+	function intKeys (object)
 	{
-		var json = [];
-		var fail = [];
+		var keys = [];
 
-		for (var i in arguments)
+		for (var key in object)
 		{
-			var arg = arguments[i];
-
-			try
-			{
-				json.push(JSON.stringify(arg));
-			}
-			catch (e)
-			{
-				fail.push(arg);
-			}
-		};
-
-		if (json.length)
-		{
-			console.log(json.join(' '));
+			keys.push(parseInt(key));
 		}
 
-		for (var i in fail)
-		{
-			console.log(fail[i]);
-		}
+		return keys;
 	}
 
-	oO.clone = function (object)
-	{
-		return JSON.parse(JSON.stringify(object));
-	}
-
-	oO.fill = function (object, value)
+	function objFill (object, value)
 	{
 		var keys = Object.keys(object);
 
@@ -66,17 +45,59 @@ var oO = {};
 		return id;
 	}
 
-	oO.size = function (object)
+	function objSize (object)
 	{
 		return Object.keys(object).length;
 	}
-})();
 
-//PIXMAN
-(function ()
-{
-	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-	var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
+	function setLocal (name, object)
+	{
+		localStorage[name] = JSON.stringify(object);
+	}
+
+	function getLocal (name)
+	{
+		if (!localStorage[name])
+		{
+			localStorage[name] = JSON.stringify({});
+		}
+
+		return JSON.parse(localStorage[name]);
+	}
+
+	function preload (assets, callback)
+	{
+		if (!assets)
+		{
+			return;
+		}
+
+		var images = {};
+		var toload = objSize(assets);
+		var loaded = 0;
+
+		for (var name in assets)
+		{
+			images[name] = new Image();
+
+			images[name].onload = function()
+			{
+				loaded++;
+
+				if (loaded == toload)
+				{
+					callback(images);
+				}
+			}
+
+			images[name].src = assets[name];
+		}
+	}
+
+	function Wrap (Func, argv)
+	{
+		return Func.bind.apply(Func, [Func].concat(argv));
+	}
 
 	function listenTo (channel)
 	{
@@ -157,10 +178,9 @@ var oO = {};
 			scene.layers.sort(ascend);
 		}
 
-		actor.id = oO.fill(scene.children[layer], actor);
+		actor.id = objFill(scene.children[layer], actor);
 		actor.layer = layer;
 		actor.parent = scene;
-		actor.root = scene.root;
 	}
 
 	function ascend (a, b)
@@ -190,6 +210,38 @@ var oO = {};
 		return low;
 	}
 
+	var Class = function ()
+	{
+	}
+
+	Class.method = function (name, func)
+	{
+		this.prototype[name] = func;
+	}
+
+	Class.extend = function (func)
+	{
+		var Parent = this;
+
+		var Child = function ()
+		{
+			func.apply(this, arguments);
+		}
+
+		Child.prototype = Object.create(Parent.prototype);
+		Child.prototype.constructor = Child;
+
+		var names = Object.keys(Parent);
+
+		for (var i = 0; i < names.length; i++)
+		{
+			var name = names[i];
+			Child[name] = Parent[name];
+		}
+
+		return Child;
+	}
+
 	oO.Actor = function ()
 	{
 		this.rel_x = 0;
@@ -212,10 +264,8 @@ var oO = {};
 		var Child = function ()
 		{
 			Parent.apply(this, argv);
-			//func.apply(this, arguments);
 		}
 
-		//Child.prototype = new Parent();
 		Child.prototype = Object.create(Parent.prototype);
 		Child.prototype.constructor = Child;
 
@@ -265,11 +315,9 @@ var oO = {};
 
 		var Child = function ()
 		{
-			//Parent.call(this);
 			func.apply(this, arguments);
 		}
 
-		//Child.prototype = new Parent();
 		Child.prototype = Object.create(Parent.prototype);
 		Child.prototype.constructor = Child;
 
@@ -396,7 +444,7 @@ var oO = {};
 		var layer = this.parent.children[this.layer];
 		delete layer[this.id];
 
-		if (oO.size(layer) == 0)
+		if (objSize(layer) == 0)
 		{
 			delete this.parent.children[this.layer];
 			var layers = this.parent.layers;
@@ -418,7 +466,7 @@ var oO = {};
 		this.height = 100;
 	});
 
-	oO.Box.on('draw', function (elapsed, context)
+	oO.Box.on('frame', function (elapsed, context)
 	{
 		context.fillStyle = this.color;
 		context.fillRect(0, 0, this.width, this.height);
@@ -435,7 +483,7 @@ var oO = {};
 		this.img_y = img_y || 0;
 	});
 
-	oO.Sprite.on('draw', function (elapsed, context)
+	oO.Sprite.on('frame', function (elapsed, context)
 	{
 		context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
 	});
@@ -527,19 +575,32 @@ var oO = {};
 		this.prototype.bottomup[type] = value;
 	}
 
-	oO.Scene.register('draw', true);
+	oO.Scene.register('frame', true);
 	oO.Scene.register('resize', true);
 	oO.Scene.register('show', true);
-	oO.Scene.register('press', false);
-	oO.Scene.register('text', false);
+	//oO.Scene.register('hide', true);
+	//oO.Scene.register('press', false);
+	//oO.Scene.register('text', false);
 	//oO.Scene.register('release', false);
 	oO.Scene.register('drag', false);
 	oO.Scene.register('drop', false);
 	oO.Scene.register('click', false);
 
+	oO.Scene.register('deny', true);
+	oO.Scene.register('grant', true);
+	oO.Scene.register('lobby', true);
+	oO.Scene.register('continue', true);
+
+	oO.Scene.register('join', true);
+	oO.Scene.register('leave', true);
+	oO.Scene.register('ready', true);
+	oO.Scene.register('start', true);
+	oO.Scene.register('away', true);
+	oO.Scene.register('back', true);
+	oO.Scene.register('tock', true);
+
 	oO.Scene.on('show', function (root, parent)
 	{
-		this.root = root;
 		return [root, this];
 	});
 
@@ -566,12 +627,12 @@ var oO = {};
 		}
 	});
 
-	/*oO.Scene.prepare('show', function (root, parent)
+	oO.Scene.prepare('show', function (root, parent)
 	{
 		this.root = root;
-	});*/
+	});
 
-	oO.Scene.prepare('draw', function (elapsed, context)
+	oO.Scene.prepare('frame', function (elapsed, context)
 	{
 		context.save();
 		context.globalAlpha = this.alpha;
@@ -580,7 +641,7 @@ var oO = {};
 		context.translate(-this.mid_x, -this.mid_y);
 	});
 
-	oO.Scene.cleanup('draw', function (elapsed, context)
+	oO.Scene.cleanup('frame', function (elapsed, context)
 	{
 		context.restore();
 	});
@@ -603,7 +664,7 @@ var oO = {};
 		showActor(this, actor, layer);
 		actor.trigger('resize', [this.width, this.height]);
 
-		if ((this.root != undefined) && (this.root.images != undefined))//root has been opened
+		if (this.root && this.root.images)//root has been opened
 		{
 			actor.trigger('show', [this.root, this]);
 		}
@@ -668,7 +729,7 @@ var oO = {};
 		this.once = false;
 	});
 
-	oO.Stage.on('draw', function (elapsed, context)
+	oO.Stage.on('frame', function (elapsed, context)
 	{
 		if (this.update || this.once)
 		{
@@ -681,7 +742,7 @@ var oO = {};
 		}
 	});
 
-	oO.Stage.bubble('draw', function (elapsed, context)
+	oO.Stage.bubble('frame', function (elapsed, context)
 	{
 		if (context != null)
 		{
@@ -718,7 +779,7 @@ var oO = {};
 	});
 
 	//root actor to be embedded into html
-	oO.Root = oO.Stage.extend(function (hook, color)
+	oO.Root = oO.Stage.extend(function (hook, assets, color)
 	{
 		oO.Stage.call(this);//layout is maxed automatically when null
 		this.canvas.style.position = 'absolute';
@@ -728,21 +789,79 @@ var oO = {};
 		this.resize(hook.clientWidth, hook.clientHeight);
 		this.context.fillStyle = color || '#444';
 		this.context.fillRect(0, 0, this.width, this.height);
+		this.fullscreen = false;
+		this.loaded = false;
 		this.root = this;
-		this.full = false;
+		var that = this;
+
+		preload(assets, function (images)
+		{
+			that.images = images;
+			that.loaded = true;
+			that.trigger('show', [that, that]);
+		});
 	});
 
-	oO.Root.method('open', function (images)
+	oO.Root.method('augment', function (element)
 	{
-		this.images = images || [];
-		var that = this;
+		element.root = this;
+		this.hook.appendChild(element.element);
+	});
+
+	oO.Root.method('toggle', function ()
+	{
+		if (document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement)
+		{
+			if (document.exitFullscreen)
+			{
+				document.exitFullscreen();
+			}
+			else if (document.msExitFullscreen)
+			{
+				document.msExitFullscreen();
+			}
+			else if (document.mozCancelFullScreen)
+			{
+				document.mozCancelFullScreen();
+			}
+			else if (document.webkitExitFullscreen)
+			{
+				document.webkitExitFullscreen();
+			}
+
+			this.full = false;
+		}
+		else
+		{
+			if (this.hook.requestFullscreen)
+			{
+				this.hook.requestFullscreen();
+			}
+			else if (this.hook.msRequestFullscreen)
+			{
+				this.hook.msRequestFullscreen();
+			}
+			else if (this.hook.mozRequestFullScreen)
+			{
+				this.hook.mozRequestFullScreen();
+			}
+			else if (this.hook.webkitRequestFullscreen)
+			{
+				this.hook.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+			}
+
+			this.full = true;
+		}
+	});
+
+	oO.Root.on('show', function (root, parent)
+	{
 		var drag = false;
 		var down_x = 0;
 		var down_y = 0;
 		var drag_x = 0;
 		var drag_y = 0;
-
-		this.trigger('show', [this, this]);
+		var that = this;
 		
 		function on_mousedown (event)
 		{
@@ -808,7 +927,7 @@ var oO = {};
 		function on_resize (event)
 		{
 			that.trigger('resize', [that.hook.clientWidth, that.hook.clientHeight]);
-			that.trigger('draw', argv);
+			that.trigger('frame', argv);
 		}
 
 		this.canvas.addEventListener('mousedown', on_mousedown);
@@ -823,17 +942,17 @@ var oO = {};
 
 		function loop (time)
 		{
-			that.request_id = request(loop);
+			//that.request_id = request(loop);
 			//argv[0] = last ? (time - last) : 0;
 			//last = time;
 			argv[0] = time;
-			that.trigger('draw', argv);
+			that.trigger('frame', argv);
 		}
 
 		this.request_id = request(loop);
 	});
 
-	oO.Root.method('close', function ()
+	oO.Root.on('hide', function ()
 	{
 		var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame;
 		cancel(this.request_id);
@@ -842,52 +961,6 @@ var oO = {};
 		this.canvas.addEventListener('mouseup', on_mouseup);
 		this.canvas.addEventListener('mouseout', on_mouseout);
 		window.addEventListener('resize', on_resize);*/
-	});
-
-	oO.Root.method('toggle', function ()
-	{
-		if (document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement)
-		{
-			if (document.exitFullscreen)
-			{
-				document.exitFullscreen();
-			}
-			else if (document.msExitFullscreen)
-			{
-				document.msExitFullscreen();
-			}
-			else if (document.mozCancelFullScreen)
-			{
-				document.mozCancelFullScreen();
-			}
-			else if (document.webkitExitFullscreen)
-			{
-				document.webkitExitFullscreen();
-			}
-
-			this.full = false;
-		}
-		else
-		{
-			if (this.hook.requestFullscreen)
-			{
-				this.hook.requestFullscreen();
-			}
-			else if (this.hook.msRequestFullscreen)
-			{
-				this.hook.msRequestFullscreen();
-			}
-			else if (this.hook.mozRequestFullScreen)
-			{
-				this.hook.mozRequestFullScreen();
-			}
-			else if (this.hook.webkitRequestFullscreen)
-			{
-				this.hook.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
-			}
-
-			this.full = true;
-		}
 	});
 
 	oO.TileMap = oO.Cell.extend(function (size, tile_w, tile_h, type, layout)
@@ -969,8 +1042,8 @@ var oO = {};
 
 	oO.TileMap.on('drop', function (drop_x, drop_y)
 	{
-		this.drop_x = oO.wrap(this.drop_x - this.drag_x, this.patch_w);
-		this.drop_y = oO.wrap(this.drop_y - this.drag_y, this.patch_h);
+		this.drop_x = intWrap(this.drop_x - this.drag_x, this.patch_w);
+		this.drop_y = intWrap(this.drop_y - this.drag_y, this.patch_h);
 		this.drag_x = 0;
 		this.drag_y = 0;
 	});
@@ -982,10 +1055,10 @@ var oO = {};
 		this.trigger('pick', [this.tiles[tile_y][tile_x], tile_x, tile_y]);
 	});
 
-	oO.TileMap.on('draw', function (elapsed, context)
+	oO.TileMap.on('frame', function (elapsed, context)
 	{
-		var drop_x = oO.wrap(this.drop_x - this.drag_x, this.patch_w);
-		var drop_y = oO.wrap(this.drop_y - this.drag_y, this.patch_h);
+		var drop_x = intWrap(this.drop_x - this.drag_x, this.patch_w);
+		var drop_y = intWrap(this.drop_y - this.drag_y, this.patch_h);
 		var start_x = Math.floor(drop_x / this.tile_w);
 		var start_y = Math.floor(drop_y / this.tile_h);
 		var end_x = start_x + Math.ceil(this.width / this.tile_w);
@@ -1109,14 +1182,7 @@ var oO = {};
 		}
 		while (open.length)
 
-		var tiles = [];
-
-		for (var i in done)
-		{
-			tiles.push(parseInt(i));
-		}
-
-		return tiles;
+		return intKeys(done);
 	});
 
 	oO.TileMap.method('findPath', function (origin, target)
@@ -1291,10 +1357,10 @@ var oO = {};
 		this.trigger('pick', [this.tiles[tile_y][tile_x], tile_x, tile_y]);
 	});
 
-	oO.HexMap.on('draw', function (elapsed, context)
+	oO.HexMap.on('frame', function (elapsed, context)
 	{
-		var drop_x = oO.wrap(this.drop_x - this.drag_x, this.patch_w);
-		var drop_y = oO.wrap(this.drop_y - this.drag_y, this.patch_h);
+		var drop_x = intWrap(this.drop_x - this.drag_x, this.patch_w);
+		var drop_y = intWrap(this.drop_y - this.drag_y, this.patch_h);
 		var start_x = Math.floor(drop_x / this.tile_w);
 		var start_y = Math.floor(drop_y / this.tile_3h4);
 		var end_x = start_x + Math.ceil(this.width / this.tile_w) + 1;//besser berechnen als + 1 (width + tile_w2??)
@@ -1324,7 +1390,7 @@ var oO = {};
 					context.drawImage(this.image, this.coords[tile.mark][0], this.coords[tile.mark][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
 				}
 
-				//context.fillText(tile.group.i, 10, 10);
+				//context.objFillText(tile.group.i, 10, 10);
 				context.translate(this.tile_w, 0);
 			}
 
@@ -1383,428 +1449,266 @@ var oO = {};
 	});
 
 	//HTML ELEMENTS
-	oO.Element = oO.Actor.extend(function (type, style)
-	{
-		oO.Actor.call(this);
-		this.element = document.createElement(type);
-		this.element.style.position = 'relative';
-
-		if (style)
-		{
-			for (var prop in style)
-			{
-				this.element.style[prop] = style[prop];
-			}
-		}
-	});
-
-	oO.Element.on('show', function (root, parent)
-	{
-		root.hook.appendChild(this.element);
-	});
+	var EVMAP = {};
+	EVMAP['click'] = 'click';
 
 	var EVFUNC = {};
-	EVFUNC['mousedown'] = function (func)
+	EVFUNC['click'] = function (func)
 	{
 		return function (event)
 		{
 			func(event.clientX, event.clientY);
+			event.stopPropagation();
 		}
 	}
 
-	function click_map (event)
+	oO.Element = function (type, style)
 	{
-		return [event.clientX, event.clientY];
+		this.element = document.createElement(type);
+		this.element.style.position = 'relative';
+
+		for (var prop in style)
+		{
+			this.element.style[prop] = style[prop];
+		}
+
+		for (var type in this.events)//in clone/extend function??
+		{
+			this.element.addEventListener(type, this.events[type]);
+		}
 	}
 
 	oO.Element.on = function (type, func)
 	{
-		root.canvas.addEventListener(EVMAP[type], EVFUNC[type](func));
+		if (!this.prototype.events)
+		{
+			this.prototype.events = {};
+		}
+
+		this.prototype.events[EVMAP[type]] = EVFUNC[type](func);
+		return this;
 	}
 
-	oO.Button = oO.Cell.extend(function (button_w, button_h, source, styles, layout)
+	oO.Element.clone = function ()
 	{
-		oO.Cell.call(this, layout);
-		this.button_w = button_w;
-		this.button_h = button_h;
-		this.source = source;
-		this.styles = styles;
-	});
+		var argv = arguments;
+		var Parent = this;
 
-	oO.Button.on('show', function (root, parent)
-	{
-		this.image = root.images[this.source];
-		this.tiles = [];
-
-		var cols = Math.floor(this.image.width / this.button_w);
-		var rows = Math.floor(this.image.height / this.button_h);
-		var name = Object.keys(this.styles)[0];
-
-		this.tile_x = (this.styles[name] % cols) * this.button_w;
-		this.tile_y = Math.floor(this.styles[name] / rows) * this.button_h;
-	});
-
-	oO.Button.on('draw', function (elapsed, context)
-	{
-		context.drawImage(this.image, this.tile_x, this.tile_y, this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-	});
-
-	oO.Button.method('style', function (name)
-	{
-		var cols = Math.floor(this.image.width / this.button_w);
-		var rows = Math.floor(this.image.height / this.button_h);
-
-		this.tile_x = (this.styles[name] % cols) * this.button_w;
-		this.tile_y = Math.floor(this.styles[name] / rows) * this.button_h;
-	});
-
-	oO.Input = oO.Cell.extend(function (color, font, align, baseline, layout)
-	{
-		oO.Cell.call(this, layout);
-		this.color = color || '#000';
-		this.font = font || '10px sans-serif';
-		this.align = align || 'start';
-		this.baseline = baseline || 'top';
-		this.chars = [];
-		this.caret = 0;
-		this.text = '';
-		this.sub = '';
-	});
-
-	oO.Input.on('text', function (time, char, key, shift)
-	{
-		if (key == 8)
+		var Child = function ()
 		{
-			if (this.caret > 0)
+			Parent.apply(this, argv);
+		}
+
+		Child.prototype = Object.create(Parent.prototype);
+		Child.prototype.constructor = Child;
+
+		if (Child.prototype.events != undefined)
+		{
+			var events = {};
+
+			for (var type in Child.prototype.events)
 			{
-				this.caret--;
-				this.chars.splice(this.caret, 1);
+				events[type] = Child.prototype.events[type];
 			}
-		}
-		else if (key == 46)
-		{
-			if (this.caret < this.chars.length)
-			{
-				this.chars.splice(this.caret, 1);
-			}
-		}
-		else if (key == 37)
-		{
-			if (this.caret > 0)
-			{
-				this.caret--;
-			}
-		}
-		else if (key == 39)
-		{
-			if (this.caret < this.chars.length)
-			{
-				this.caret++;
-			}
-		}
-		else
-		{
-			this.chars.splice(this.caret, 0, String.fromCharCode(char));
-			this.caret++;
+
+			Child.prototype.events = events;
 		}
 
-		this.text = this.chars.join('');
-		this.sub = this.text.substr(0, this.caret);
-	});
+		var names = Object.keys(Parent);
 
-	oO.Input.on('draw', function (elapsed, context)
+		for (var i = 0; i < names.length; i++)
+		{
+			var name = names[i];
+			Child[name] = Parent[name];
+		}
+
+		return Child;
+	}
+
+	oO.Element.extend = function (func)
 	{
-		context.translate(10, 100);
-		context.fillStyle = this.color;
-		context.font = this.font;
-		context.textAlign = this.align;
-		context.textBaseline = this.baseline;
-		context.fillText(this.text, 0, 0);
+		var Parent = this;
 
-		if ((elapsed % 1300) < 800)//caret blink
+		var Child = function ()
 		{
-			context.fillStyle = '#000';
-			context.fillRect(context.measureText(this.sub).width, 0, 4, 40);
+			func.apply(this, arguments);
 		}
-	});
 
-	oO.Menu = oO.Cell.extend(function (button_w, button_h, type, layout, vertical, reversed)
+		Child.prototype = Object.create(Parent.prototype);
+		Child.prototype.constructor = Child;
+
+		if (Child.prototype.events != undefined)
+		{
+			var events = {};
+
+			for (var type in Child.prototype.events)
+			{
+				events[type] = Child.prototype.events[type];
+			}
+
+			Child.prototype.events = events;
+		}
+
+		var names = Object.keys(Parent);
+
+		for (var i = 0; i < names.length; i++)
+		{
+			var name = names[i];
+			Child[name] = Parent[name];
+		}
+
+		return Child;
+	}
+
+	oO.Element.method = function (name, func)
 	{
-		oO.Cell.call(this, layout);
-		this.button_w = button_w;
-		this.button_h = button_h;
-		this.type = type;
-		this.vertical = vertical;
-		this.reversed = reversed;
-		this.offset_x = vertical ? 0 : reversed ? -button_w : button_w;
-		this.offset_y = vertical ? reversed ? -button_h : button_h : 0;
-		this.options = [];
-	});
+		this.prototype[name] = func;
+	}
 
-	oO.Menu.on('show', function (root, parent)
+	oO.Element.method('on', function (type, func)
 	{
-		this.image = root.images[this.type];
-		this.tiles = [];
-
-		var cols = Math.floor(this.image.width / this.button_w);
-		var rows = Math.floor(this.image.height / this.button_h);
-
-		for (var y = 0; y < rows; y++)
+		if (!this.events)
 		{
-			for (var x = 0; x < cols; x++)
-			{
-				this.tiles.push([x * this.button_w, y * this.button_h]);
-			}
-		}
-	});
-
-	oO.Menu.on('draw', function (elapsed, context)
-	{
-		if (this.reversed)
-		{
-			if (this.vertical)
-			{
-				context.translate(0, this.height - this.button_h);
-			}
-			else
-			{
-				context.translate(this.width - this.button_w, 0);
-			}
+			this.events = {};
 		}
 
-		for (var i = 0; i < this.options.length; i++)
-		{
-			var index = this.options[i];
-			context.drawImage(this.image, this.tiles[index][0], this.tiles[index][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-			context.translate(this.offset_x, this.offset_y);
-		}
-	});
+		type = EVMAP[type];
 
-	oO.Menu.on('click', function (down_x, down_y)
-	{
-		if (this.vertical)
+		if (this.events[type])
 		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.height - down_y) / this.button_h);
-			}
-			else
-			{
-				var i = Math.floor(down_y / this.button_h);
-			}
-		}
-		else
-		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.width - down_x) / this.button_w);
-			}
-			else
-			{
-				var i = Math.floor(down_x / this.button_w);
-			}
+			this.element.removeEventListener(type, this.events[type]);
 		}
 
-		if (this.options[i] != undefined)
-		{
-			this.trigger('pick', [this.options[i], i]);
-			return false;
-		}
-	});
-
-	oO.Menu.method('reset', function (options)
-	{
-		this.options = options || [];
+		func = EVFUNC[type](func);
+		this.events[type] = func;
+		this.element.addEventListener(type, func);
 		return this;
 	});
 
-	oO.SingleMenu = oO.Menu.extend(function (button_w, button_h, image, layout, vertical, reversed)
+	oO.Element.method('off', function (type)
 	{
-		oO.Menu.apply(this, arguments);
-	});
+		type = EVMAP[type];
 
-	oO.SingleMenu.on('draw', function (elapsed, context)
-	{
-		if (this.reversed)
+		if (!this.events || !this.events[type])
 		{
-			if (this.vertical)
-			{
-				context.translate(0, this.height - this.button_h);
-			}
-			else
-			{
-				context.translate(this.width - this.button_w, 0);
-			}
+			return;
 		}
 
-		for (var i = 0; i < this.options.length; i++)
-		{
-			if (this.picked == i)
-			{
-				context.fillStyle = '#f00';
-				context.fillRect(0, 0, this.button_w, this.button_h);
-			}
-			else
-			{
-				var type = this.options[i];
-				context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-			}
-
-			context.translate(this.offset_x, this.offset_y);
-		}
-	});
-
-	oO.SingleMenu.on('click', function (down_x, down_y)
-	{
-		if (this.vertical)
-		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.height - down_y) / this.button_h);
-			}
-			else
-			{
-				var i = Math.floor(down_y / this.button_h);
-			}
-		}
-		else
-		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.width - down_x) / this.button_w);
-			}
-			else
-			{
-				var i = Math.floor(down_x / this.button_w);
-			}
-		}
-
-		if (this.options[i] != undefined)
-		{
-			this.picked = i;
-			this.trigger('pick', [this.options[i], i]);
-			return false;
-		}
-	});
-
-	oO.SingleMenu.method('reset', function (options)
-	{
-		this.options = options || [];
-		delete this.picked;
+		this.element.removeEventListener(type, this.events[type]);
+		delete this.events[type];
 		return this;
 	});
 
-	oO.MultiMenu = oO.Menu.extend(function (button_w, button_h, image, layout)
+	oO.Element.method('hide', function ()
 	{
-		oO.Menu.apply(this, arguments);
+		this.root.hook.removeChild(this.element);
+		delete this.root;
 	});
 
-	oO.MultiMenu.on('draw', function (elapsed, context)
+	oO.Game = oO.Scene.extend(function (size)
 	{
-		if (this.reversed)
-		{
-			if (this.vertical)
-			{
-				context.translate(0, this.height - this.button_h);
-			}
-			else
-			{
-				context.translate(this.width - this.button_w, 0);
-			}
-		}
+		oO.Scene.call(this);
+		this.size = size;
+		this.players = {};
+	});
 
-		for (var i = 0; i < this.options.length; i++)
-		{
-			if (this.picked[i])
-			{
-				context.fillStyle = '#f00';
-				context.fillRect(0, 0, this.button_w, this.button_h);
-			}
-			else
-			{
-				var type = this.options[i];
-				context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-			}
+	oO.Game.on('join', function (name)
+	{
+		console.log('JOIN %s', name);
+		this.players[name] = true;
+	});
 
-			context.translate(this.offset_x, this.offset_y);
+	oO.Game.on('leave', function (name)
+	{
+		console.log('LEAVE %s', name);
+		delete this.players[name];
+
+		if (this.timeout)
+		{
+			clearTimeout(this.timeout);
+			delete this.timeout;
 		}
 	});
 
-	oO.MultiMenu.on('click', function (down_x, down_y)
+	//oO.Game
+	function ready (delay)
 	{
-		if (this.vertical)
+		console.log('READY %d', delay);
+		delay--;
+
+		if (delay > 0)
 		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.height - down_y) / this.button_h);
-			}
-			else
-			{
-				var i = Math.floor(down_y / this.button_h);
-			}
+			this.timeout = setTimeout(function () { ready.call(this, delay) }, 1000);
 		}
 		else
 		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.width - down_x) / this.button_w);
-			}
-			else
-			{
-				var i = Math.floor(down_x / this.button_w);
-			}
+			delete this.timeout;
 		}
+	}
 
-		if (this.options[i] != undefined)
-		{
-			this.picked[i] = !this.picked[i];
-			var selection = [];
-
-			for (var j = 0; j < this.options.length; j++)
-			{
-				if (this.picked[j])
-				{
-					selection.push(this.options[j]);
-				}
-			}
-
-			this.trigger('pick', [selection, this.options[i], i]);
-			return false;
-		}
+	oO.Game.on('ready', function (delay)
+	{
+		ready.call(this, delay);
 	});
 
-	oO.MultiMenu.method('reset', function (options)
+	oO.Game.on('start', function (time, world, seat, realm)
 	{
-		this.options = options || [];
-		this.picked = [];
-
-		for (var i = 0; i < this.options.length; i++)
-		{
-			this.picked[i] = false;
-		}
-
-		return this;
+		console.log('START %d %s %d %s', time, JSON.stringify(world), seat, JSON.stringify(realm));
+		this.time = time;
+		this.world = world;
+		this.seat = seat;
+		this.realm = realm;
+		this.start();
 	});
-})();
 
-//SOCKMAN
-(function ()
-{
-	oO.Socket = function (url)
+	oO.Game.on('away', function (name)
 	{
-		this.state = 0;
-		this.events = {};
+		console.log('AWAY %s', name);
+	});
+
+	oO.Game.on('back', function (name)
+	{
+		console.log('BACK %s', name);
+	});
+
+	oO.Game.on('tock', function ()
+	{
+		console.log('TOCK %d', this.time);
+	});
+
+	oO.Table = oO.Root.extend(function (Game, hook, url, assets, color)
+	{
+		oO.Root.call(this, hook, null, color);
+		this.Game = Game;
 		this.sockjs = new SockJS(url);
+		this.connected = false;
+		this.granted = false;
 		var that = this;
+
+		preload(assets, function (images)
+		{
+			that.images = images;
+			that.loaded = true;
+
+			if (that.connected)
+			{
+				that.trigger('show', [that, that]);
+			}
+		});
 
 		this.sockjs.onopen = function ()
 		{
-			that.trigger(-1);
+			that.connected = true;
+
+			if (that.loaded)
+			{
+				that.trigger('show', [that, that]);
+			}
 		}
 
-		this.sockjs.onmessage = function (msg)
+		this.sockjs.onmessage = function (message)
 		{
-			var data = JSON.parse(msg.data);
+			var data = JSON.parse(message.data);
 
 			if (!Array.isArray(data))
 			{
@@ -1813,58 +1717,106 @@ var oO = {};
 			}
 
 			var type = data.shift();
-
-			if (type > 0)
-			{
-				that.trigger(type, data);
-			}
-			else
-			{
-				console.log('ERROR %d', 345);
-			}
+			that.trigger(type, data);
 		}
 
-		this.sockjs.onclose = function (msg)
+		this.sockjs.onclose = function (message)
 		{
-			that.trigger(-2, [msg.code]);
-		}
-	}
-
-	oO.Socket.prototype.send = function (message)
-	{
-		this.sockjs.send(JSON.stringify(message));
-	}
-
-	oO.Socket.prototype.on = function (type, expect, action)
-	{
-		this.events[type] = {};
-		this.events[type].action = action;
-		this.events[type].expect = {};
-
-		for (var i in expect)
-		{
-			this.events[type].expect[expect[i]] = true;
-		}
-	}
-
-	oO.Socket.prototype.trigger = function (type, data)
-	{
-		if (this.events[type] && ((type < 0) || this.events[this.state].expect[type]))
-		{
-			try
+			if (that.loaded && that.connected)
 			{
-				if (this.events[type].action)
-				{
-					this.events[type].action.apply(this, data);
-				}
+				//jaaaa???? sooooo???
+				//that.trigger('hide', [that, that]);
+			}
 
-				this.state = type;
-			}
-			catch (e)
-			{
-				console.log('EXCEPTION %s', e.name);
-				console.log(e.stack);
-			}
+			console.log('CLOSED %d', message.code);
+		}
+	});
+
+	oO.Table.method('send', function ()
+	{
+		this.sockjs.send(JSON.stringify(Array.prototype.slice.call(arguments)));
+	});
+
+	//oO.Table
+	function login (token)
+	{
+		if (token && localStorage.token)
+		{
+			this.token = JSON.parse(localStorage.token);
+			console.log('LOCAL %s %s', this.token.name, this.token.pass);
+			this.send('auth', this.token.name, this.token.pass);
+		}
+		else
+		{
+			var name = prompt('name?');
+			var pass = prompt('pass?');
+			console.log('PROMPT %s %s', name, pass);
+			this.send('auth', name, pass);
+			this.token = {'name': name, 'pass': pass}
 		}
 	}
+
+	oO.Table.on('show', function (root, parent)
+	{
+		oO.Root.prototype.events[0].show.apply(this, arguments);
+		login.call(this, true);
+	});
+
+	oO.Table.on('deny', function ()
+	{
+		login.call(this);
+	});
+
+	oO.Table.on('grant', function (list)
+	{
+		if (true)
+		{
+			localStorage.token = JSON.stringify(this.token);
+		}
+
+		console.log('BROWSE %s', JSON.stringify(list));
+		var host = confirm('HOST?');
+
+		if (host)
+		{
+			this.send('host', 2, 16, 8);
+		}
+		else
+		{
+			var id = parseInt(prompt('id?'));
+			this.send('join', id);
+		}
+	});
+
+	oO.Table.on('lobby', function (rules, names)
+	{
+		console.log('LOBBY %s %s', JSON.stringify(rules), JSON.stringify(names));
+		this.game = new (Wrap(this.Game, rules))();
+
+		for (var i = 0; i < names.length; i++)
+		{
+			this.game.trigger('join', [names[i]]);
+		}
+
+		this.show(this.game);
+	});
+
+	oO.Table.on('continue', function (rules, names, time, world, seat, realm)
+	{
+		if (true)
+		{
+			localStorage.token = JSON.stringify(this.token);
+		}
+
+		console.log('CONTINUE %s %s', JSON.stringify(rules), JSON.stringify(names));
+		this.game = new (Wrap(this.Game, rules))();
+
+		for (var i = 0; i < names.length; i++)
+		{
+			this.game.trigger('join', [names[i]]);
+		}
+
+		this.game.trigger('start', [time, world, seat, realm]);
+		this.show(this.game);
+	});
 })();

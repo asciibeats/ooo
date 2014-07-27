@@ -1,363 +1,541 @@
-//manager: assign input tape to function & check in if/then map (if send type x then answer type y/z) function(user, game?, json)
-//socket: establish connection and send receive json
-//init: main; combine parts
+'use strict';
+var Game;
 
-
-
-//Wertesystem(~Moralarray;lineare Multiplikatoren;bei Tod eines Soldaten+1Punkte für Endwertung)
-//Wertesystem wie drückt sich das konkret in multiplatoren von welchen aspekten 
-//////aus?)kann als Karte gespielt werden und Modifiziert dann das 
-//////fangt mit allen werten = 0 an. dann spielt man zb +1 auf ernten (1 power pro ernte)
-////////andere karten auch mit minuswerten (immer in kombination mit pluswerten
-////////gleicher größe)
-////////zb -1 auf
-////Endergebnis
-//Bei X punkten schluss(voll geilo? bei ende metagame verhandlung um 
-////fortsetzung des spieles x bis y punkte, oder irgendwelche bedingungen
-//kartenmatrix der möglichen karten(mouse over anzeigen ermöglicht/braucht)
-////das spiel ist wie n skilltreeweg nach dem anderen zu beschreiten
-
-////ANGRIFF: jede runde +x offensive; offensive points can be used for layed offensive capabilties
-
-///einfluss/power
-////bekommt man für was?->zb wenn jemand untertan geworden ist)
-///powerfluss: +x pro runde in local power wert
-////wenn man karte in anderem land auspielt kostet die karte x 
-////mult anzahlt der hops
-////wenn man den seiner macht für ein land überschreitet is es eine bitte
-////sonst ein befehl
-////befehle nicht zu befolgen kostet irgendwass/hat eine auswirkung
-////für erfüllte bitten gibts einfluss
-////die kosten bezahlt immer nur der auspielende
-////sind karten entweder bitte oder befehl oder kann man jede karte entweder oder
-////ausspielen?
-////wer eine bitte erfüllt bekommt einfluss(je nachdem man einen diplomaten hat
-/////oder sowas mehr oder weniger?wieder modifikatorkarte?)
-////karten können vor einsicht der beteiligten geschützt werden durch 
-////modifikator karten(spion)
-////zeitwert und power 1:1
-////vor gesamtzeit auspielen "early" danach "late" genau "now?"
-////earlier: mods werden bei späteren aktionen anderer spieler miteinbezogen
-//////boost für early?
-//////irgendwas spezielles für now!!
-///////early:defensivbonus
-///////late:offensivbonus
-///////karten können entweder off oder def sein (oder beides)?
-///////(auf jeden fall eins, inkl now)
-/////////anschlag gelingt zb nur wenn man den nächsten now wert trifft?
-/////////es zählt immer der nächste now wert für die entscheidung ob die
-/////////gerade gespielten karten als offensiv oder defensiv gelten
-//////bei now anfangen gibt nochmal nen boost
-//////defensiv mit zeitwert anfang
-//////offensiv mit zeitwert ende
-//////counterespionage&diplomacy&building/espoinage&intrigue&warfare
-//////early/late
-//////defensive/offensiv
-//////konstruktiv/destruktiv!!!
-//////max aktionszeit = 5??? muss so sein daß man now nicht zu oft
-//////zufällig trifft
-//////karte: eine botschaft in fremdem gebiet bauen (keine roaming kosten?)
-
-//////ALLE PERMANENTEN EFFEKTE MÜSSEN AUF MAP PRESENT SEIN ALS TILEOVERLAY
-//////EIN GEBÄUDE/ETC PRO HEXFELD
-
-//turnier von x xp bis y xp?
-//freeforall bahalte xp vom letzen spiel falls du net gestorben bist
-/////freeforall spieler mit höchster startxp kriegt x1 modifikator niedrigster kriegt xY "max Bonus/Handicap"
-///militär is nur dazu da grund zu gewinnen(einfluss kommt anderwo her)
-/////oder vielleicht behalte dein land für x power
-
-////ein eigener powerwert für jeden gegner
-//////
-
-//SPIEL:1.Wertesystem erhöhen um Punkte generieren zu können
-////////2.Aktion legen die zu triggern des wertesystemaspeskts führen
-/////Wertesystem kann zu einmaligen boni oder pro runde führen?
-
-/////es gibt karten die können (zunächst) nicht dem ausspieler zugeodnet werden
-///////aber mit gegenspionage?
-var common = {};
-if (typeof module === 'object') module.exports = common;
-
-// winning condition POWER (money and military translate to POWER; means game does not need a war or something)
-//	var _types = {0: 0, 1: 0, 344: 3};
-//	var _actions = [[0, ['hallo']], [1, ['welt']]];
-//	var _mode = [[344, [[1, [2, 3]], [5, [5, 3]]]], [23, [1, 7]]];
-//	var _rules = [new Rule(),,,];
-//var game = require('./game.js');
-//socket (this) provide socket functions/messages
 (function ()
 {
-	common.Game = function (settings)
+	var CHARS = [];//order by range!!
+	CHARS[0] = {};
+	//kampfsystem basierend auf range  [2][1][0] <-> [0,0][][2] ???
+	////special: (überaschungs)angriff von hinten?
+	//var OPTIONS = [[], [], [], [], [], [5, 1, 2]];
+	//var GROUNDS = [1, 2, 1, 1, 1, 1];
+	//var PCOSTS = [5, 1, 3, 5, 5, 5, 5, 1, 1, 1, 1, 1, 1];
+	var SKILLS = [[5, 7], [1, 2], [3]];//skill groups????jaaaaa!!!
+	var QUESTS = [[], [], [], [], [], [0,1]];
+	//var TARGETS = [[0], [1], [2], [1]];//types affected by skill (skill->types oder type->skills??? warum?)
+	var GROUNDS = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1];//types affected by skill (skill->types oder type->skills??? warum?)
+	//geheimnis system (verdeckung) alle quests haben nen geheim wert: 0=für alle sichtbar die sich im selben realm befinden
+	//nicht genutzte ap automatisch verwenden (wofür? research? xp? new chars? luck?)!!!//wenn man in der ersten runde nichts macht, also alle aps so umwandelt muss das irgendne auswirkung haben (muss valide strategie sein!!!!)
+
+	//terrain
+	var GRASSLAND = 1;
+
+	//actions
+	var FIREPLACE = 5;
+	var LUMBERJACK = 7;
+
+	var ACTBOARD = [];
+
+	//board function(cost&init/one time) && realm function(cost&effect/every turn)
+	ACTBOARD[FIREPLACE] = function (origin, target, path)
 	{
-		this.slots = settings[0];//{name,position,realm,etc.}(all player data)
-		this.board = settings[1];
-		this.rules = settings[2];
-		//this.size = options.size || 16;
-		//is it open to the public to join
-		this.open = true;//temp->false
-
-		//player stats
-		//this.stats = {};
-		//private player knowledge
-		this.realms = {};
-
-		//number of ticks past overall
-		this.time = 0;
-		//hextile types (plain, forest, mountain...)
-		this.neigh = [];
-		//COMBINE BOARD & BUILD!!!! -> SO KNOWLEDGE OF BOARD IMPLIES KNOWLEDGE OF BUILD TO PLAYER
-		//the objects on top of tiles (trees, buildings...)
-		//this.build = [];
-		//this.id = util.fill(_games, this);
 	}
 
-	common.Game.prototype.join = function (stats)
+	ACTBOARD[LUMBERJACK] = function (origin, target, path)
 	{
-		if (this.open && !this.timeout && (this.number_of_players() < _MAX_PLAYERS))
-		{
-			console.log('JOIN %d %s', this.id, player.name);
-			//replace name with some id
-			this.slots[id] = player;
-			player.game = this;
-			socket.emit_join(player);
+	}
 
-			if (this.number_of_players() === _MAX_PLAYERS)
+	//var COSTS = [];
+	//COSTS[FIREPLACE] = {1:1};
+
+	var SubmitButton = oO.Button.clone(50, 50, 'buttons', {'off': 5, 'submit': 8, 'confirm': 9, 'add': 10}, {right: 10, width: 50, bottom: 10, height: 50});
+	var ResetButton = oO.Button.clone(50, 50, 'buttons', {'off': 5, 'undo': 7, 'backup': 6}, {right: 10, width: 50, bottom: 70, height: 50});
+	//var OptionsButton = oO.Button.clone(50, 50, 'buttons', [1], {left: 10, width: 50, top: 10, height: 50});
+	var FullButton = oO.Button.clone(50, 50, 'buttons', {'full': 11, 'win': 12}, {left: 10, width: 50, top: 10, height: 50});
+	//var WatchButton = oO.Button.clone(50, 50, 'buttons', [1], {left: 70, width: 50, top: 10, height: 50});
+	var ItemMenu = oO.MultiMenu.clone(50, 50, 'chars', {left: 10, right: 70, height: 50, bottom: 70}, false, true);
+	var SkillMenu = oO.MultiMenu.clone(50, 50, 'items', {left: 10, right: 70, height: 50, bottom: 10}, false, true);
+	var QuestMenu = oO.SingleMenu.clone(50, 50, 'skills', {width: 50, right: 10, top: 10, bottom: 130}, true, true);
+	//var NoteMenu = oO.SingleMenu.clone(50, 50, 'buttons', {left: 10, width: 50, top: 70, bottom: 130}, true, false);
+	//var WatchMenu = oO.SingleMenu.clone(50, 50, 'buttons', {left: 130, right: 70, top: 10, height: 50}, false, false);
+
+	//PORTALE!!!!! gibts umsonst! einfach zu tile.steps hinzufügen :D
+	//Wie realisier ich nen Hafen? tile muss beim pathfinding irgendwie die fähigkeit aktivieren wasser zu überqueren
+	//gibt keine fahrzeuge oder reittiere oder so sondern tiles die fähigkeiten beim pathfinding aktivieren (hafen(enable water), stall(-cost/tile), taverne(+ap))
+	//tiles können funktionen haben die beim pathfinding/überqueren ausgeführt werden???!!!!!!!!!!!!!!!!!!!!!JAAAAAAAAAAAAAAAAAAAAA
+	//um ein pferd/stall zu benutzen muss man ein heu-item dabei haben (wird verbraucht)
+	//taverne/refill-ap kostet nen taler(coin)
+	//hafen/schiff kostet xy?
+	//manche tiles haben eigene gruppe! extraterritorial!! (militärische tiles) dient der gruppentrennung
+	////wenn miltitärisches tile gesetzt wird: for each nachbar mit gleichem basetype regroup!!
+	////militärische tiles haben einen besitzer/besatzer!!! alle anderen nicht
+	////type -seat == besitzer ist seat???
+
+	///stall/bank(realm spezifische taler)
+	
+	var BASETYPES = [0,1,2,3,4,1];
+
+	//Board
+	function regroup (tile)
+	{
+		if (('group' in tile) && ('i' in tile.group))
+		{
+			this.groups.splice(tile.group.i, 1);
+			delete tile.group.i;
+		}
+
+		var group = {};
+		group.type = BASETYPES[tile.type];
+		group.tiles = [tile.i];
+		group.borders = {};//todo
+		group.steps = [];//todo
+		group.i = this.groups.length;
+		this.groups.push(group);
+		tile.group = group;
+
+		var open = [tile];
+
+		do
+		{
+			var current = open.pop();
+
+			for (var i = 0; i < current.steps.length; i++)
 			{
-				this.ready();
+				var next = current.steps[i];
+
+				if (BASETYPES[next.type] != group.type)
+				{
+					/*if ('group' in next)
+					{
+						if (next.group.i in group.borders)
+						{
+							group.borders[next.group.i]++;
+						}
+						else
+						{
+							group.borders[next.group.i] = 1;
+							next.group.borders[next.group] = 1;
+						}
+					}*/
+				}
+				else if (next.group != group)
+				{
+					next.group = group;
+					group.tiles.push(next.i);
+					open.push(next);
+				}
+			}
+		}
+		while (open.length > 0)
+	}
+
+	var Board = oO.HexMap.extend(function (size, types, costs)
+	{
+		oO.HexMap.call(this, size, 52, 52, 'tiles');
+		this.groups = [];
+
+		for (var i = 0; i < this.index.length; i++)
+		{
+			var tile = this.index[i];
+			tile.type = types[i];
+			tile.chars = [];
+			tile.items = [];
+		}
+
+		for (var i = 0; i < costs.length; i++)
+		{
+			this.costs[i] = costs[i];
+		}
+
+		for (var i = 0; i < this.index.length; i++)
+		{
+			var tile = this.index[i];
+
+			if (!('group' in tile))
+			{
+				regroup.call(this, tile);
+			}
+		}
+	});
+
+	Board.method('findTargets', function (origin, range, skills, items)
+	{
+		var tiles = this.findArea(origin, range);
+		var targets = [];
+
+		for (var j = 0; j < skills.length; j++)
+		{
+			var skill = skills[j];
+			targets[skill] = [];
+
+			for (var i = 0; i < tiles.length; i++)
+			{
+				var tile = this.index[tiles[i]];
+
+				if (GROUNDS[skill] == tile.type)
+				{
+					targets[skill].push(tile.i);
+				}
+			}
+		}
+
+		return targets;
+	});
+
+	var BriefScene = oO.Scene.extend(function ()
+	{
+		oO.Scene.call(this, {width: 280, height: 350});
+		this.info = '';
+	});
+
+	BriefScene.on('frame', function (elapsed, context)
+	{
+		context.fillStyle = '#666';
+		context.fillRect(0, 0, this.width, this.height);
+		context.fillStyle = '#ddd';
+		context.font = '11px Arial';
+		context.textAlign = 'center';
+		context.textBaseline = 'middle';
+		context.fillText(this.info, this.width >>> 1, this.height >>> 1);
+	});
+
+	BriefScene.method('update', function (info)
+	{
+		this.info = info;
+	});
+
+	//helper
+	function transfer (origin, target)
+	{
+		var diff = [];
+
+		for (var i = 0, j = 0; i < origin.length; i++)
+		{
+			if (origin[i] != target[j])
+			{
+				diff.push(origin[i]);
+			}
+			else
+			{
+				j++;
+			}
+		}
+
+		return diff;
+	}
+
+	//helper
+	function template (size)
+	{
+		var actions = [];
+
+		for (var seat = 0; seat < size; seat++)
+		{
+			actions[seat] = [];
+		}
+
+		return actions;
+	}
+
+	//private
+	///////////keine chars mehr!!
+	function execute (type, origin_i, path, items)
+	{
+		var origin = this.board.index[origin_i];
+
+		//walk to target and sum up costs
+		var target = origin;
+		var cost = 0;//todo: cost = ACTIONCOST[i] (init with actioncost)
+		var steps = [];
+
+		for (var i = 0; i < path.length; i++)
+		{
+			target = target.steps[path[i]];
+			steps[i] = target;
+			cost += this.board.costs[target.type];//todo: include items
+			//ACTPATH[target.type].apply();
+		}
+
+		//subtract cost from this.realm and/or items
+
+		//transfer chars&rest of items from origin to tile
+		/*origin.chars = transfer(origin.chars, chars);
+		origin.items = transfer(origin.items, items);
+		target.chars = target.chars.concat(chars).sort();
+		target.items = target.items.concat(items).sort();*/
+		target.type = type;
+
+		//execute skill task specific funcs on board&realm
+		ACTBOARD[type].call(this.board, origin, target, steps);//modify board (beeinflusst alle)
+		//////brauch ich überhaupt boardfunktionen???? was könnten die machen ausser tiletypen verändern (das kann ich auch immer hier machen)????
+		//ACTREALM[type].apply(this.realm, argv);//modify realm (per player)
+	}
+
+	//private
+	function tick ()
+	{
+		this.iface.items.hide();
+		this.iface.skills.hide();
+		this.iface.quests.hide();
+		this.iface.reset.hide();
+		this.iface.submit.hide();
+
+		this.board.reset();
+		this.board.off('pick');
+		console.log(JSON.stringify(this.quests[this.time][this.seat]));
+		this.submit(this.quests[this.time][this.seat]);
+	}
+
+	//private
+	function plan ()
+	{
+		this.show(this.iface.items);
+		this.show(this.iface.skills);
+		this.show(this.iface.quests);
+		this.show(this.iface.reset);
+		this.show(this.iface.submit);
+
+		this.iface.items.reset();
+		this.iface.skills.reset();
+		this.iface.quests.reset();
+		this.board.reset();
+		this.iface.reset.style('off');//geht nicht bevor show!!! fixme!!!
+		this.iface.reset.on('click', function () {return false});
+		this.iface.submit.style('submit');
+
+		var that = this;
+		var quest = [];
+
+		console.log('SELECT AN ORIGIN OR END TURN!');
+
+		this.iface.submit.on('click', function ()
+		{
+			this.style('confirm');
+			console.log('CLICK AGAIN TO CONFIRM!');
+
+			this.on('click', function ()
+			{
+				console.log('WAIT FOR OTHER PLAYERS!');
+				tick.call(that);
+				return false;
+			});
+
+			return false;
+		});
+
+		this.board.on('pick', function (origin)
+		{
+			that.iface.reset.style('undo');
+			that.iface.submit.style('off');
+			that.iface.submit.on('click', function () {return false});
+			that.board.mark([origin.i], 6);
+
+			var stats = that.stats[origin.group.i] || [[], []];
+			that.iface.skills.reset(stats[2]);
+			that.iface.items.reset(stats[3]);
+
+			var quests = QUESTS[origin.type];
+			that.iface.quests.reset(quests);
+
+			//single use items!!!!apple->one more quest step!!sausage->three more quest steps!!hay->use (unlock at stables) a horse to travel further
+			quest[1] = origin.i;
+			quest[3] = [];//items
+			var targets = that.board.findTargets(origin, stats[1], quests, quest[3]);
+
+			that.iface.reset.on('click', function ()
+			{
+				plan.call(that);
+				return false;
+			});
+
+			that.iface.skills.on('pick', function (type)
+			{
+			});
+
+			that.iface.items.on('pick', function (types)
+			{
+				quest[3] = types;
+				targets = that.board.findTargets(origin, stats[1], quests, types);
+			});
+
+			that.iface.quests.on('pick', function (type)
+			{
+				quest[0] = type;
+				that.board.mark(targets[type], 6);
+
+				console.log('SELECT A TARGET!');
+
+				that.board.on('pick', function (target)
+				{
+					if ('mark' in target)
+					{
+						var path = that.board.findPath(origin, target);
+						that.iface.submit.style('add');
+						that.board.mark(path.tiles, 6);
+						quest[2] = path.steps;
+
+						console.log('CLICK OK TO ADD QUEST!');
+
+						that.iface.submit.on('click', function ()
+						{
+							execute.apply(that, quest);
+							that.quests[that.time][that.seat].push(quest);
+							plan.call(that);
+							return false;
+						});
+					}
+				});
+			});
+		});
+	}
+
+	Game = oO.Scene.extend(function (rules, names, terrain)
+	{
+		oO.Scene.call(this);
+		this.rules = rules;
+		this.seats = {};
+
+		for (var i in names)
+		{
+			this.seats[names[i]] = true;
+		}
+
+		this.board = new Board(rules[1], terrain, [1,2,3,4]);//rules[i]//costs
+		this.show(this.board, -1);
+
+		this.iface = {};
+		this.iface.full = new FullButton();
+		this.iface.reset = new ResetButton();
+		this.iface.submit = new SubmitButton();
+		this.iface.items = new ItemMenu();
+		this.iface.skills = new SkillMenu();
+		this.iface.quests = new QuestMenu();
+		this.iface.brief = new BriefScene();
+		this.show(this.iface.full);
+		var that = this;
+
+		this.iface.brief.on('click', function ()
+		{
+			this.hide();
+			plan.call(that);
+			return false;
+		});
+
+		this.iface.full.on('click', function ()
+		{
+			this.root.toggle();
+
+			if (this.root.full)
+			{
+				this.style('win');
+			}
+			else
+			{
+				this.style('full');
 			}
 
-			return true;
-		}
-	}
+			return false;
+		});
+	});
 
-	common.Game.prototype.leave = function (player)
+	Game.method('join', function (name)
 	{
-		console.log('LEAVE %d %s', this.id, player.name);
+		this.seats[name] = true;
+	});
 
-		if (this.timeout)
+	Game.method('leave', function (name)
+	{
+		delete this.seats[name];
+	});
+
+	Game.method('start', function (time, seat, realm, submit)
+	{
+		this.time = time;
+		this.seat = seat;
+		this.realm = realm;
+		this.submit = submit;
+		this.stats = realm[0];
+		this.quests = realm[1];
+
+		for (time = 0; time < this.quests.length; time++)
 		{
-			clearTimeout(this.timeout);
-			delete this.timeout;
+			var quests = this.quests[time];
+
+			for (var seat = 0; seat < quests.length; seat++)
+			{
+				for (var i = 0; i < quests[seat].length; i++)
+				{
+					execute.apply(this, quests[seat][i]);
+				}
+			}
 		}
 
-		delete this.slots[player.name];
-		delete this.stats[player.name];
-
-		if (this.number_of_players() > 0)
+		if (time == 0)
 		{
-			socket.emit_leave(player);
+			console.log('CHOOSE YOUR STARTING POS!');
+			var group_i = Object.keys(this.stats)[0];
+			this.board.mark(this.board.groups[group_i].tiles, 6);
+			var that = this;
+
+			this.board.on('pick', function (target)
+			{
+				if ('mark' in target)
+				{
+					target.type = 5;
+					that.board.reset();
+					that.quests[time] = template(that.rules[0]);
+					that.iface.brief.update('Time: ' + (time + 1));
+					that.show(that.iface.brief);
+				}
+			});
+		}
+		else if (time > this.time)
+		{
+			console.log('WAIT FOR OTHER PLAYERS!');
 		}
 		else
 		{
-			delete _games[this.id];
+			this.quests[time] = template(this.rules[0]);
+			this.iface.brief.update('Time: ' + (time + 1));
+			this.show(this.iface.brief);
 		}
+	});
 
-		player.socket.leave(this.id);
-		player.game = null;
-	}
-
-	common.Game.prototype.ready = function ()
-	{
-		if (!this.timeout && (this.number_of_players() >= _MIN_PLAYERS))
-		{
-			console.log('READY %d', this.id);
-			socket.emit_ready(this, _START_DELAY);
-			var that = this;
-			this.timeout = setTimeout(function () { that.start() }, _START_DELAY * 1000);
-		}
-	}
-
-	common.Game.prototype.start = function ()
-	{
-		console.log('START %d', this.id);
-		this.open = false;
-		this.time = 1;
-		delete this.timeout;
-
-		//generate random board
-		for (var y = 0; y < _SIZE; y++)
-		{
-			this.board[y] = [];
-			this.neigh[y] = [];
-
-			for (var x = 0; x < _SIZE; x++)
-			{
-				var tile = {};
-				tile.x = x;
-				tile.y = y;
-				tile.type = Math.floor(Math.random() * 4) + 1;
-				this.board[y][x] = tile;
-				this.neigh[y][x] = [];
-			}
-		}
-
-		//build up neighbor connections
-		for (var y = 0; y < _SIZE; y++)
-		{
-			var nmask = _NMASK[y & 1];
-
-			for (var x = 0; x < _SIZE; x++)
-			{
-				var neigh = this.neigh[y][x];
-
-				for (var i in nmask)
-				{
-					var nx = (x + nmask[i][0] + _SIZE) % _SIZE;
-					var ny = (y + nmask[i][1] + _SIZE) % _SIZE;
-					neigh[i] = this.board[ny][nx];
-				}
-			}
-		}
-
-		//generate random build
-		/*var seeds = [];
-
-		for (var i = 0; i < 5; i++)
-		{
-			seeds[i] = {x: Math.floor(Math.random() * _SIZE * 2), y: Math.floor(Math.random() * _SIZE * 2)};
-		}
-
-		for (var y = 0; y < _SIZE * 2; y++)
-		{
-			this.build[y] = [];
-
-			for (var x = 0; x < _SIZE * 2; x++)
-			{
-				var type = Math.round(Math.random() * 12);
-
-				if (type > 6)
-				{
-					this.build[y][x] = type - 6;
-				}
-				else
-				{
-					this.build[y][x] = 0;
-				}
-			}
-		}*/
-
-		//assign startingpoint (and hero) to each player
-		//separieren:was alle wissen(allgemeines)/spielerwissen/serverdata
-		var id = 0;
-		var x = 0;
-		var y = 0;
-
-		for (var name in this.slots)
-		{
-			var realm = {};
-			realm.id = id;
-			realm.x = x;
-			realm.y = y;
-			realm.name = 'Mordor';
-			
-			realm.population = {count: 10, stats: {anger: 0, health: 1}};
-			realm.characters = [];
-			realm.succession = [];
-
-			realm.gain = 10;
-			realm.affect = {};
-			realm.affect[id] = 5;//rest geht in entdeckung?
-			realm.coins = {};
-			realm.coins[id] = 5;
-			realm.discover = 5;
-			this.realms[name] = realm;
-			var neigh = this.neigh[y][x];
-
-			for (var i in neigh)
-			{
-				neigh[i].realm = id;
-			}
-
-			id++;
-		}
-
-		socket.emit_start(this);
-		var that = this;
-		this.interval = setInterval(function () { that.tick() }, _TICK_LENGTH * 1000);
-	}
-
-
-	//difference action rule?rule = counteraction?
-	////a rule does not change game data
-	////an action does
-	common.Game.prototype.apply = function (player, action)
-	{
-		this.history[this.time][player.id] = action;
-		var type = action[0];
-		var data = action[1];
-
-		//validate
-		//update state
-
-		//if all players applied then run tick()
-	}
-
-	common.Game.prototype.tick = function ()
+	Game.method('tock', function ()
 	{
 		this.time++;
-		console.log('TICK %d %d', this.id, this.time);
+		this.quests[this.time] = template(this.rules[0]);
+		this.iface.brief.update('Time: ' + this.time);
+		this.show(this.iface.brief);
+	});
 
-		//calc changes
-		//return;
-		/*for (var name in this.realms)
-		{
-			var realm = this.realms[name];
+	//tiles(terrain)
+	///spawn options: [5,1,2]
+	///traverse cost: {0:2}//räuber nehmen zb nen goldstück oder so
+	///(ground to build on: 0(sea/water))???????????????
 
-			while (var action = realm.actions.pop())
-			{
-				if (action.type == _ACTION_BUILD)
-				{
-					this.build(name, action.data);
-				}
-				else if (action.type == _ACTION_CAPTURE)
-				{
-				}
-			}
-		}*/
+	//building vars (tile based action)
+	///spawn options: [5,1,2]//spawn events(origin miteinbeziehen!!!
+	///traverse cost: {0:2}//räuber nehmen zb nen goldstück oder so
+	///ground to build on: 1
+	///build costs: {0:3,1:1}
+	///description (unterteilt in build & effect)
+	///build func
+	///effect func
 
-		socket.emit_tick(this);
-	}
+	//event vars (action without tile)
+	///duration 0=permanent(campfire 1)
+	///ground to happen: 1
+	///build costs: {0:3,1:1}
+	///description (unterteilt in build & effect)
+	///build func
+	///effect func???
 
-	var Rule = function (argv)//function(action)
-	{
-		this.method = rulefunc[argv[0]](argv[1]);
-	}
+	////KARTE/ACTION als object übergeben (zb für findTargets als origin)
+	/////AN tiles anhängen!!!! tile.action.spawn = [1,2,3]??
+	//////tile.action = ACTION[type]???
 
-	var Action = function (argv)//function(world)
-	{
-		this.method = actionfunc[argv[0]](argv[1]);
-	}
+	///select origin/[select event(quest)&select party&select goods to take]/select target
 
-	var Rulebook = function (rules)
-	{
-		this.rules = [];
+	//1. select origin -> determines chars&goods
+	//party = iface.listParty(origin)//list chars & goods
+	//party = [chars, goods]
+	//2. select chars&goods -> determines skills
+	//skills = listQuests(origin, party)//onchange
+	//3. select quest -> determines targets
+	//targets = listTargets(origin, party, quest)
+	//4. select target
+	//5. select cancel/exec
 
-		for (var i in rules)
-		{
-			this.rules.push(new Rule(rules[i]));
-		}
-	}
-
-	Rulebook.add = function (i, rule)
-	{
-		this.rules.splice(i, 0, new Rule(rule));
-	}
-
-	Rulebook.validate = function (actions)
-	{
-		var result = [];
-
-		for (var i in actions)
-		{
-			var action = new Action(actions[i]);
-			result[i] = [];
-
-			for (var j in this.rules)
-			{
-				var rule = this.rules[j];
-				result[i][j] = rule.method(action);
-			}
-		}
-	}
+	//automated/repeated quest is named a JOB
 })();
