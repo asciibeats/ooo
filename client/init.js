@@ -22,22 +22,39 @@
 		oO.Game.prototype.events.on.start.call(this, time, world, seat, realm);
 	});
 
+	var Back = oO.Cell.extend(function (color, layout)
+	{
+		oO.Cell.call(this, layout);
+		this.color = color;
+	});
+
+	Back.on('frame', function (elapsed, context)
+	{
+		context.fillStyle = this.color;
+		context.fillRect(0, 0, this.width, this.height);
+	});
+
+	var Login = oO.Form.extend(function (layout)
+	{
+		oO.Form.call(this, layout);
+		this.show(new Back('#666'));
+		this.show(new oO.Field('#5a0').arrange({'top': 10, 'left': 10, 'right':10, 'height': 30}));
+		this.show(new oO.Field('#5a0').arrange({'top': 50, 'left': 10, 'right':10, 'height': 30}));
+		this.show(new oO.Submit('#5a0', {'top': 90, 'left': 10, 'right':10, 'height': 30}));
+	});
+
+	Login.bubble('submit', function (data)
+	{
+		this.root.send('auth', data[0], data[1]);
+	});
+
 	window.addEventListener('load', function ()
 	{
 		var hook = document.getElementById('hook');
 		var assets = {};
 		assets['tiles'] = 'assets/tiles.png';
 		var game = new Jupiter(hook, 'http://10.0.0.19:11133', assets, '#444444');
-		var form = new oO.Form();
-		var input = new oO.Input();
-		var input2 = new oO.Input();
-		form.show(input);
-		form.show(input2);
-		game.show(form, 10);
-		input2.place(0,100);
-		form.bubble('submit', function (data)
-		{
-			game.send('auth', data[0], data[1]);
-		});
+		game.show(new Back('#a0a'));
+		game.show(new Login({'width': 200, 'height': 130}));
 	});
 })();

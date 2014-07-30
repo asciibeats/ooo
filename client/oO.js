@@ -50,12 +50,12 @@ var oO = {};
 		return new Function(code.replace(/[\r\t\n]/g, '')).apply(this, argv);
 	}
 
-	function intWrap (i, n)
+	function wrap (index, size)
 	{
-		return (((i % n) + n) % n);
+		return ((index % size) + size) % size;
 	}
 
-	function intKeys (object)
+	function indices (object)//use with sparse arr: i < length
 	{
 		var keys = [];
 
@@ -210,7 +210,7 @@ var oO = {};
 			layer = 0;
 		}
 
-		if (scene.children[layer] == undefined)
+		if (!scene.children[layer])
 		{
 			scene.children[layer] = {};
 			//insert + sort could potentially be optimized
@@ -375,6 +375,13 @@ var oO = {};
 		return triggerActor(this, this, 'on', type, argv);
 	});
 
+	oO.Actor.method('place', function (rel_x, rel_y)
+	{
+		this.rel_x = rel_x;
+		this.rel_y = rel_y;
+		return this;
+	});
+
 	oO.Actor.method('resize', function (width, height)
 	{
 		this.width = width;
@@ -384,7 +391,7 @@ var oO = {};
 
 	oO.Actor.method('rotate', function (angle)
 	{
-		this.angle = angle;
+		this.angle = angle / 180 * Math.PI;
 		return this;
 	});
 
@@ -392,13 +399,6 @@ var oO = {};
 	{
 		this.mid_x = mid_x;
 		this.mid_y = mid_y;
-		return this;
-	});
-
-	oO.Actor.method('place', function (rel_x, rel_y)
-	{
-		this.rel_x = rel_x;
-		this.rel_y = rel_y;
 		return this;
 	});
 
@@ -462,6 +462,12 @@ var oO = {};
 		this.layout = layout || {'left': 0, 'right': 0, 'top': 0, 'bottom': 0};
 	});
 
+	oO.Cell.method('arrange', function (layout)
+	{
+		this.layout = layout;
+		return this;
+	});
+
 	oO.Cell.on('resize', function (width, height)
 	{
 		if (this.layout.width != undefined)
@@ -479,16 +485,29 @@ var oO = {};
 				var rel_x = (width - this.layout.width) >> 1;
 			}
 
-			var width = this.layout.width;
+			width = this.layout.width;
 		}
-		else if ((this.layout.left != undefined) && (this.layout.right != undefined))
+		else if (this.layout.left != undefined)
 		{
 			var rel_x = this.layout.left;
-			var width = width - this.layout.left - this.layout.right;
+
+			if (this.layout.right != undefined)
+			{
+				width -= rel_x + this.layout.right;
+			}
+			else
+			{
+				width -= rel_x;
+			}
+		}
+		else if (this.layout.right != undefined)
+		{
+			var rel_x = 0;
+			width -= this.layout.right;
 		}
 		else
 		{
-			throw 765;
+			var rel_x = 0;
 		}
 
 		if (this.layout.height != undefined)
@@ -506,16 +525,29 @@ var oO = {};
 				var rel_y = (height - this.layout.height) >> 1;
 			}
 
-			var height = this.layout.height;
+			height = this.layout.height;
 		}
-		else if ((this.layout.top != undefined) && (this.layout.bottom != undefined))
+		else if (this.layout.top != undefined)
 		{
 			var rel_y = this.layout.top;
-			var height = height - this.layout.top - this.layout.bottom;
+
+			if (this.layout.bottom != undefined)
+			{
+				height -= rel_y + this.layout.bottom;
+			}
+			else
+			{
+				height -= rel_y;
+			}
+		}
+		else if (this.layout.bottom != undefined)
+		{
+			var rel_y = 0;
+			height -= this.layout.bottom;
 		}
 		else
 		{
-			throw 765;
+			var rel_y = 0;
 		}
 
 		this.place(rel_x, rel_y).resize(width, height);
@@ -742,7 +774,7 @@ var oO = {};
 
 	oO.Stage.bubble('frame', function (elapsed, context)
 	{
-		if (context != null)
+		if (context)
 		{
 			context.drawImage(this.canvas, 0, 0);
 		}
@@ -879,6 +911,11 @@ var oO = {};
 		
 		function on_keypress (event)
 		{
+			if (event.ctrlKey || event.altKey)
+			{
+				return;
+			}
+
 			that.trigger('text', [event.timeStamp, event.charCode, event.keyCode, event.shiftKey]);
 
 			if (event.keyCode == 9)
@@ -965,10 +1002,38 @@ var oO = {};
 		context.drawImage(this.image, this.tile_x, this.tile_y, this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
 	});
 
+	oO.Submit = oO.Cell.extend(function (color, layout)
+	{
+		oO.Cell.call(this, layout);
+		this.color = color;
+	});
+
+	oO.Submit.on('frame', function (elapsed, context)
+	{
+		context.fillStyle = this.color;
+		context.fillRect(0, 0, this.width, this.height);
+	});
+
+	oO.Submit.on('click', function (down_x, down_y)
+	{
+		this.parent.trigger('submit', [[]]);
+		return false;
+	});
+
 	oO.Form = oO.Scene.extend(function (layout)
 	{
 		oO.Scene.call(this, layout);
-		this.focus = 0;
+	});
+
+	oO.Form.method('show', function (actor, layer)
+	{
+		oO.Scene.prototype.show.call(this, actor, layer);
+
+		if (!this.focus && (actor instanceof oO.Input))
+		{
+			this.focus = actor;
+			actor.toggle();
+		}
 	});
 
 	oO.Form.on('text', function (time, char, key, shift)
@@ -980,14 +1045,26 @@ var oO = {};
 		}
 		else if (key == 9)//tab
 		{
-			shift ? this.focus-- : this.focus++;//wrap
+			this.focus.toggle();
+			var id = this.focus.id;
+			var layer = this.children[this.focus.layer];
+			var length = size(layer);
+
+			do
+			{
+				id = wrap(shift ? id - 1 : id + 1, length);
+				this.focus = layer[id];
+			}
+			while (!(this.focus instanceof oO.Input))
+
+			this.focus.toggle();
 			return false;
 		}
 	});
 
 	oO.Form.prepare('text', function (time, char, key, shift)
 	{
-		if (this.id != this.parent.focus)
+		if (this.parent.focus != this)
 		{
 			return false;
 		}
@@ -998,11 +1075,22 @@ var oO = {};
 		console.log('SUBMIT %s', JSON.stringify(data));
 	});
 
-	oO.Input = oO.Cell.extend(function (color, font, align, baseline, layout)//alphabet
+	oO.Input = oO.Cell.extend(function (layout)//alphabet
 	{
 		oO.Cell.call(this, layout);
+		this.focus = false;
+	});
+
+	oO.Input.method('toggle', function ()
+	{
+		this.focus = !this.focus;
+	});
+
+	oO.Field = oO.Input.extend(function (color, font, align, baseline, layout)//alphabet
+	{
+		oO.Input.call(this, layout);
 		this.color = color || '#f00';
-		this.font = font || '40px sans-serif';
+		this.font = font || 'sans-serif';
 		this.align = align || 'start';
 		this.baseline = baseline || 'top';
 		this.chars = [];
@@ -1011,7 +1099,13 @@ var oO = {};
 		this.sub = '';
 	});
 
-	oO.Input.on('text', function (time, char, key, shift)
+	oO.Field.on('resize', function (width, height)
+	{
+		oO.Input.prototype.events.on.resize.call(this, width, height);
+		this.style = '' + this.height + 'px ' + this.font;
+	});
+
+	oO.Field.on('text', function (time, char, key, shift)
 	{
 		if (key == 8)//backspace
 		{
@@ -1052,23 +1146,22 @@ var oO = {};
 		this.sub = this.text.substr(0, this.caret);
 	});
 
-	oO.Input.on('submit', function (data)//general input class
+	oO.Field.on('submit', function (data)//general input class
 	{
 		data.push(this.text);
 	});
 
-	oO.Input.on('frame', function (elapsed, context)
+	oO.Field.on('frame', function (elapsed, context)
 	{
 		context.fillStyle = this.color;
-		context.font = this.font;
+		context.font = this.style;
 		context.textAlign = this.align;
 		context.textBaseline = this.baseline;
 		context.fillText(this.text, 0, 0);
 
-		if ((elapsed % 1300) < 800)//caret blink
+		if (this.focus && ((elapsed % 1300) < 800))//caret blink
 		{
-			context.fillStyle = '#0f0';
-			context.fillRect(context.measureText(this.sub).width, 0, 4, 40);
+			context.fillRect(context.measureText(this.sub).width, 0, this.height >>> 3, this.height);
 		}
 	});
 
@@ -1476,7 +1569,7 @@ var oO = {};
 		}
 		while (open.length)
 
-		return intKeys(done);
+		return indices(done);
 	});
 
 	oO.TileMap.method('findPath', function (origin, target)
@@ -1581,8 +1674,8 @@ var oO = {};
 
 	oO.TileMap.on('drop', function (drop_x, drop_y)
 	{
-		this.drop_x = intWrap(this.drop_x - this.drag_x, this.patch_w);
-		this.drop_y = intWrap(this.drop_y - this.drag_y, this.patch_h);
+		this.drop_x = wrap(this.drop_x - this.drag_x, this.patch_w);
+		this.drop_y = wrap(this.drop_y - this.drag_y, this.patch_h);
 		this.drag_x = 0;
 		this.drag_y = 0;
 	});
@@ -1596,8 +1689,8 @@ var oO = {};
 
 	oO.TileMap.on('frame', function (elapsed, context)
 	{
-		var drop_x = intWrap(this.drop_x - this.drag_x, this.patch_w);
-		var drop_y = intWrap(this.drop_y - this.drag_y, this.patch_h);
+		var drop_x = wrap(this.drop_x - this.drag_x, this.patch_w);
+		var drop_y = wrap(this.drop_y - this.drag_y, this.patch_h);
 		var start_x = Math.floor(drop_x / this.tile_w);
 		var start_y = Math.floor(drop_y / this.tile_h);
 		var end_x = start_x + Math.ceil(this.width / this.tile_w);
@@ -1775,8 +1868,8 @@ var oO = {};
 
 	oO.HexMap.on('frame', function (elapsed, context)
 	{
-		var drop_x = intWrap(this.drop_x - this.drag_x, this.patch_w);
-		var drop_y = intWrap(this.drop_y - this.drag_y, this.patch_h);
+		var drop_x = wrap(this.drop_x - this.drag_x, this.patch_w);
+		var drop_y = wrap(this.drop_y - this.drag_y, this.patch_h);
 		var start_x = Math.floor(drop_x / this.tile_w);
 		var start_y = Math.floor(drop_y / this.tile_3h4);
 		var end_x = start_x + Math.ceil(this.width / this.tile_w) + 1;//besser berechnen als + 1 (width + tile_w2??)

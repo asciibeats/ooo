@@ -312,6 +312,7 @@ oO.Room = function (Game, port, count, delay)
 		{
 			try
 			{
+				console.log('+++ ' + string + ' +++');
 				var data = JSON.parse(string);
 
 				if (!Array.isArray(data))
