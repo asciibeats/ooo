@@ -1,4 +1,138 @@
 
+		<script type="text/javascript" src="client/jquery-2.1.1.js"></script>
+		<script type="text/template" id="login">
+			<header>LOGIN</header>
+			<label>Name: <input type="text"></label>
+			<label>Password: <input type="password"></label>
+			<input type="submit" value="log in">
+		</script>
+		<script type="text/template" id="browse">
+			<header>BROWSE</header>
+			<ul><% for (var i = 0; i < arguments[0].length; i++) { %><li><% arguments[0][i] %></li><% } %></ul>
+			<input type="submit" value="host new game">
+		</script>
+		<script type="text/template" id="rules">
+			<header>RULES</header>
+			<input type="submit" value="goto lobby">
+		</script>
+		<script type="text/template" id="lobby">
+			<header>LOBBY</header>
+			<ul><% for (var name in this.game.players) { %><li><% name %></li><% } %></ul>
+		</script>
+		<script type="text/template" id="play">
+			<header>PLAY</header>
+		</script>
+
+
+	oO.Root.method('augment', function (name)
+	{
+		var template = this.templates[name];
+
+		if (template)
+		{
+			var argv = Array.prototype.slice.call(arguments);
+			argv[0] = template.string;
+			template.element.innerHTML = parse.apply(this, argv);
+			template.root = this;
+			this.hook.replaceChild(template.element, this.face);
+			this.face = template.element;
+
+			for (var selector in template.events)
+			{
+				var type = template.events[selector][0];
+				var func = template.events[selector][1];
+				$(selector).on(type, {'root': this}, func); 
+			}
+		}
+	});
+	oO.Template = function (selector)
+	{
+		this.string = $(selector).html();
+		this.element = document.createElement('div');
+		this.element.style.position = 'relative';
+	}
+
+	oO.Template.extend = function (func)
+	{
+		var Parent = this;
+
+		var Child = function ()
+		{
+			func.apply(this, arguments);
+		}
+
+		Child.prototype = Object.create(Parent.prototype);
+		Child.prototype.constructor = Child;
+
+		if (Child.prototype.events != undefined)
+		{
+			var events = {};
+
+			for (var type in Child.prototype.events)
+			{
+				events[type] = Child.prototype.events[type];
+			}
+
+			Child.prototype.events = events;
+		}
+
+		var names = Object.keys(Parent);
+
+		for (var i = 0; i < names.length; i++)
+		{
+			var name = names[i];
+			Child[name] = Parent[name];
+		}
+
+		return Child;
+	}
+
+	oO.Template.clone = function ()
+	{
+		var argv = arguments;
+		var Parent = this;
+
+		var Child = function ()
+		{
+			Parent.apply(this, argv);
+		}
+
+		Child.prototype = Object.create(Parent.prototype);
+		Child.prototype.constructor = Child;
+
+		if (Child.prototype.events != undefined)
+		{
+			var events = {};
+
+			for (var type in Child.prototype.events)
+			{
+				events[type] = Child.prototype.events[type];
+			}
+
+			Child.prototype.events = events;
+		}
+
+		var names = Object.keys(Parent);
+
+		for (var i = 0; i < names.length; i++)
+		{
+			var name = names[i];
+			Child[name] = Parent[name];
+		}
+
+		return Child;
+	}
+
+	oO.Template.on = function (selector, type, func)
+	{
+		if (!this.prototype.events)
+		{
+			this.prototype.events = {};
+		}
+
+		this.prototype.events[selector] = [type, func];
+		return this;
+	}
 	/*oO.Raster = oO.Stage.extend(function (cell_w, cell_h, border)
 	{
 		this.cell_w = cell_w;

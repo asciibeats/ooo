@@ -1,8 +1,9 @@
 var oO = require('./oO.js');
 
-var Jupiter = oO.Game.extend(function (size)
+var Jupiter = oO.Game.extend(function (size, tiles)
 {
-	oO.Game.call(this, size);
+	oO.Game.apply(this, arguments);
+	this.tiles = tiles;
 });
 
 Jupiter.method('start', function ()

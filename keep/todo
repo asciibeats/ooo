@@ -1,0 +1,17 @@
+1. single/multi menu
+2. base user flow origin/chars&items/quest/target/confirm
+3. base chars/items/quests
+3b. kosten abrechnen
+//ERSTES SPIEL!!!!!!!!!!!!!!! :DDDDDDDDD
+
+
+
+///BREAKABLE
+-root chain (propagate root)
+///OPTIONAL
+-oO aufräumen (clone,menu zusammenfassen?)
+-cell layout: nur left dann right=0 und width = width-left etc
+
+
+//starcraft build aspekt & scouting/info + cosmic encounter diplomatie (asymetrische fähigkeiten/zum eigenen vorteil anderen helfen)
+//build hängt ab von realmsize!? abhängig machen wie?

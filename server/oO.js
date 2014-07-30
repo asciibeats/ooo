@@ -352,7 +352,7 @@ oO.Room = function (Game, port, count, delay)
 						{
 							console.log('GRANT %s', name);
 							var list = Object.keys(that.games);
-							player.send(['grant', list]);
+							player.send(['browse', list]);
 							player.expect('host', 'join');
 						}
 					}
@@ -395,7 +395,7 @@ oO.Room = function (Game, port, count, delay)
 			}
 			catch (e)
 			{
-				socket.close();//e
+				socket.close(e);
 				console.log('EXCEPTION %s %s', e.toString(), e.stack);
 			}
 		});
