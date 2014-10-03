@@ -1,11 +1,13 @@
 'use strict';
 var oO = {};
 
+//svg parser!!!!!!! oO.Vector oO.SVG ??
+//aufräumen!!!
+//events: type:name e.g. canvas:frame, mouse:down
+//layout/positionsangaben angle etc vereinheitlichen
+
 (function ()
 {
-	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-	var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
-
 	function parse ()
 	{
 		var argv = Array.prototype.slice.call(arguments);
@@ -65,6 +67,23 @@ var oO = {};
 		}
 
 		return keys;
+	}
+
+	oO.array2D = function (width, height, value)
+	{
+		var array = [];
+
+		for (var y = 0; y < height; y++)
+		{
+			array[y] = [];
+
+			for (var x = 0; x < width; x++)
+			{
+				array[y][x] = value;
+			}
+		}
+
+		return array;
 	}
 
 	function fill (object, value)
@@ -370,11 +389,6 @@ var oO = {};
 		return this;
 	});
 
-	oO.Actor.method('trigger', function (type, argv)
-	{
-		return triggerActor(this, this, 'on', type, argv);
-	});
-
 	oO.Actor.method('place', function (rel_x, rel_y)
 	{
 		this.rel_x = rel_x;
@@ -402,6 +416,11 @@ var oO = {};
 		return this;
 	});
 
+	oO.Actor.method('trigger', function (type, argv)
+	{
+		return triggerActor(this, this, 'on', type, argv);
+	});
+
 	oO.Actor.method('hide', function ()
 	{
 		if (this.id == undefined)
@@ -425,19 +444,9 @@ var oO = {};
 		delete this.root;
 	});
 
-	//Simple square for testing
-	oO.Box = oO.Actor.extend(function (color)
+	oO.Actor.on('show', function (root, parent)
 	{
-		oO.Actor.call(this);
-		this.color = color;
-		this.width = 100;
-		this.height = 100;
-	});
-
-	oO.Box.on('frame', function (elapsed, context)
-	{
-		context.fillStyle = this.color;
-		context.fillRect(0, 0, this.width, this.height);
+		this.root = root;
 	});
 
 	//Actor with image
@@ -451,7 +460,7 @@ var oO = {};
 		this.img_y = img_y || 0;
 	});
 
-	oO.Sprite.on('frame', function (elapsed, context)
+	oO.Sprite.on('draw', function (time, context)
 	{
 		context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
 	});
@@ -553,10 +562,25 @@ var oO = {};
 		this.place(rel_x, rel_y).resize(width, height);
 	});
 
+	//Simple colored Box for testing
+	oO.Box = oO.Cell.extend(function (color, layout)
+	{
+		oO.Cell.call(this, layout);
+		this.color = color;
+	});
+
+	oO.Box.on('draw', function (time, context)
+	{
+		context.fillStyle = this.color;
+		context.fillRect(0, 0, this.width, this.height);
+	});
+
 	//Container for actors
 	oO.Scene = oO.Cell.extend(function (layout)
 	{
 		oO.Cell.call(this, layout);
+		this.scale_x = 1;
+		this.scale_y = 1;
 		this.children = [];
 		this.layers = [];
 	});
@@ -575,7 +599,7 @@ var oO = {};
 		this.prototype.bottomup[type] = value;
 	}
 
-	oO.Scene.register('frame', true);
+	oO.Scene.register('draw', true);
 	oO.Scene.register('resize', true);
 	oO.Scene.register('show', true);
 	//oO.Scene.register('hide', true);
@@ -588,8 +612,9 @@ var oO = {};
 	oO.Scene.register('submit', true);
 
 	oO.Scene.register('deny', true);
-	oO.Scene.register('browse', true);
-	oO.Scene.register('lobby', true);
+	oO.Scene.register('grant', true);
+	oO.Scene.register('init', true);
+	oO.Scene.register('gameinit', true);
 	oO.Scene.register('continue', true);
 
 	oO.Scene.register('join', true);
@@ -618,6 +643,13 @@ var oO = {};
 		return this;
 	});
 
+	oO.Scene.method('hideChildren', function ()
+	{
+		this.children = [];
+		this.layers = [];
+		return this;
+	});
+
 	oO.Scene.method('show', function (actor, layer)
 	{
 		showActor(this, actor, layer);
@@ -627,6 +659,8 @@ var oO = {};
 		{
 			actor.trigger('show', [this.root, this]);
 		}
+
+		return this;
 	});
 
 	oO.Scene.method('trigger', function (type, argv)
@@ -680,6 +714,7 @@ var oO = {};
 
 	oO.Scene.on('show', function (root, parent)
 	{
+		oO.Cell.prototype.events.on.show.call(this, root, parent);
 		return [root, this];
 	});
 
@@ -689,31 +724,31 @@ var oO = {};
 		return [this.width, this.height];
 	});
 
-	oO.Scene.prepare('show', function (root, parent)
-	{
-		this.root = root;
-	});
-
-	oO.Scene.prepare('frame', function (elapsed, context)
+	oO.Scene.prepare('draw', function (time, context)
 	{
 		context.save();
+		context.scale(this.scale_x, this.scale_y);
 		context.globalAlpha = this.alpha;
-		context.translate(this.rel_x, this.rel_y);
+		context.translate(this.rel_x + this.mid_x, this.rel_y + this.mid_y);
 		context.rotate(this.angle);
 		context.translate(-this.mid_x, -this.mid_y);
 	});
 
-	oO.Scene.cleanup('frame', function (elapsed, context)
+	oO.Scene.cleanup('draw', function (time, context)
 	{
 		context.restore();
 	});
 
+	//layers komplett abschaffen? -> array also reihenfolge nicht undefined -> insert before after push, unshift//array id damit auch abschaffen
 	oO.Scene.prepare('click', function (down_x, down_y)
 	{
-		down_x -= this.rel_x;
-		down_y -= this.rel_y;
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
 
-		if ((down_x < -this.mid_x) || (down_y < -this.mid_y) || (down_x >= (this.width - this.mid_x)) || (down_y >= (this.height - this.mid_y)))
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
 		{
 			return false;
 		}
@@ -759,12 +794,12 @@ var oO = {};
 		this.context.restore();
 	});
 
-	oO.Stage.on('frame', function (elapsed, context)
+	oO.Stage.on('draw', function (time, context)
 	{
 		if (this.update || this.once)
 		{
 			this.once = false;
-			return [elapsed, this.context];
+			return [time, this.context];
 		}
 		else
 		{
@@ -772,7 +807,7 @@ var oO = {};
 		}
 	});
 
-	oO.Stage.bubble('frame', function (elapsed, context)
+	oO.Stage.bubble('draw', function (time, context)
 	{
 		if (context)
 		{
@@ -785,6 +820,7 @@ var oO = {};
 	{
 		oO.Stage.call(this);
 		this.canvas.style.position = 'absolute';
+		this.canvas.focus();
 		this.hook = hook;
 		this.hook.style.overflow = 'hidden';
 		this.hook.appendChild(this.canvas);
@@ -930,7 +966,7 @@ var oO = {};
 		function on_resize (event)
 		{
 			that.trigger('resize', [that.hook.clientWidth, that.hook.clientHeight]);
-			that.trigger('frame', argv);
+			that.trigger('draw', argv);
 		}
 
 		this.canvas.addEventListener('mousedown', on_mousedown);
@@ -940,16 +976,13 @@ var oO = {};
 		window.addEventListener('keypress', on_keypress);
 		window.addEventListener('resize', on_resize);
 
-		var last = 0;
 		var request = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame;
 
 		function loop (time)
 		{
 			that.request_id = request(loop);
-			//argv[0] = last ? (time - last) : 0;
-			//last = time;
 			argv[0] = time;
-			that.trigger('frame', argv);
+			that.trigger('draw', argv);
 		}
 
 		this.request_id = request(loop);
@@ -986,6 +1019,7 @@ var oO = {};
 
 	oO.Button.on('show', function (root, parent)
 	{
+		oO.Cell.prototype.events.on.show.call(this, root, parent);
 		this.image = root.images[this.source];
 		this.tiles = [];
 
@@ -997,32 +1031,18 @@ var oO = {};
 		this.tile_y = Math.floor(this.styles[name] / rows) * this.button_h;
 	});
 
-	oO.Button.on('frame', function (elapsed, context)
+	oO.Button.on('draw', function (time, context)
 	{
 		context.drawImage(this.image, this.tile_x, this.tile_y, this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
 	});
 
-	oO.Submit = oO.Cell.extend(function (color, layout)
+	oO.Form = oO.Stage.extend(function (color, font, layout, align, baseline)
 	{
-		oO.Cell.call(this, layout);
-		this.color = color;
-	});
-
-	oO.Submit.on('frame', function (elapsed, context)
-	{
-		context.fillStyle = this.color;
-		context.fillRect(0, 0, this.width, this.height);
-	});
-
-	oO.Submit.on('click', function (down_x, down_y)
-	{
-		this.parent.trigger('submit', [[]]);
-		return false;
-	});
-
-	oO.Form = oO.Scene.extend(function (layout)
-	{
-		oO.Scene.call(this, layout);
+		oO.Stage.call(this, layout);
+		this.color = color || '#f00';
+		this.font = font || '24px sans-serif';
+		this.align = align || 'start';
+		this.baseline = baseline || 'top';
 	});
 
 	oO.Form.method('show', function (actor, layer)
@@ -1034,16 +1054,39 @@ var oO = {};
 			this.focus = actor;
 			actor.toggle();
 		}
+
+		return this;
+	});
+
+	oO.Form.method('reset', function ()
+	{
+		this.focus.toggle();
+		delete this.focus;
+
+		//for (var i = 0; i < this.children.length; i++)
+		for (var id in this.children[0])
+		{
+			var child = this.children[0][id];
+
+			if (child instanceof oO.Input)
+			{
+				if (!this.focus)
+				{
+					this.focus = child;
+					child.toggle();
+				}
+
+				if (child.reset)
+				{
+					child.reset();
+				}
+			}
+		}
 	});
 
 	oO.Form.on('text', function (time, char, key, shift)
 	{
-		if (key == 13)//enter
-		{
-			this.trigger('submit', [[]]);
-			return false;
-		}
-		else if (key == 9)//tab
+		if (key == 9)//tab
 		{
 			this.focus.toggle();
 			var id = this.focus.id;
@@ -1062,6 +1105,16 @@ var oO = {};
 		}
 	});
 
+	oO.Form.on('draw', function (time, context)
+	{
+		context.fillStyle = '#555';
+		context.fillRect(0, 0, this.width, this.height);
+		context.fillStyle = this.color;
+		context.font = this.font;
+		context.textAlign = this.align;
+		context.textBaseline = this.baseline;
+	});
+
 	oO.Form.prepare('text', function (time, char, key, shift)
 	{
 		if (this.parent.focus != this)
@@ -1070,9 +1123,9 @@ var oO = {};
 		}
 	});
 
-	oO.Form.bubble('submit', function (data)
+	oO.Form.bubble('submit', function (type, data)
 	{
-		console.log('SUBMIT %s', JSON.stringify(data));
+		console.log('SUBMIT %s %s', type, JSON.stringify(data));
 	});
 
 	oO.Input = oO.Cell.extend(function (layout)//alphabet
@@ -1086,28 +1139,74 @@ var oO = {};
 		this.focus = !this.focus;
 	});
 
-	oO.Field = oO.Input.extend(function (color, font, align, baseline, layout)//alphabet
+	oO.Input.on('click', function (down_x, down_y)
+	{
+		this.parent.focus.toggle();
+		this.parent.focus = this;
+		this.toggle();
+	});
+
+	oO.Submit = oO.Input.extend(function (type, color, layout)
 	{
 		oO.Input.call(this, layout);
-		this.color = color || '#f00';
-		this.font = font || 'sans-serif';
-		this.align = align || 'start';
-		this.baseline = baseline || 'top';
+		this.type = type;
+		this.color = color;
+	});
+
+	oO.Submit.on('click', function (down_x, down_y)
+	{
+		oO.Input.prototype.events.on.click.call(this, down_x, down_y);
+		this.parent.trigger('submit', [this.type, []]);
+		return false;
+	});
+
+	oO.Submit.on('text', function (time, char, key, shift)
+	{
+		if (key == 13)//enter
+		{
+			this.parent.trigger('submit', [this.type, []]);
+			return false;
+		}
+	});
+
+	oO.Submit.on('draw', function (time, context)
+	{
+		context.fillStyle = this.color;
+		context.fillRect(0, 0, this.width, this.height);
+		context.fillStyle = '#555';
+		context.textAlign = 'center';
+		context.textBaseline = 'middle';
+		context.fillText(this.type, this.width >>> 1, this.height >>> 1);
+	});
+
+	oO.Field = oO.Input.extend(function (type, layout)//alphabet
+	{
+		oO.Input.call(this, layout);
+		this.type = type;
+		this.reset();
+	});
+
+	oO.Field.method('reset', function ()
+	{
 		this.chars = [];
 		this.caret = 0;
 		this.text = '';
 		this.sub = '';
 	});
 
-	oO.Field.on('resize', function (width, height)
+	oO.Field.on('submit', function (type, data)
 	{
-		oO.Input.prototype.events.on.resize.call(this, width, height);
-		this.style = '' + this.height + 'px ' + this.font;
+		data.push(this.text);
 	});
 
 	oO.Field.on('text', function (time, char, key, shift)
 	{
-		if (key == 8)//backspace
+		if (key == 13)//enter
+		{
+			this.parent.trigger('submit', [this.type, []]);
+			return false;
+		}
+		else if (key == 8)//backspace
 		{
 			if (this.caret > 0)
 			{
@@ -1146,23 +1245,128 @@ var oO = {};
 		this.sub = this.text.substr(0, this.caret);
 	});
 
-	oO.Field.on('submit', function (data)//general input class
+	oO.Field.on('draw', function (time, context)
 	{
-		data.push(this.text);
-	});
-
-	oO.Field.on('frame', function (elapsed, context)
-	{
-		context.fillStyle = this.color;
-		context.font = this.style;
-		context.textAlign = this.align;
-		context.textBaseline = this.baseline;
+		//context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
 		context.fillText(this.text, 0, 0);
 
-		if (this.focus && ((elapsed % 1300) < 800))//caret blink
+		if (this.focus && ((time % 2000) < 1300))//caret blink
 		{
 			context.fillRect(context.measureText(this.sub).width, 0, this.height >>> 3, this.height);
 		}
+	});
+
+	oO.Count = oO.Input.extend(function (min, max, init, layout)
+	{
+		oO.Input.call(this, layout);
+		this.min = min;
+		this.max = max;
+		this.init = init;
+		this.reset();
+	});
+
+	oO.Count.method('reset', function ()
+	{
+		this.number = this.init;
+	});
+
+	oO.Count.on('submit', function (type, data)
+	{
+		data.push(this.number);
+	});
+
+	oO.Count.on('click', function (down_x, down_y)
+	{
+		oO.Input.prototype.events.on.click.call(this, down_x, down_y);
+
+		if (down_x < (this.width >>> 1))
+		{
+			if (this.number > this.min)
+			{
+		 		this.number--;
+			}
+			else
+			{
+		 		this.number = this.max;
+			}
+		}
+		else
+		{
+			if (this.number < this.max)
+			{
+		 		this.number++;
+			}
+			else
+			{
+		 		this.number = this.min;
+			}
+		}
+	});
+
+	oO.Count.on('draw', function (time, context)
+	{
+		//context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
+		context.fillText(this.number, 0, 0);
+	});
+
+	oO.Option = oO.Input.extend(function (options, init, type, layout)
+	{
+		oO.Input.call(this, type, layout);
+		this.options = options;
+		this.init = init;
+		this.reset();
+	});
+
+	oO.Option.method('reset', function ()
+	{
+		this.pick = this.init;
+	});
+
+	oO.Option.on('submit', function (type, data)
+	{
+		data.push(this.pick);
+	});
+
+	oO.Option.on('click', function (down_x, down_y)
+	{
+		oO.Input.prototype.events.on.click.call(this, down_x, down_y);
+		down_x < (this.width >>> 1) ? this.pick-- : this.pick++;
+		this.pick = wrap(this.pick, this.options.length);
+	});
+
+	oO.Option.on('draw', function (time, context)
+	{
+		//context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
+		context.fillText(this.options[this.pick], 0, 0);
+	});
+
+	oO.Switch = oO.Input.extend(function (init, layout)
+	{
+		oO.Input.call(this, layout);
+		this.init = init;
+		this.reset();
+	});
+
+	oO.Switch.method('reset', function ()
+	{
+		this.state = this.init;
+	});
+
+	oO.Switch.on('submit', function (type, data)
+	{
+		data.push(this.state);
+	});
+
+	oO.Switch.on('click', function (down_x, down_y)
+	{
+		oO.Input.prototype.events.on.click.call(this, down_x, down_y);
+		this.state = this.state ? 0 : 1;
+	});
+
+	oO.Switch.on('draw', function (time, context)
+	{
+		//context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
+		context.fillText(this.state, 0, 0);
 	});
 
 	oO.Menu = oO.Cell.extend(function (button_w, button_h, type, layout, vertical, reversed)//switch to oO.Button.extend
@@ -1186,6 +1390,7 @@ var oO = {};
 
 	oO.Menu.on('show', function (root, parent)
 	{
+		oO.Cell.prototype.events.on.show.call(this, root, parent);
 		this.image = root.images[this.type];
 		this.tiles = [];
 
@@ -1201,7 +1406,7 @@ var oO = {};
 		}
 	});
 
-	oO.Menu.on('frame', function (elapsed, context)
+	oO.Menu.on('draw', function (time, context)
 	{
 		if (this.reversed)
 		{
@@ -1267,7 +1472,7 @@ var oO = {};
 		return this;
 	});
 
-	oO.SingleMenu.on('draw', function (elapsed, context)
+	oO.SingleMenu.on('draw', function (time, context)
 	{
 		if (this.reversed)
 		{
@@ -1349,7 +1554,7 @@ var oO = {};
 		return this;
 	});
 
-	oO.MultiMenu.on('draw', function (elapsed, context)
+	oO.MultiMenu.on('draw', function (time, context)
 	{
 		if (this.reversed)
 		{
@@ -1422,6 +1627,9 @@ var oO = {};
 			return false;
 		}
 	});
+
+	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+	var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
 
 	oO.TileMap = oO.Cell.extend(function (size, tile_w, tile_h, type, layout)
 	{
@@ -1651,6 +1859,7 @@ var oO = {};
 
 	oO.TileMap.on('show', function (root, parent)
 	{
+		oO.Cell.prototype.events.on.show.call(this, root, parent);
 		this.image = root.images[this.type];
 		this.coords = [];
 
@@ -1687,7 +1896,7 @@ var oO = {};
 		this.trigger('pick', [this.tiles[tile_y][tile_x], tile_x, tile_y]);
 	});
 
-	oO.TileMap.on('frame', function (elapsed, context)
+	oO.TileMap.on('draw', function (time, context)
 	{
 		var drop_x = wrap(this.drop_x - this.drag_x, this.patch_w);
 		var drop_y = wrap(this.drop_y - this.drag_y, this.patch_h);
@@ -1707,6 +1916,7 @@ var oO = {};
 			{
 				var tile_x = x % this.size;
 				var tile = this.tiles[tile_y][tile_x];
+				//this.trigger('
 				context.drawImage(this.image, this.coords[tile.type][0], this.coords[tile.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
 
 				if ('mark' in tile)
@@ -1866,7 +2076,7 @@ var oO = {};
 		this.trigger('pick', [this.tiles[tile_y][tile_x], tile_x, tile_y]);
 	});
 
-	oO.HexMap.on('frame', function (elapsed, context)
+	oO.HexMap.on('draw', function (time, context)
 	{
 		var drop_x = wrap(this.drop_x - this.drag_x, this.patch_w);
 		var drop_y = wrap(this.drop_y - this.drag_y, this.patch_h);
@@ -1908,12 +2118,91 @@ var oO = {};
 		}
 	});
 
-	oO.Game = oO.Root.extend(function (hook, url, assets, color)
+	var Login = oO.Form.extend(function (color, font, layout, align, baseline)
+	{
+		oO.Form.call(this, color, font, layout, align, baseline);
+		this.show(new oO.Field('auth', {'top': 10, 'left': 10, 'right':10, 'height': 30}));
+		this.show(new oO.Field('auth', {'top': 50, 'left': 10, 'right':10, 'height': 30}));
+		this.show(new oO.Submit('login', '#a50', {'top': 90, 'left': 10, 'right':10, 'height': 30}));
+	});
+
+	Login.bubble('submit', function (type, data)
+	{
+		this.root.send('login', data[0], data[1]);
+	});
+
+	var Rules = oO.Form.extend(function (color, font, layout, align, baseline)
+	{
+		oO.Form.call(this, color, font, layout, align, baseline);
+		this.games = new oO.Scene({'top': 10, 'left': 10, 'width': 180, 'bottom': 50});
+		this.show(this.games);
+		this.size = new oO.Option(['small', 'medium', 'large'], 1, {'top': 10, 'left': 200, 'width': 180, 'height': 30});
+		this.show(this.size);
+		this.mode = new oO.Switch(0, {'top': 50, 'left': 200, 'width': 180, 'height': 30});
+		this.show(this.mode);
+		this.show(new oO.Submit('join', '#a50', {'bottom': 10, 'left': 10, 'width': 180, 'height': 30}));
+		this.show(new oO.Submit('host', '#a50', {'bottom': 10, 'left': 200, 'width': 180, 'height': 30}));
+	});
+
+	Rules.method('refresh', function (games)
+	{
+		oO.Stage.prototype.refresh.call(this);
+		this.games.hideChildren();
+		var i = 0;
+
+		for (var id in games)
+		{
+			this.games.show(new oO.Box('#05a', {'top': i++ * 40, 'height': 30}));
+		}
+
+		return this;
+	});
+
+	Rules.bubble('submit', function (type, data)
+	{
+		this.root.send('host', data[0], data[1]);
+		//this.root.init.apply(this, data);
+	});
+
+	var Lobby = oO.Form.extend(function (color, font, layout, align, baseline)
+	{
+		oO.Form.call(this, color, font, layout, align, baseline);
+		this.show(new oO.Submit('open for public', '#a50', {'bottom': 50, 'left': 10, 'right': 10, 'height': 30}));
+		this.show(new oO.Submit('ready to start', '#a50', {'bottom': 10, 'left': 10, 'right': 10, 'height': 30}));
+	});
+
+	Lobby.method('update', function (name)
+	{
+		var top = size(this.children[0]) * 40 + 10;
+		this.show(new oO.Submit(name, '#a50', {'top': top, 'left': 10, 'right': 10, 'height': 30}));
+	});
+
+	Lobby.on('join', function (name)
+	{
+		var top = size(this.children[0]) * 40 + 10;
+		this.show(new oO.Submit(name, '#a50', {'top': top, 'left': 10, 'right': 10, 'height': 30}));
+	});
+
+	Lobby.bubble('submit', function (type, data)
+	{
+		this.root.send('ready', data);
+	});
+
+	oO.Client = oO.Root.extend(function (hook, url, assets, color)
 	{
 		oO.Root.call(this, hook, null, color);
 		this.sockjs = new SockJS(url);
 		this.connected = false;
 		this.granted = false;
+		this.players = {};
+		this.games = {};
+
+		this.forms = {};
+		this.forms.login = new Login('#5a0', '21px sans-serif', {'width': 200, 'height': 130}).center(100, 65).rotate(-10);
+		this.forms.rules = new Rules('#5a0', '21px sans-serif', {'width': 390, 'height': 130}).center(195, 65).rotate(-10).refresh();
+		this.forms.init = new Lobby('#5a0', '21px sans-serif', {'width': 200, 'height': 250}).center(100, 125).rotate(-10);
+
+		this.show(new oO.Box('#a0a'));
 		var that = this;
 
 		preload(assets, function (images)
@@ -1939,6 +2228,7 @@ var oO = {};
 
 		this.sockjs.onmessage = function (message)
 		{
+			console.log('+++ ' + message.data + ' +++');
 			var data = JSON.parse(message.data);
 
 			if (!Array.isArray(data))
@@ -1959,72 +2249,76 @@ var oO = {};
 				//that.trigger('hide', [that, that]);
 			}
 
-			console.log('CLOSED %d', message.code);
+			console.log('CLOSED %s', message.code);
 		}
 	});
 
-	oO.Game.method('send', function ()
+	oO.Client.method('send', function (type, data)
 	{
 		this.sockjs.send(JSON.stringify(Array.prototype.slice.call(arguments)));
 	});
 
-	oO.Game.method('init', function (size)
+	oO.Client.method('init', function ()
 	{
-		this.size = size;
-		this.players = {};
+		throw 'oO.Client.prototype.init() is not implemented yet!';
 	});
 
-	//oO.Game
-	function login (token)
+	oO.Client.on('show', function (root, parent)
 	{
-		if (token && token.name)
-		{
-			console.log('LOCAL %s %s', token.name, token.pass);
-			this.send('auth', token.name, token.pass);
-		}
-		else
-		{
-			var name = prompt('name?');
-			var pass = prompt('pass?');
-			console.log('PROMPT %s %s', name, pass);
-			this.send('auth', name, pass);
-			this.token = {'name': name, 'pass': pass}
-		}
-	}
-
-	oO.Game.on('show', function (root, parent)
-	{
-		oO.Root.prototype.events.on.show.apply(this, arguments);
-		//login
+		oO.Root.prototype.events.on.show.call(this, root, parent);
+		this.show(this.forms.login);
 	});
 
-	oO.Game.on('deny', function ()
+	//events.receive.deny !!!
+	oO.Client.on('deny', function ()
 	{
-		//login
+		this.forms.login.reset();
 	});
 
-	oO.Game.on('browse', function (list)
+	oO.Client.on('grant', function (inbox, games)
 	{
 		if (true)
 		{
 			setLocal('token', this.token);
 		}
 
-		console.log('BROWSE %s', JSON.stringify(list));
+		console.log('GRANT %s %s', JSON.stringify(inbox), JSON.stringify(games));
+		this.games = games;
+		this.forms.login.hide();
+		this.show(this.forms.rules.refresh(games));
 	});
 
-	oO.Game.on('lobby', function (rules, names)
+	oO.Client.on('init', function (id, rules, names)
 	{
 		console.log('LOBBY %s %s', JSON.stringify(rules), JSON.stringify(names));
-		this.init.apply(this, rules);
+		//this.init.apply(this, rules);
 
 		for (var i = 0; i < names.length; i++)
 		{
 			this.players[names[i]] = true;
+			var top = i * 40 + 10;
+			this.forms.init.show(new oO.Submit(names[i], '#5a0', {'top': top, 'left': 10, 'right': 10, 'height': 30}));
 		}
+
+		this.forms.rules.hide();
+		this.show(this.forms.init);
 	});
 
-	oO.Game.on('continue', function (rules, names, time, world, seat, realm)
+	oO.Client.on('gameinit', function (id, rules, name)
+	{
+		if (this.games[id])
+		{
+			this.games[id][1].push(name);
+		}
+		else
+		{
+			this.games[id] = [rules, [name]];
+		}
+
+		this.forms.rules.refresh(this.games);
+	});
+
+	oO.Client.on('continue', function (rules, names, time, world, seat, realm)
 	{
 		if (true)
 		{
@@ -2042,13 +2336,13 @@ var oO = {};
 		this.trigger('start', [time, world, seat, realm]);
 	});
 
-	oO.Game.on('join', function (name)
+	oO.Client.on('join', function (name)
 	{
 		console.log('JOIN %s', name);
 		this.players[name] = true;
 	});
 
-	oO.Game.on('leave', function (name)
+	oO.Client.on('leave', function (name)
 	{
 		console.log('LEAVE %s', name);
 		delete this.players[name];
@@ -2060,7 +2354,7 @@ var oO = {};
 		}
 	});
 
-	//oO.Game
+	//oO.Client
 	function ready (delay)
 	{
 		console.log('READY %d', delay);
@@ -2076,12 +2370,12 @@ var oO = {};
 		}
 	}
 
-	oO.Game.on('ready', function (delay)
+	oO.Client.on('ready', function (delay)
 	{
 		ready.call(this, delay);
 	});
 
-	oO.Game.on('start', function (time, world, seat, realm)
+	oO.Client.on('start', function (time, world, seat, realm)
 	{
 		console.log('START %d %s %d %s', time, JSON.stringify(world), seat, JSON.stringify(realm));
 		this.time = time;
@@ -2090,17 +2384,17 @@ var oO = {};
 		this.realm = realm;
 	});
 
-	oO.Game.on('away', function (name)
+	oO.Client.on('away', function (name)
 	{
 		console.log('AWAY %s', name);
 	});
 
-	oO.Game.on('back', function (name)
+	oO.Client.on('back', function (name)
 	{
 		console.log('BACK %s', name);
 	});
 
-	oO.Game.on('tock', function ()
+	oO.Client.on('tock', function ()
 	{
 		console.log('TOCK %d', this.time);
 	});

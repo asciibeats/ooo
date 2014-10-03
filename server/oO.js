@@ -10,6 +10,11 @@ function Wrap (Func, argv)
     return Func.bind.apply(Func, [Func].concat(argv));
 }
 
+function size (object)
+{
+	return Object.keys(object).length;
+}
+
 function fill (object, value)
 {
 	var keys = Object.keys(object);
@@ -74,8 +79,9 @@ var Player = Class.extend(function (name, pass)
 	this.pass = pass;
 	this.expected = {};
 	//this.game = null;
-	this.groups = [];
-	this.banned = [];//if you host a game, these players wont be allowed to join
+	this.friends = {};
+	this.follows = {};
+	//this.ignore = {};//if you host a game, these players wont be allowed to join
 	this.inbox = [];
 });
 
@@ -101,27 +107,60 @@ Player.method('send', function (data, keep)
 	}
 });
 
-oO.Game = Class.extend(function (size)
+Player.method('befriend', function (player)
+{
+	this.friends[player.name] = player;
+	player.follows[this.name] = this;
+});
+
+Player.method('unfriend', function (player)
+{
+	delete this.friends[player.name];
+	delete player.follows[this.name];
+});
+
+Player.method('sendFriends', function (message)
+{
+	for (var name in this.friends)
+	{
+		this.friends[name].send(message);
+	}
+});
+
+Player.method('leave', function (game)
+{
+});
+
+oO.Game = Class.extend(function ()
 {
 	this.rules = Array.prototype.slice.call(arguments);
-	this.size = size;
-	this.free = size;
 	this.time = 0;
 	this.ticks = 0;
-	this.open = true;//temp->false
+	this.open = true;
 	this.started = false;
-	//this.invited = {};
-	//this.banned = {};
-	//this.admins = {};
+	this.friends = {};
 	this.world = [];//common data
 	this.realms = [];//per player data
 	this.players = {};
 	this.seats = {};
 });
 
+oO.Game.method('merge', function (game)
+{
+});
+
 oO.Game.method('send', function (data, keep)
 {
 	for (var name in this.players)
+	{
+		var player = this.players[name];
+		player.send.apply(player, arguments);
+	}
+});
+
+oO.Game.method('sendFriends', function (data, keep)
+{
+	for (var name in this.friends)
 	{
 		var player = this.players[name];
 		player.send.apply(player, arguments);
@@ -157,27 +196,50 @@ oO.Game.method('tock', function ()
 
 oO.Game.on('join', function (player)
 {
-	if (!player.game && this.open && this.free)
+	if (!player.game && this.open)//( || this.friends[player.name])
 	{
 		console.log('JOIN %d %s', this.id, player.name);
 		this.send(['join', player.name]);
+		//this.sendFriends(['gamejoin', this.id]);
 		this.players[player.name] = player;
-		this.free--;
 		player.game = this;
-		player.send(['lobby', this.rules, this.list()]);
 		player.expect('leave');
+		player.send(['init', this.rules, this.list()]);
 
-		if (!this.free)
+		for (var name in player.friends)
+		{
+			var friend = player.friends[name];
+
+			if (this.invites[name])
+			{
+				this.invites[name]++;
+				friend.invites[this.id].push(player.name);
+			}
+			else
+			{
+				this.invites[name] = 1;
+				friend.invites[this.id] = [player.name];
+			}
+
+			friend.send(['gameinit', this.id, this.rules, friend.invites[this.id]]);
+		}
+
+		//var time = this.room.isready(this.rules);
+		//if time > 0 timeout to ready
+		//else ready
+
+		if (false)//algorithmus basteln(abhängig von joins per minute mit rules x)
 		{
 			console.log('READY %d %d', this.id, this.room.count);
+			this.open = false;
 			this.send(['ready', this.room.count]);
+			this.sendFriends(['gameready', this.id]);
 			var that = this;
 
 			this.timeout = setTimeout(function ()
 			{
 				console.log('START %d', that.id);
 				delete that.timeout;
-				that.open = false;
 				that.started = true;
 				var seat = 0;
 
@@ -194,9 +256,11 @@ oO.Game.on('join', function (player)
 					player = that.players[name];
 					var seat = that.seats[name];
 					var realm = that.realms[seat];
-					player.send(['start', that.time, that.world, seat, realm]);
 					player.expect('tick');
+					player.send(['start', that.time, that.world, seat, realm]);
 				}
+
+				that.sendFriends(['gamecancel', that.id]);
 			}, this.room.count * 1000);
 		}
 	}
@@ -212,23 +276,43 @@ oO.Game.on('leave', function (player)
 	{
 		delete this.players[player.name];
 		delete player.game;
-		this.free++;
 		player.expect('host', 'join');
 
 		if (this.timeout)
 		{
+			this.open = true;
 			clearTimeout(this.timeout);
 			delete this.timeout;
 		}
 
-		if (this.free < this.size)
+		if (size(this.players) > 0)
 		{
 			console.log('LEAVE %d %s', this.id, player.name);
 			this.send(['leave', player.name]);
+
+			for (var name in player.friends)
+			{
+				var friend = player.friends[name];
+
+				if (this.invites[name] > 1)
+				{
+					this.invites[name]--;
+					var invites = friend.invites[this.id];
+					invites.splice(invites.indexOf(player.name), 1);
+				}
+				else
+				{
+					delete this.invites[name];
+					delete friend.invites[this.id];
+				}
+				
+				friend.send(['gameleave', this.id, player.name]);
+			}
 		}
 		else
 		{
 			console.log('CANCEL %d %s', this.id, player.name);
+			this.sendFriends(['gamecancel', this.id]);
 			delete this.room.games[this.id];
 		}
 	}
@@ -290,7 +374,7 @@ oO.Game.on('tick', function (player, data)
 	}
 });
 
-oO.Room = function (Game, port, count, delay)
+oO.Server = function (Game, port, count, delay)
 {
 	console.log('OPEN %d', port);
 	this.Game = Game;
@@ -300,7 +384,7 @@ oO.Room = function (Game, port, count, delay)
 	this.games = {};
 	this.http = http.createServer();
 	this.http.listen(port || 11133);//, '0.0.0.0'
-	this.sockjs = sockjs.createServer();
+	this.sockjs = sockjs.createServer({'log': function (type, message) { if (type != 'info') { console.log(type, message) }}});
 	this.sockjs.installHandlers(this.http);//, {prefix: '/player'}
 	var that = this;
 
@@ -324,7 +408,7 @@ oO.Room = function (Game, port, count, delay)
 
 				if (!player)
 				{
-					if (type != 'auth')
+					if (type != 'login')
 					{
 						throw 666;
 					}
@@ -346,15 +430,33 @@ oO.Room = function (Game, port, count, delay)
 							var names = game.list();
 							var seat = game.seats[name];
 							var realm = game.realms[seat];
-							player.send(['continue', game.rules, names, game.time, game.world, seat, realm]);
 							player.expect('tick');
+							player.send(['continue', game.rules, names, game.time, game.world, seat, realm]);
 						}
 						else
 						{
 							console.log('GRANT %s', name);
-							var list = Object.keys(that.games);
-							player.send(['browse', list]);
 							player.expect('host', 'join');
+							var games = {};
+
+							for (var name in player.follows)
+							{
+								var game = player.follows[name].game;
+
+								if (game && game.open)//( || game.invited[player.name])
+								{
+									if (games[game.id])
+									{
+										games[game.id][1].push(name);
+									}
+									else
+									{
+										games[game.id] = [game.rules, [name]];
+									}
+								}
+							}
+
+							player.send(['grant', player.inbox, games]);
 						}
 					}
 					else
@@ -391,13 +493,18 @@ oO.Room = function (Game, port, count, delay)
 				}
 				else
 				{
-					throw 235261;
+					throw 'unexpected message';
 				}
 			}
 			catch (e)
 			{
-				socket.close(e);
-				console.log('EXCEPTION %s %s', e.toString(), e.stack);
+				socket.close(e.toString());
+				console.log('EXCEPTION %s', e.toString());
+
+				if (e.stack)
+				{
+					console.log(e.stack);
+				}
 			}
 		});
 
@@ -431,12 +538,12 @@ oO.Room = function (Game, port, count, delay)
 	});
 }
 
-oO.Room.method = function (name, func)
+oO.Server.method = function (name, func)
 {
 	this.prototype[name] = func;
 }
 
-oO.Room.extend = function (func)
+oO.Server.extend = function (func)
 {
 	var Parent = this;
 
@@ -471,7 +578,7 @@ oO.Room.extend = function (func)
 	return Child;
 }
 
-oO.Room.receive = function (type, func)
+oO.Server.receive = function (type, func)
 {
 	if (!this.prototype.events)
 	{
@@ -481,7 +588,7 @@ oO.Room.receive = function (type, func)
 	this.prototype.events[type] = func;
 }
 
-oO.Room.method('allow', function (name, pass)
+oO.Server.method('allow', function (name, pass)
 {
 	if (this.players[name])
 	{
@@ -492,7 +599,7 @@ oO.Room.method('allow', function (name, pass)
 	this.players[name] = new Player(name, pass);
 });
 
-oO.Room.method('send', function (data, keep)
+oO.Server.method('send', function (data, keep)
 {
 	for (var name in this.players)
 	{
@@ -501,11 +608,11 @@ oO.Room.method('send', function (data, keep)
 	}
 });
 
-oO.Room.receive('host', function (player, data)
+oO.Server.receive('host', function (player, data)
 {
+	console.log('HOST %s %s', player.name, JSON.stringify(data));
 	var game = new (Wrap(this.Game, data))();
 	game.id = fill(this.games, game);
 	game.room = this;
-	console.log('HOST %d %s', game.id, player.name);
 	game.events.join.call(game, player);
 });

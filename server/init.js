@@ -26,6 +26,8 @@ Jupiter.method('tock', function ()
 {
 });
 
-var room = new oO.Room(Jupiter, 11133, 3, 1);
+var room = new oO.Server(Jupiter, 11133, 3, 1);
 room.allow('a', 'a');
 room.allow('b', 'b');
+room.players['a'].befriend(room.players['b']);
+room.players['b'].befriend(room.players['a']);
