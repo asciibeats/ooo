@@ -1,4 +1,49 @@
 
+		/*/walk/one tile
+		//run/two tiles
+		//drive/four tiles with items(only on roads)
+		//ride/four tiles
+
+		if (action_is_movement)
+		{
+			//gather reality depending on movement style
+			//time+=movetime
+			//moving = true;
+			//x+=1
+			//y+=1
+		}
+		else
+		{
+			//execute action
+			//moving = false;
+			//time+=actiontime
+		}
+
+		char.time++;
+		//reality(action)
+		/*/
+		//for all chars progress in time; execute action/change world/create reality (sneak,walk,run,schlendern,talk,look,climb,jump)
+		//modules??(param:knowledge,action)INFO/ITEMS/CHARS
+
+		//INFO kümmert sich um den reality tree
+		//ITEMS manipulate items
+
+		//realitytypes person/item/default
+		//type dertermines listing in tree
+		//tiles->[people,poi->[poi]]//poi can be item
+
+		//sehen/hören/riechen/schmecken/tasten(alles unter wahrnehmung!)
+
+		//baum:knowledgeroot[tiles[],inventory[],quests[],people[nearby,by look,by],actions[]]
+		//you can use aliases for your chars (auto gen?)
+		//charbloodline choose on trait, one random all, one random parents oder so
+
+		//for all chars: tick (move/card)//waiting is a card mit awareness+x//'nothing': awareness=0(eigentlich schlecht aber dreimal nacheinander passiert irgendwass)
+		//if card
+		//for all tiles: apply effects (order by charid/age, highest first) (including watch & talk actions)
+		//for all chars: gather reality based on awareness level and noticeability level of realitys
+
+		//god
 
 /*Player.prototype.load = function (state)
 {

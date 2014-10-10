@@ -8,6 +8,94 @@
 
 (function ()
 {
+	var COOLDOWN = [1, 0];
+	var SUBTICKS = 100;
+
+	var ACTIONS = {};
+
+	ACTIONS['look'] = function (world, path)
+	{
+		var worldnode = this.worldnode;
+		var charnode = this.charnode;
+
+		for (var i = 0; i < path.length; i++)
+		{
+			node = node[1][path[i]];
+		}
+
+		var news = look(node, this.awareness);
+		show([0, news], '0');
+	}
+
+	ACTIONS['pick'] = function (entity)
+	{
+		//update knowledge
+		return 1;
+	}
+
+	ACTIONS['use'] = function (entity)
+	{
+		Array.prototype.shift.call(arguments);
+		USES[entity.name].apply(this, arguments);
+		//update knowledge
+		return 1;
+	}
+
+	ACTIONS['equip'] = function (entity)
+	{
+		Array.prototype.shift.call(arguments);
+		USES[entity.name].apply(this, arguments);
+		//update knowledge
+		return 1;
+	}
+
+	ACTIONS[0] = function (direction)
+	{
+		this.tile.type++;
+		this.tile = this.tile.steps[direction];
+	}
+
+	ACTIONS[1] = function (duration)
+	{
+		this.cooldown += duration;
+	}
+
+	function move ()
+	{
+		char.tile.type = 1;
+		char.tile = char.tile.steps[direction];
+		char.tile.type = 2;
+	}
+
+	//ITEMS
+	var ITEMS = [];
+	ITEMS[0] = {name: 'World', description: '', type: 1, obscurity: 0, visibility: 0};//eatable,wearable,
+	ITEMS[1] = {name: 'Grass', description: 'Just grass...', type: 1, obscurity: 1, visibility: 0};//eatable,wearable,
+	ITEMS[5] = {name: 'Basket', description: 'Delicious green apple', type: 1, obscurity: 2, visibility: 1};
+	ITEMS[6] = {name: 'Apple', description: 'Delicious green apple', type: 1, obscurity: 9, visibility: 2};
+	ITEMS[8] = {name: 'Ring', description: 'Delicious green apple', type: 1, obscurity: 9, visibility: 12};
+	ITEMS[7] = {name: 'Tree', description: 'Maple tree', type: 1, obscurity: 9, visibility: 0};
+
+	/*/TREE//body&world
+	var entity = {, content: [], links: []};
+
+	//item effects
+	var EFFECTS = [];
+
+	EFFECTS[0] = {};
+
+	EFFECTS[0]['equip'] = function ()
+	{
+	}
+
+	EFFECTS[0]['unequip'] = function ()
+	{
+	}
+
+	var ITEMS = [];
+
+	ITEMS['head'] = [];*/
+
 	function show (node, prefix)
 	{
 		console.log(prefix + ' ' + ITEMS[node[0]].name);
@@ -60,90 +148,37 @@
 		return news;
 	}
 
-	var ACTIONS = {};
-
-	ACTIONS['look'] = function (world, path)
-	{
-		var worldnode = this.worldnode;
-		var charnode = this.charnode;
-
-		for (var i = 0; i < path.length; i++)
-		{
-			node = node[1][path[i]];
-		}
-
-		var news = look(node, this.awareness);
-		show([0, news], '0');
-	}
-
-	ACTIONS['pick'] = function (entity)
-	{
-		//update knowledge
-		return 1;
-	}
-
-	ACTIONS['use'] = function (entity)
-	{
-		Array.prototype.shift.call(arguments);
-		USES[entity.name].apply(this, arguments);
-		//update knowledge
-		return 1;
-	}
-
-	ACTIONS['equip'] = function (entity)
-	{
-		Array.prototype.shift.call(arguments);
-		USES[entity.name].apply(this, arguments);
-		//update knowledge
-		return 1;
-	}
-
-	ACTIONS['move'] = function (direction)
-	{
-		this.location.type = 1;
-		this.location = this.location.steps[direction];
-		this.location.type = 2;
-		//create knowledge around location based on awareness
-		//console.log(JSON.stringify(this.location.node));
-		return 1;
-	}
-
-	//ITEMS
-	var ITEMS = [];
-	ITEMS[0] = {name: 'World', description: '', type: 1, obscurity: 0, visibility: 0};//eatable,wearable,
-	ITEMS[1] = {name: 'Grass', description: 'Just grass...', type: 1, obscurity: 1, visibility: 0};//eatable,wearable,
-	ITEMS[5] = {name: 'Basket', description: 'Delicious green apple', type: 1, obscurity: 2, visibility: 1};
-	ITEMS[6] = {name: 'Apple', description: 'Delicious green apple', type: 1, obscurity: 9, visibility: 2};
-	ITEMS[8] = {name: 'Ring', description: 'Delicious green apple', type: 1, obscurity: 9, visibility: 12};
-	ITEMS[7] = {name: 'Tree', description: 'Maple tree', type: 1, obscurity: 9, visibility: 0};
-
-	/*/TREE//body&world
-	var entity = {, content: [], links: []};
-
-	//item effects
-	var EFFECTS = [];
-
-	EFFECTS[0] = {};
-
-	EFFECTS[0]['equip'] = function ()
+	var Tree = function ()
 	{
 	}
 
-	EFFECTS[0]['unequip'] = function ()
+	var Char = function (name, stats, wake, actions)
 	{
+		this.name = name;
+		this.stats = stats;
+		this.wake = wake;
+		this.actions = actions;
 	}
 
-	var ITEMS = [];
+	Char.prototype.init = function ()
+	{
+		this.tile = this.home;
+		this.step = 0;
+		this.cooldown = COOLDOWN[this.actions[0][0]];
+	}
 
-	ITEMS['head'] = [];*/
+	Char.prototype.resolve = function ()
+	{
+		delete this.tile;
+		delete this.step;
+		delete this.cooldown;
+	}
 
-	var COOLDOWN = {move: 1, look: 1};
-
-	var World = oO.TileMap.extend(function (info, size, tile_w, tile_h, type, layout)
+	var World = oO.TileMap.extend(function (reality, size, tile_w, tile_h, type, layout)
 	{
 		oO.TileMap.call(this, size, tile_w, tile_h, type, layout);
-		this.info = info;
-		this.time = 0;
+		this.reality = reality;
+		this.date = 0;
 		this.chars = [];
 		//doors and walls only between tiles!!!!!
 		/*
@@ -162,7 +197,7 @@
 		//'a few days ago'->'a few'(2-10)'some'(2-30)'days'(24*60ticks)'ago'(*-1)'from now'(*1)'noon''midnight'etc//zukunft negativ? oder vergangenheit? t-x?
 		//set/get functions in knowledge tree->'a few days ago' mapping to times +/-? 2->9*24*60
 		//verfallsdauer bei krassen ereignissen größer gegenüber alltäglichem
-		//make a case!: gather related infos(or generate relations)
+		//make a case!: gather related realitys(or generate relations)
 
 		//example:you find a bloody deggar; you investigate via knowtree and find a strange engraving some language you dont understand
 		//'String' entries for names and items and actions
@@ -176,8 +211,8 @@
 		//close a case? mark some kind of result??
 
 		//spiele sind wiederentdeckte geschichten aus büchern die erzählt werden
-		//mark info as original truth if unchanged since spawn (mit ring of truth erkennen ob info original true ist)
-		//info hat step counter (how many intermediaries to original info/info creation)
+		//mark reality as original truth if unchanged since spawn (mit ring of truth erkennen ob reality original true ist)
+		//reality hat step counter (how many intermediaries to original reality/reality creation)
 		//stepcounter hoch -> wahrscheinlicher daß char nichts mit der erschaffung der nachricht/evtl lüge zu tun hat und einfach nur sagt was er weiss
 		//stepcounter nur vom server sichtbar?
 		//"seiten" des buches entstehen indirekt
@@ -194,7 +229,7 @@
 		//event wenn sich wissen verändert (gegenüber vorheriger minute)
 		//keine doppelten namen!!!
 
-		//in gesprächen themen beschränken können -> info knoten bestimmen -> darüberhinaus schweigen
+		//in gesprächen themen beschränken können -> reality knoten bestimmen -> darüberhinaus schweigen
 		//gut für geheimhaltung
 
 		//kein naturlicher tod? wäre das nur lästig?ist aber wichtig für erbfoldesystem... streit?:)
@@ -218,55 +253,20 @@
 
 		//char[tiles[visibilitytree],people[name],quests];//(quest ist gedanke/notiz/fall/order?)
 		//look[here,north,south,east,west]
-		//informationen nicht
+		//realityrmationen nicht
 	});
 
-	World.method('focus', function (ids)
-	{
-		for (var i = 0; i < this.index.length; i++)
-		{
-			var tile = this.index[i];
-			tile.type = 0;
-		}
-
-		for (var id = 0; id < ids.length; id++)
-		{
-			var char = this.chars[id];
-
-			for (var i = 0; i < this.index.length; i++)
-			{
-				var tile = this.index[i];
-
-				if (tile.type != 0)
-				{
-					continue;
-				}
-
-				if (char.info[1][i] != undefined)
-				{
-					tile.type = char.info[1][i][0];
-				}
-			}
-		}
-	});
-
-	World.method('spawn', function (home, wake, name)//wake modifies charstats (nachts sneeky etc)//only full hours?
+	World.method('spawn', function (char, tile_i)//wake modifies charstats (nachts sneeky etc)//only full hours?
 	{
 		var id = this.chars.length;
-		var char = {};
 		char.id = id;
-		char.home = home;
-		char.wake = wake;
-		char.name = name;
-		char.sheet = {stamina: 10, health: 10, awareness: 16};
-		char.actions = [];
+		char.home = this.index[tile_i];
 		this.chars[id] = char;
-		return id;
 	});
 
 	World.method('put', function (path, type)
 	{
-		var node = this.info;
+		var node = this.reality;
 
 		for (var i = 0; i < path.length; i++)
 		{
@@ -276,132 +276,81 @@
 		node[1].push([type, []]);
 	});
 
-	var SUBTICKS = 1440;
+	//EFFECTS[]
+	////viral,radius
 
-	World.method('exec', function (id, name, param)
+	//connect savespots!!
+	////savespots finalize round and give progress for player in some way (xp/items...?)
+	////adhoc save spot: campfire
+
+	//howto define savespots
+	//ablauf???
+
+	World.method('tick', function ()
 	{
-		var char = this.chars[id];
-		char.actions.push([name, param]);
-
-		if (char.step == undefined)
-		{
-			char.step = 0;
-			char.cooldown = COOLDOWN[name];
-			char.asleep = true;
-		}
-	});
-
-	World.method('tick', function ()//state changes? oder bricht das spiel dann? changes? oder bricht das spiel dann? (oder verändert zuviel?)
-	{
-		//if you do not return you loose a day???
-		//[0,1,2]//action type
-		//[[],[],[]]//action args
-		//[120, 3, 4]//action duration in minutes
-		//INIT COPY OF INFO
-
-		for (var id = 0; id < this.chars.length; id++)
-		{
-			//create initial knowledge tree
-			var char = this.chars[id];
-			char.state = {};
-
-			for (var name in char.sheet)
-			{
-				char.state[name] = char.sheet[name];
-			}
-		}
+		console.log();
+		console.log('DAY ' + this.date);
 
 		for (var time = 0; time < SUBTICKS; time++)
 		{
-			var collisions = [];
+			var actions = {};
 
 			//collect actions
 			for (var id = 0; id < this.chars.length; id++)
 			{
 				var char = this.chars[id];
 
-				if (char.asleep && (char.wakeup != time))
+				if (char.step == undefined)
+				{
+					if (char.wake == time)
+					{
+						char.init();
+					}
+
+					continue;
+				}
+
+				char.cooldown--;
+
+				if (char.cooldown > 0)
 				{
 					continue;
 				}
-				
-				char.asleep = false;
-				console.log('#' + char.id + ' ' + Math.floor(time / 60) + ':' + (time % 60));
-				ACTIONS[char.actions[char.step][0]].apply(char.state, char.actions[char.step][1]);
 
-				if (char.cooldown == 1)
+				if (!actions[char.tile.i])
 				{
-					char.step++;
-					var action = char.actions[char.step];
+					actions[char.tile.i] = [];
+				}
 
-					if (action)
+				actions[char.tile.i].push(char);
+			}
+
+			//resolve actions
+			for (var i in actions)
+			{
+				console.log(time + ':' + i);
+
+				for (var j = 0; j < actions[i].length; j++)
+				{
+					var char = actions[i][j];
+					console.log(char.name);
+					var action = char.actions[char.step];
+					ACTIONS[action[0]].apply(char, action[1]);
+					char.step++;
+
+					if (char.step == char.actions.length)
 					{
-						char.cooldown = COOLDOWN[action[0]];
+						char.resolve();
 					}
 					else
 					{
-						char.step = 0;
-						char.cooldown = COOLDOWN[char.actions[0][0]];
-						char.asleep = true;
+						char.cooldown = COOLDOWN[char.actions[char.step][0]];
 					}
 				}
-				else
-				{
-					char.cooldown--;
-				}
-			}
-
-			//resolve collisions
-			for (var i = 0; i < collisions.length; i++)
-			{
 			}
 		}
 
-		/*/walk/one tile
-		//run/two tiles
-		//drive/four tiles with items(only on roads)
-		//ride/four tiles
-
-		if (action_is_movement)
-		{
-			//gather info depending on movement style
-			//time+=movetime
-			//moving = true;
-			//x+=1
-			//y+=1
-		}
-		else
-		{
-			//execute action
-			//moving = false;
-			//time+=actiontime
-		}
-
-		char.time++;
-		//info(action)
-		/*/
-		//for all chars progress in time; execute action/change world/create info (sneak,walk,run,schlendern,talk,look,climb,jump)
-		//modules??(param:knowledge,action)INFO/ITEMS/CHARS
-
-		//INFO kümmert sich um den info tree
-		//ITEMS manipulate items
-
-		//infotypes person/item/default
-		//type dertermines listing in tree
-		//tiles->[people,poi->[poi]]//poi can be item
-
-		//sehen/hören/riechen/schmecken/tasten(alles unter wahrnehmung!)
-
-		//baum:knowledgeroot[tiles[],inventory[],quests[],people[nearby,by look,by],actions[]]
-		//you can use aliases for your chars (auto gen?)
-		//charbloodline choose on trait, one random all, one random parents oder so
-
-		//for all chars: tick (move/card)//waiting is a card mit awareness+x//'nothing': awareness=0(eigentlich schlecht aber dreimal nacheinander passiert irgendwass)
-		//if card
-		//for all tiles: apply effects (order by charid/age, highest first) (including watch & talk actions)
-		//for all chars: gather info based on awareness level and noticeability level of infos
-
-		//god
+		this.date++;
 	});
 
 	var Root = oO.Root.extend(function (hook, assets, color)
@@ -411,33 +360,26 @@
 
 	//use/pick/look/move/talk
 	////shortcuts
-	/////head->info center
+	/////head->reality center
 
 	Root.on('show', function (root, parent)
 	{
 		oO.Root.prototype.events.on.show.call(this, root, parent);
 		var world = new World([0, []], 8, 64, 64, 'steps');//size, tile_w, tile_h, type, layout
 		this.show(world);
-
-		world.put([16], 5);
+		/*world.put([16], 5);
 		world.put([16, 0], 6);
 		world.put([16, 0], 6);
-		world.put([16, 0], 8);
+		world.put([16, 0], 8);*/
 
-		world.spawn(0, 360, 'tilla');
-		world.exec(0, 'move', [2]);
-		world.exec(0, 'move', [2]);
-		world.exec(0, 'look', [[]]);
-		//world.exec(0, 'look', [[0]]);
-		world.exec(0, 'move', [1]);
-		world.exec(0, 'move', [1]);
+		var tilla = new Char('tilla', [], 97, [[0, [2]], [0, [2]], [0, [1]], [0, [1]], [0, [1]], [0, [1]]]);
+		world.spawn(tilla, 0);
 
-		world.spawn(3, 363, 'pantra');
-		world.exec(1, 'move', [0]);
-		world.exec(1, 'move', [3]);
-		world.exec(1, 'move', [0]);
-		world.exec(1, 'move', [3]);
+		var pantra = new Char('pantra', [], 10, [[0, [3]], [0, [0]], [0, [0]], [0, [0]], [0, [0]]]);
+		world.spawn(pantra, 43);
 
+		world.tick();
+		world.tick();
 		world.tick();
 	});
 
