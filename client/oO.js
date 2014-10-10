@@ -8,6 +8,30 @@ var oO = {};
 
 (function ()
 {
+	oO.map = function (keys, values)
+	{
+		var object = {};
+
+		for (var i = 0; i < keys.length; i++)
+		{
+			object[keys[i]] = values[i];
+		}
+
+		return object;
+	}
+
+	oO.clone = function (object)
+	{
+		var clone = {};
+
+		for (var key in object)
+		{
+			clone[key] = object[key];
+		}
+
+		return clone;
+	}
+
 	function parse ()
 	{
 		var argv = Array.prototype.slice.call(arguments);

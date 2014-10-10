@@ -10,8 +10,20 @@
 {
 	var COOLDOWN = [1, 0];
 	var SUBTICKS = 100;
+	var STATNAMES = ['stamina', 'health'];
 
 	var ACTIONS = {};
+
+	ACTIONS[0] = function (direction)
+	{
+		this.tile.type++;
+		this.tile = this.tile.steps[direction];
+	}
+
+	ACTIONS[1] = function (duration)
+	{
+		this.cooldown += duration;
+	}
 
 	ACTIONS['look'] = function (world, path)
 	{
@@ -47,17 +59,6 @@
 		USES[entity.name].apply(this, arguments);
 		//update knowledge
 		return 1;
-	}
-
-	ACTIONS[0] = function (direction)
-	{
-		this.tile.type++;
-		this.tile = this.tile.steps[direction];
-	}
-
-	ACTIONS[1] = function (duration)
-	{
-		this.cooldown += duration;
 	}
 
 	function move ()
@@ -152,26 +153,31 @@
 	{
 	}
 
-	var Char = function (name, stats, wake, actions)
+	var Char = function (id, name, stats, tile, wake, actions)
 	{
+		this.id = id;
 		this.name = name;
 		this.stats = stats;
+		this.tile = tile;
 		this.wake = wake;
 		this.actions = actions;
+		this.asleep = true;
 	}
 
 	Char.prototype.init = function ()
 	{
-		this.tile = this.home;
+		this.state = {};
+		this.state.name = this.name;
+		this.state.stats = oO.clone(this.stats);
+		this.state.tile = this.tile;
 		this.step = 0;
 		this.cooldown = COOLDOWN[this.actions[0][0]];
+		this.asleep = false;
 	}
 
 	Char.prototype.resolve = function ()
 	{
-		delete this.tile;
-		delete this.step;
-		delete this.cooldown;
+		this.asleep = true;
 	}
 
 	var World = oO.TileMap.extend(function (reality, size, tile_w, tile_h, type, layout)
@@ -256,12 +262,10 @@
 		//realityrmationen nicht
 	});
 
-	World.method('spawn', function (char, tile_i)//wake modifies charstats (nachts sneeky etc)//only full hours?
+	World.method('spawn', function (char_data)//wake modifies charstats (nachts sneeky etc)//only full hours?
 	{
 		var id = this.chars.length;
-		char.id = id;
-		char.home = this.index[tile_i];
-		this.chars[id] = char;
+		this.chars[id] = new Char(id, char_data[0], oO.map(STATNAMES, char_data[1]), this.index[char_data[2]], char_data[3], char_data[4]);
 	});
 
 	World.method('put', function (path, type)
@@ -300,7 +304,7 @@
 			{
 				var char = this.chars[id];
 
-				if (char.step == undefined)
+				if (char.asleep)
 				{
 					if (char.wake == time)
 					{
@@ -335,7 +339,7 @@
 					var char = actions[i][j];
 					console.log(char.name);
 					var action = char.actions[char.step];
-					ACTIONS[action[0]].apply(char, action[1]);
+					ACTIONS[action[0]].apply(char.state, action[1]);
 					char.step++;
 
 					if (char.step == char.actions.length)
@@ -372,11 +376,8 @@
 		world.put([16, 0], 6);
 		world.put([16, 0], 8);*/
 
-		var tilla = new Char('tilla', [], 97, [[0, [2]], [0, [2]], [0, [1]], [0, [1]], [0, [1]], [0, [1]]]);
-		world.spawn(tilla, 0);
-
-		var pantra = new Char('pantra', [], 10, [[0, [3]], [0, [0]], [0, [0]], [0, [0]], [0, [0]]]);
-		world.spawn(pantra, 43);
+		world.spawn(['tilla', [5, 8], 0, 97, [[0, [2]], [0, [2]], [0, [1]], [0, [1]], [0, [1]], [0, [1]]]]);
+		world.spawn(['pantra', [3, 11], 43, 10, [[0, [3]], [0, [0]], [0, [0]], [0, [0]], [0, [0]]]]);
 
 		world.tick();
 		world.tick();
