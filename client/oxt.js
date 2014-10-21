@@ -1,10 +1,5 @@
 'use strict';
-var oO = {};
-
-//svg parser!!!!!!! oO.Vector oO.SVG ??
-//aufräumen!!!
-//events: type:name e.g. canvas:frame, mouse:down
-//layout/positionsangaben angle etc vereinheitlichen
+var oox = {};
 
 (function ()
 {
@@ -1669,7 +1664,7 @@ var oO = {};
 		this.drop_x = 0;
 		this.drop_y = 0;
 		this.costs = {0: 1};
-		this.marks = [];
+		this.marks = [];//remove!
 		this.tiles = [];
 		this.index = [];
 
@@ -1685,6 +1680,7 @@ var oO = {};
 				tile.x = x;
 				tile.y = y;
 				tile.type = 0;
+				//tile.data = new Tile();
 				this.tiles[y][x] = tile;
 				this.index[i] = tile;
 			}

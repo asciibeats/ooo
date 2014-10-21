@@ -1,5 +1,5 @@
-oO = {};
-module.exports = oO;
+var ooo = {};
+module.exports = ooo;
 
 var http = require('http');
 var sockjs = require('sockjs');
@@ -588,7 +588,7 @@ oO.Server.receive = function (type, func)
 	this.prototype.events[type] = func;
 }
 
-oO.Server.method('allow', function (name, pass)
+oO.Server.method('grant', function (name, pass)
 {
 	if (this.players[name])
 	{
@@ -616,3 +616,31 @@ oO.Server.receive('host', function (player, data)
 	game.room = this;
 	game.events.join.call(game, player);
 });
+
+////////////////////////////////
+var Jupiter = ooo.Game.extend(function (size, tiles)
+{
+	ooo.Game.apply(this, arguments);
+	this.tiles = tiles;
+});
+
+Jupiter.method('start', function ()
+{
+	console.log('I am Jupiter King!');
+	//init board
+	//init cards
+	//init seats
+});
+
+Jupiter.method('tick', function ()
+{
+	if (false)
+	{
+		throw 1248;
+	}
+});
+
+Jupiter.method('tock', function ()
+{
+});
+
