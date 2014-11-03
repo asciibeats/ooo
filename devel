@@ -1,13 +1,11 @@
 #!/bin/bash
 DIR=$(dirname $0)
-urxvt -title wmtag_1 -e $EDITOR $DIR/client/ooo.js &
-urxvt -title wmtag_1 -e $EDITOR $DIR/client/oui.js &
-urxvt -title wmtag_1 -e $EDITOR $DIR/client/oxt.js &
-urxvt -title wmtag_1 -e $EDITOR $DIR/client/init.js &
+urxvt -title wmtag_1 -e $EDITOR $DIR/client/source/ooo.js &
+urxvt -title wmtag_1 -e $EDITOR $DIR/client/source/oui.js &
+urxvt -title wmtag_1 -e $EDITOR $DIR/client/source/init.js &
 urxvt -title wmtag_2 -e $EDITOR $DIR/server/ooo.js &
-#urxvt -title wmtag_2 -e $EDITOR $DIR/server/oxt.js &
 urxvt -title wmtag_2 -e $EDITOR $DIR/server/init.js &
 urxvt -title wmtag_log -e $DIR/node &
 clear
-http-server $DIR -p 11155
+http-server $DIR/client -p 11155
 clear

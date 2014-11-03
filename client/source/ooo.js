@@ -1,15 +1,66 @@
 'use strict';
 var ooo = {};
 
+//////TODO
+//system vars von user vars trennen!!! (passiert zu oft daß man wichtige classvars pberschreibet weil man nicht dran denkt daß die schon existiert (und ich habs geschrieben!!!))
+//wenn exception in draw function catch -> this.once = false; this.update = false;
 //svg parser!!!!!!! ooo.Vector ooo.SVG ??
 //aufräumen!!!
 //events: type:name e.g. canvas:frame, mouse:down
 //layout/positionsangaben angle etc vereinheitlichen
-//refact helper functions (e.g. fill -> ooo.fill)
+//refact helper functions (e.g. fill -> ooo.fill) // separate datei für browser & node
 //keyboard input eingrenzen (keyset = {})
 
 (function ()
 {
+	ooo.add = function (object, value)
+	{
+		var pointer = object;
+		var loops = arguments.length - 1;
+		var key = null;
+
+		for (var i = 2; i < loops; i++)
+		{
+			key = arguments[i];
+
+			if (!pointer[key])
+			{
+				pointer[key] = {};
+			}
+
+			pointer = pointer[key];
+		}
+		
+		pointer[arguments[i]] = value;
+	}
+
+	ooo.remove = function (object)
+	{
+		var pointers = [object];
+		var loops = arguments.length - 1;
+
+		for (var i = 1; i < loops; i++)
+		{
+			pointers[i] = pointers[i - 1][arguments[i]];
+		}
+
+		//besser lösen?
+		if (!pointers[i - 1])
+		{
+			return;
+		}
+
+		delete pointers[i - 1][arguments[i]];
+
+		for (i--; i > 0; i--)
+		{
+		    if (Object.keys(pointers[i]).length === 0)
+		    {
+		        delete pointers[i - 1][arguments[i]];
+		    }
+		}
+	}
+
 	ooo.map = function (keys, values)
 	{
 		var object = {};
@@ -75,6 +126,18 @@ var ooo = {};
 
 		object[id] = value;
 		return id;
+	}
+
+	ooo.intkeys = function (object)
+	{
+		var keys = [];
+
+		for (var key in object)
+		{
+			keys.push(parseInt(key));
+		}
+
+		return keys;
 	}
 
 	ooo.preload = function (assets, callback)
@@ -188,7 +251,7 @@ var ooo = {};
 		}
 	});
 
-	function indices (object)//use with sparse arr: i < length
+	/*function indices (object)//use with sparse arr: i < length
 	{
 		var keys = [];
 
@@ -198,7 +261,7 @@ var ooo = {};
 		}
 
 		return keys;
-	}
+	}*/
 
 	/*function Wrap (Func, argv)
 	{
@@ -292,28 +355,6 @@ var ooo = {};
 	function ascend (a, b)
 	{
 		return a - b;
-	}
-
-	function sorted_index (open, tile, prop)
-	{
-		var low = 0;
-		var high = open.length;
-
-		while (low < high)
-		{
-			var mid = (low + high) >>> 1;
-
-			if (tile[prop] > open[mid][prop])
-			{
-				high = mid;
-			}
-			else
-			{
-				low = mid + 1;
-			}
-		}
-
-		return low;
 	}
 
 	ooo.Actor = function ()
@@ -735,7 +776,7 @@ var ooo = {};
 	});
 
 	//layers komplett abschaffen? -> array also reihenfolge nicht undefined -> insert before after push, unshift//array id damit auch abschaffen
-	ooo.Scene.prepare('input:click', function (down_x, down_y)
+	ooo.Scene.prepare('input:click', function (button, down_x, down_y)
 	{
 		var shift_x = down_x - this.rel_x - this.mid_x;
 		var shift_y = down_y - this.rel_y - this.mid_y;
@@ -748,7 +789,7 @@ var ooo = {};
 			return false;
 		}
 
-		return [down_x, down_y];
+		return [button, down_x, down_y];
 	});
 
 	//Scene with own canvas
@@ -897,6 +938,8 @@ var ooo = {};
 			down_x = event.clientX;
 			down_y = event.clientY;
 			that.canvas.addEventListener('mousemove', on_mousemove);
+			//event.preventDefault();
+			//event.stopPropagation();
 		}
 		
 		function on_mousemove (event)
@@ -926,10 +969,12 @@ var ooo = {};
 			}
 			else
 			{
-				that.trigger('input:click', [down_x, down_y], true);
+				that.trigger('input:click', [event.button, down_x, down_y], true);
 			}
 
 			that.canvas.removeEventListener('mousemove', on_mousemove);
+			//event.preventDefault();
+			//event.stopPropagation();
 		}
 		
 		function on_mouseout (event)
@@ -937,27 +982,27 @@ var ooo = {};
 			//console.log('out', JSON.stringify(that));
 		}
 		
-		/*function on_keydown (event)
+		function on_keydown (event)
 		{
-			that.trigger('press', [event.timeStamp, event.keyCode, event.shiftKey], true);//, event.which
-		}*/
-		
-		function on_keypress (event)
-		{
-			if (event.ctrlKey || event.altKey)
+			if (event.keyCode < 48)
 			{
-				return;
+				that.trigger('input:press', [event.timeStamp, null, event.keyCode, event.shiftKey], true);
 			}
 
-			that.trigger('input:press', [event.timeStamp, event.charCode, event.keyCode, event.shiftKey], true);
-
-			if (event.keyCode == 9)
+			if (event.keyCode == 8 || event.keyCode == 9)
 			{
-				//event.stopPropagation();
 				event.preventDefault();
 			}
 		}
-		
+
+		function on_keypress (event)
+		{
+			if (!event.ctrlKey && !event.altKey)
+			{
+				that.trigger('input:press', [event.timeStamp, String.fromCharCode(event.charCode), null, null], true);
+			}
+		}
+
 		function on_resize (event)
 		{
 			that.trigger('resize', [that.hook.clientWidth, that.hook.clientHeight]);
@@ -974,7 +1019,7 @@ var ooo = {};
 		this.canvas.addEventListener('mousedown', on_mousedown);
 		this.canvas.addEventListener('mouseup', on_mouseup);
 		this.canvas.addEventListener('mouseout', on_mouseout);
-		//window.addEventListener('keydown', on_keydown);
+		window.addEventListener('keydown', on_keydown);
 		window.addEventListener('keypress', on_keypress);
 		window.addEventListener('resize', on_resize);
 		this.request_id = requestFrame(on_draw);

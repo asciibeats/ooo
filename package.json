@@ -1,8 +1,8 @@
 {
-	"name": "royal",
+	"name": "jupiter",
 	"window":
 	{
 		"toolbar": false
 	},
-	"main": "index.html"
+	"main": "client/index.html"
 }

@@ -1,163 +1,166 @@
-var ooo = require('./ooo.js'), fs = require('fs');
+var ooo = require('./ooo.js');
+var fs = require('fs');
 
 var START_DELAY = 0;
 var DENY_DELAY = 0;
-var COOLDOWN = [1, 0];
+//var COOLDOWN = [1, 0];
 var SUBTICKS = 24;
-var MAXSKILL = 9;
+//var MAXSKILL = 9;
 var STATNAMES = ['insight', 'stamina', 'vision'];
-var ITEMTILES = [0, 0, 0, 0, 0, 0, 3, 0, 0, 0];
+var MAPTYPES = [0, 10, 11, 12];
 
 var ITEMS = [];
-ITEMS[0] = {name: 'World', description: '', type: 1, obscurity: 0, visibility: 0};//eatable,wearable,
-ITEMS[1] = {name: 'Grass', description: 'Just grass...', type: 1, obscurity: 1, visibility: 1};//eatable,wearable,
-ITEMS[2] = {name: 'Forest', description: 'Just grass...', type: 1, obscurity: 1, visibility: 1};//eatable,wearable,
-ITEMS[5] = {name: 'Basket', description: 'Delicious green apple', type: 1, obscurity: 2, visibility: 1};
-ITEMS[6] = {name: 'Apple', description: 'Delicious green apple', type: 1, obscurity: 1, visibility: 2};
-ITEMS[8] = {name: 'Ring', description: 'Delicious green apple', type: 1, obscurity: 9, visibility: 1};
-ITEMS[7] = {name: 'Tree', description: 'Maple tree', type: 1, obscurity: 9, visibility: 0};
-
-var VCOSTS = ITEMS.map(function (elem)
-{
-	return elem.obscurity;
-});
-
-var ACTIONS = {};
+ITEMS[0] = {title: 'World', obscurity: 0, visibility: 0};
+ITEMS[1] = {title: 'Grass', obscurity: 1, visibility: 0};
+ITEMS[2] = {title: 'Forest', obscurity: 3, visibility: 0};
+ITEMS[3] = {title: 'Campfire', obscurity: 1, visibility: 1};
+ITEMS[4] = {title: 'Fishmonster', obscurity: 2, visibility: 1};
+ITEMS[5] = {title: 'Basket', obscurity: 2, visibility: 1};
+ITEMS[6] = {title: 'Apple', obscurity: 1, visibility: 2};
+ITEMS[7] = {title: 'Tree', obscurity: 9, visibility: 0};
+ITEMS[8] = {title: 'Ring', obscurity: 9, visibility: 1};
+ITEMS[9] = {title: 'Hero', obscurity: 9, visibility: 1};
 
 //char.state
-function examine (id, insight)
+function examine (info, insight)
 {
-	var info = this.tile.map.info[id];
-	var item = ITEMS[info[1]];
+	var item = ITEMS[info.type];
 	insight -= item.obscurity;
 
-	if (insight > 0)
+	if (insight >= 0)
 	{
-		var children = info[3];
-
-		for (var i = 0; i < children.length; i++)
+		for (var id in info.children)
 		{
-			info = this.tile.map.info[children[i]];
-			item = ITEMS[info[1]];
+			var child = info.children[id];
+			var item = ITEMS[child.type];
 
 			if (item.visibility <= insight)
 			{
-				this.info[info[0]] = info;
-				examine.call(this, info[0], insight - item.visibility);
+				this.info[id] = [child.type, []];
+				this.info[info.id][1].push(id);
+				examine.call(this, child, insight - item.visibility);
 			}
 		}
 	}
 }
 
-//examine info
+var ACTIONS = {};
+
+//examine
 ACTIONS[0] = function (id)
 {
-	examine.call(this, id, this.stats.insight);
+	console.log('%s (%d): examine %d', this.name, this.info.id, id);
+	var world = this.home.map;
+	var info = world.info[id];
+	examine.call(this.state, info, this.state.stats.insight);
 }
 
-function Node (argv)
+//spawn
+ACTIONS[1] = function (id, info)
 {
-	this.id = argv[0];
-	this.parent = argv[1];
-	this.type = argv[2];
-	this.children = {};
+	console.log('%s (%d): spawn %d %s', this.name, this.info.id, id, JSON.stringify(info));
+	var world = this.home.map;
+	world.spawn(info, id);
 }
 
-var Info = function (data)
+//transfer
+ACTIONS[2] = function (id, target)
 {
-	this.nodes = [];
+	console.log('%s (%d): transfer %d >> %d', this.name, this.info.id, id, target);
+	var world = this.home.map;
+	var info = world.info[id];
+	var parent = world.info[target];
+	delete info.parent.children[id];
+	parent.children[id] = info;
+	info.parent = parent;
 }
 
-Info.prototype.learn = function (state, info)
+//process
+ACTIONS[3] = function (id, type)
 {
-	var insight = state.insight - ITEMS[info[0]].obscurity;
-	var news = [];
-
-	if (insight > 0)
-	{
-		for (var i = 0; i < info[1].length; i++)
-		{
-			var type = info[1][i][0];
-			var subitem = ITEMS[type];
-
-			if (subitem.visibility <= insight)
-			{
-				news.push([type, look(node[1][i], insight - subitem.visibility)]);
-			}
-		}
-	}
-
-	return news;
+	console.log('%s (%d): process %d >> %d', this.name, this.info.id, id, type);
+	var world = this.home.map;
+	var info = world.info[id];
+	info.type = type;
 }
 
-//stamina = max hours awake???
-var Char = ooo.Class.extend(function (seat, i, name, stats, tile, wake, actions)
+//gather
+ACTIONS[4] = function (id)
 {
-	this.seat = seat;
-	this.i = i;
-	this.name = name;
-	this.stats = stats;
-	this.tile = tile;
-	this.wake = wake;
-	this.actions = actions;
-	this.step = 0;
-});
+	//spawn copy in inventory
+	//tranform id back to origin
+	console.log('%s (%d): gather %d', this.name, this.info.id, id);
+	var world = this.home.map;
+	var info = world.info[id];
+	info.type = BASETYPES[info.type];
+}
 
-Char.method('prepare', function ()
+//spielidee basierend auf ftl universum karte aber in rasterform//auch verfolgt von irgendwas
+
+var World = ooo.TileMap.extend(function (size)
 {
-	this.state = {};
-	this.state.name = this.name;
-	this.state.stats = ooo.clone(this.stats);
-	this.state.tile = this.tile;
-	this.state.info = [];
-});
-
-Char.method('resolve', function ()
-{
-	console.log(this.name + ' is finished!!!!');
-
-	for (var id in this.state.info)
-	{
-		var info = this.state.info[id];
-		console.log('I saw "' + ITEMS[info[1]].name + '" @ ' + info[2] + '/' + id);
-	}
-
-	this.step = 0;
-	delete this.state;
-});
-
-var World = ooo.TileMap.extend(function (size, info)
-{
-	if (info.length < (size * size))
-	{
-		throw 'info to small';
-	}
-
-	this.info = info;
+	this.info = {};
 	ooo.TileMap.call(this, size);
+	this.events = {};
 });
 
 World.method('Data', function (map, i, x, y)
 {
-	this.type = ITEMTILES[map.info[i][1]];
+	var info = {};
+	info.type = 1;
+	info.children = {};
+	info.id = i;
+	map.info[i] = info;
+	this.info = info;
 });
 
-/*World.method('getTile', function (id)
+World.method('spawn', function (stack, parent)
+{
+	var info = {};
+	info.type = stack[0];
+	info.children = {};
+	info.id = ooo.fill(this.info, info);//array mit gelöschten ids!!! (kein object mehr)
+
+	if (parent)
+	{
+		info.parent = this.info[parent];
+		info.parent.children[info.id] = info;
+	}
+
+	for (var i = 0; i < stack[1].length; i++)
+	{
+		this.spawn(stack[1][i], info.id);
+	}
+
+	return info;
+});
+
+/*World.method('destroy', function (id)
 {
 	var info = this.info[id];
 
-	while (info[1] != null)
+	for (var i in info.children)
 	{
-		info = this.info[info[1]];
+		this.vanish(i);
 	}
 
-	return this.index[info[0]];
+	delete info.parent.children[id];
+	delete this.info[id];
 });*/
 
-var Game = ooo.Class.extend(function (rules, info)
+World.method('move', function (char, direction)
+{
+	delete char.info.parent.children[char.info.id];
+	var state = char.state;
+	state.tile = state.tile.steps[direction];
+	char.info.parent = state.tile.data.info;
+	char.info.parent.children[char.info.id] = char.info;
+});
+
+var Game = ooo.Class.extend(function (rules)
 {
 	this.rules = rules;
-	this.world = new World(rules[1], info);
+	this.world = new World(rules[1]);
 	this.time = 0;
 	this.ticks = 0;
 	this.open = true;
@@ -165,7 +168,7 @@ var Game = ooo.Class.extend(function (rules, info)
 	this.players = {};
 	this.seats = {};
 	this.realms = [];
-	this.chars = [];
+	this.chars = {};
 });
 
 Game.method('broadcast', function (type, data)
@@ -230,62 +233,87 @@ Game.method('leave', function (player)
 	}
 });
 
+//Game
+function spawn_chars (seat, chars)
+{
+	for (var i = 0; i < chars.length; i++)
+	{
+		var argv = chars[i];
+		var char = {};
+		char.seat = seat;
+		char.name = argv[0];
+		char.stats = ooo.map(STATNAMES, argv[1]);
+		char.info = this.world.spawn(argv[2]);
+		char.wake = argv[3];
+		char.home = this.world.index[argv[4]];
+		char.steps = argv[5];
+		this.chars[char.info.id] = char;
+		this.realms[seat].chars[char.info.id] = argv;
+	}
+}
+
 Game.method('start', function ()
 {
 	console.log('START %d', this.id);
 	delete this.timeout;
-	this.started = true;
+	this.started = true;//move to other container instead!!!!!!!!!!!!!!
 	var seat = 0;
 
 	for (var name in this.players)
 	{
 		var realm = {};
-		realm.time = 0;
-		realm.info = [];
-		realm.chars = [];
+		realm.info = [{}];
+		realm.chars = {};
 		this.realms[seat] = realm;
-		this.seats[name] = seat++;
+		this.seats[name] = seat;
+		spawn_chars.call(this, seat, [['hero', [5, 5, 5], [9, [[8, []]]], 9, 4*32+4, [[[]], [[]], [[]], [[]], [[]]]]]);//build this char in game lobby
+		//spawn_chars.call(this, seat, [['hero', [5, 5, 2], [9, [[8, []]]], 9, 4*32+4, [[[]], [[], 0], [[], 0], [[], 0], [[], 0]]]]);//build this char in game lobby
+		seat++;
+	}
+
+	this.tock();
+
+	for (var name in this.players)
+	{
 		var client = this.players[name].client;
 
 		if (client)
 		{
-			client.send('start', [realm.info]);
+			var seat = this.seats[name];
+			var realm = this.realms[seat];
+			client.send('start', [this.time, realm.info[this.time - 1], realm.chars]);
 			client.expected = {};
 			client.expect('tick');
 		}
 	}
 });
 
-function template (size)
-{
-	var quests = [];
-
-	for (var seat = 0; seat < size; seat++)
-	{
-		quests[seat] = [];
-	}
-
-	return quests;
-}
-
 Game.method('tick', function (player, chars)
 {
-	console.log('TICK %d %s', this.id, player.name);
+	//buildaction passiert nur einmal und kostet resourcen
+	//ressourcengewinnung passiert täglich
+	//abwechselnd tag und nacht
+	//nachwächter action: leuchten (erhöht vision)
+	console.log('TICK %d %s %s', this.id, player.name, JSON.stringify(chars));
 	this.ticks++;
 	var seat = this.seats[player.name];
 	var realm = this.realms[seat];
-	realm.chars = chars;
-	realm.time++;
-
-	for (var i = 0; i < chars.length; i++)
-	{
-		var argv = chars[i];
-		var stats = ooo.map(STATNAMES, argv[1]);
-		var tile = this.world.index[argv[2]];
-		var char = new Char(seat, i, argv[0], stats, tile, argv[3], argv[4]);
-		this.chars.push(char);
-	}
+	realm.info[this.time] = {};
+	spawn_chars.call(this, seat, chars);//build this char in game lobby
 });
+
+function stack_info (info)
+{
+	var stack = [info.type, []];
+
+	for (var id in info.children)
+	{
+		var child = info.children[id];
+		stack[1].push(stack_info(child));
+	}
+
+	return stack;
+}
 
 Game.method('tock', function ()
 {
@@ -294,18 +322,29 @@ Game.method('tock', function ()
 
 	for (var time = 0; time < SUBTICKS; time++)
 	{
-		var actions = {};
+		console.log('TIME %d', time);
+		var steps = {};
 
 		//collect actions
-		for (var i = 0; i < this.chars.length; i++)
+		for (var id in this.chars)
 		{
-			var char = this.chars[i];
+			var char = this.chars[id];
 
-			if (char.step == 0)
+			if (!char.state)
 			{
 				if (char.wake == time)
 				{
-					char.prepare();
+					var state = {};
+					state.id = char.info.id;
+					state.items = char.info.children;
+					state.stats = ooo.clone(char.stats);
+					state.tile = char.home;
+					state.info = {};
+
+					char.state = state;
+					char.step = 0;
+					char.info.parent = char.home.data.info;
+					char.info.parent.children[char.info.id] = char.info;
 				}
 				else
 				{
@@ -313,71 +352,112 @@ Game.method('tock', function ()
 				}
 			}
 
-			if (!actions[char.state.tile.i])
+			if (!steps[char.state.tile.i])
 			{
-				actions[char.state.tile.i] = [];
+				steps[char.state.tile.i] = [];
 			}
 
-			actions[char.state.tile.i].push(char);
+			steps[char.state.tile.i].push(char);
 		}
 
-		//resolve actions
-		for (var i in actions)
+		//move onto tile
+		for (var i in steps)
 		{
-			console.log(time + '-' + i);
-
-			//sort actions[i]?
-
-			for (var j = 0; j < actions[i].length; j++)
+			for (var j = 0; j < steps[i].length; j++)
 			{
-				var char = actions[i][j];
-				console.log(char.name);
-				var action = char.actions[char.step];
-
-				//accumulate effects
-				for (var k = 0; k < action[0].length; k++)
-				{
-					ACTIONS[action[0][k][0]].apply(char.state, action[0][k][1]);
-				}
+				var char = steps[i][j];
+				var step = char.steps[char.step];
 
 				//move if direction is given
-				if (action[1] != undefined)
+				if (step[1] != undefined)
 				{
-					char.state.tile = char.state.tile.steps[action[1]];
-					var id = char.state.tile.i;
+					this.world.move(char, step[1]);
+				}
+			}
+		}
+
+		//trigger events
+		for (var i = 0; i < this.world.events[time]; i++)
+		{
+			var event = this.world.events[time][i];
+			ACTIONS[event[1]].apply(event[0], event[2]);
+		}
+
+		//check out the area
+		for (var i in steps)
+		{
+			for (var j = 0; j < steps[i].length; j++)
+			{
+				var char = steps[i][j];
+				var step = char.steps[char.step];
+				var state = char.state;
+				var area = this.world.findArea(state.tile, state.stats.vision, function (data) { return 1 });
+				//var area = this.world.findArea(state.tile, state.stats.vision, function (data) { return ITEMS[data.info.type].obscurity });
+
+				for (var id in area)
+				{
 					var info = this.world.info[id];
+					state.info[id] = [info.type, []];
+					ACTIONS[0].call(char, id);
+				}
+			}
+		}
 
-					if (!char.state.info[id])
-					{
-						char.state.info[id] = [id, info[1], null, []];
-					}
+		//apply actions
+		for (var i in steps)
+		{
+			//sort actions[i]? how?
 
-					ACTIONS[0].call(char.state, id);
-					var area = this.world.findArea(char.state.tile, char.state.stats.vision, [1,1,1,1,1,1,1,1,1,1,1]);
+			for (var j = 0; j < steps[i].length; j++)
+			{
+				var char = steps[i][j];
+				var step = char.steps[char.step];
+				var state = char.state;
 
-					for (var id in area)
-					{
-						char.state.info[id] = this.world.info[id];
-						examine.call(char.state, id, char.state.stats.insight - (area[i] * area[i]));
-					}
+				//execute actions and accumulate effects
+				for (var k = 0; k < step[0].length; k++)
+				{
+					ACTIONS[step[0][k][0]].apply(char, step[0][k][1]);
 				}
 
 				char.step++;
+			}
+		}
 
-				if (char.step == char.actions.length)
+		//remember info
+		for (var i in steps)
+		{
+			for (var j = 0; j < steps[i].length; j++)
+			{
+				var char = steps[i][j];
+				var realm = this.realms[char.seat];
+				
+				if (!realm.info[this.time][time])
 				{
-					char.resolve();
+					realm.info[this.time][time] = {};
 				}
-				/*else
+
+				for (var id in char.state.info)
 				{
-					char.cooldown = COOLDOWN[char.actions[char.step][0]];
-				}*/
+					realm.info[this.time][time][id] = char.state.info[id];
+				}
+
+				char.state.info = {};
+
+				if (char.step == char.steps.length)
+				{
+					realm.chars[char.info.id][1] = [char.stats.insight, char.stats.stamina, char.stats.vision];
+					realm.chars[char.info.id][2] = stack_info(char.info);
+					delete char.info.parent.children[char.info.id];
+					delete char.info.parent;
+					delete char.step;
+					delete char.state;
+				}
 			}
 		}
 	}
 
 	this.time++;
-	this.chars = [];
 });
 
 var Client = ooo.Client.extend(function (server, socket)
@@ -452,7 +532,8 @@ Client.on('message:login', function (name, pass)
 		player.shout('back', [name]);
 		var seat = game.seats[name];
 		var realm = game.realms[seat];
-		this.send('continue', [game.rules, game.names(), game.time, realm.time, realm.info, realm.chars]);
+		var waiting = (game.time != realm.info.length);
+		this.send('continue', [game.rules, game.names(), game.time, realm.info[game.time - 1], realm.chars, waiting]);
 		this.expect('tick');
 	}
 	else
@@ -474,22 +555,9 @@ Client.on('message:login', function (name, pass)
 Client.on('message:host', function (rules)
 {
 	console.log('HOST %s %s', this.player.name, JSON.stringify(rules));
-
-	var info = [];
-	var tiles = rules[1] * rules[1];
-
-	for (var i = 0; i < tiles; i++)
-	{
-		info[i] = [i, 1, null, []];
-	}
-
-	info[9][1] = 2;
-	info[i] = [i, 8, 8, []];
-	info[8][3].push(i++);
-	info[i] = [i, 6, 15, []];
-	info[15][3].push(i++);
-
-	var game = new Game(rules, info);
+	var game = new Game(rules);
+	game.world.index[2*32+5].data.info.type = 2;
+	game.world.spawn([8, []], 4*32+5);
 	game.id = ooo.fill(this.server.games, game);
 	game.join(this.player);
 	this.expect('leave');
@@ -521,11 +589,6 @@ Client.on('message:leave', function ()
 
 Client.on('message:tick', function (chars)
 {
-	if (!Array.isArray(chars))
-	{
-		throw 'chars aint no array';
-	}
-
 	var player = this.player;
 	var game = player.game;
 	game.tick(player, chars);
@@ -545,7 +608,7 @@ Client.on('message:tick', function (chars)
 		{
 			var seat = game.seats[name];
 			var realm = game.realms[seat];
-			client.send('tock', [realm.info, realm.chars]);
+			client.send('tock', [realm.info[game.time - 1], realm.chars]);
 			client.expect('tick');
 		}
 	}

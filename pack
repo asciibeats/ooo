@@ -1,3 +1,11 @@
 #!/bin/sh
 cd $(dirname $0)
-zip -r ${PWD##*/}.zip package.json index.html client server assets node_modules
+name=${PWD##*/}
+folder=build/linux
+mkdir -p $folder
+zip -r $folder/${name}.zip package.json client server
+cat /usr/bin/nw $folder/${name}.zip > $folder/$name
+chmod +x $folder/$name
+cp /usr/lib/node-webkit/nw.pak $folder
+rm $folder/${name}.zip
+#copy /b nw.exe+name.zip app.exe

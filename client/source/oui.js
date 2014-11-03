@@ -5,6 +5,28 @@ var oui = {};
 
 (function ()
 {
+	function sorted_index (open, tile, prop)
+	{
+		var low = 0;
+		var high = open.length;
+
+		while (low < high)
+		{
+			var mid = (low + high) >>> 1;
+
+			if (tile[prop] > open[mid][prop])
+			{
+				high = mid;
+			}
+			else
+			{
+				low = mid + 1;
+			}
+		}
+
+		return low;
+	}
+
 	oui.Button = ooo.Cell.extend(function (button_w, button_h, source, styles, layout)
 	{
 		ooo.Cell.call(this, layout);
@@ -145,7 +167,7 @@ var oui = {};
 		this.focus = !this.focus;
 	});
 
-	oui.Input.on('input:click', function (down_x, down_y)
+	oui.Input.on('input:click', function (button, down_x, down_y)
 	{
 		this.parent.focus.toggle();
 		this.parent.focus = this;
@@ -159,9 +181,9 @@ var oui = {};
 		this.color = color;
 	});
 
-	oui.Submit.on('input:click', function (down_x, down_y)
+	oui.Submit.on('input:click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on['input:click'].call(this, down_x, down_y);
+		oui.Input.prototype.events.on['input:click'].call(this, button, down_x, down_y);
 		this.parent.trigger('form:submit', [this.type, []]);
 		return false;
 	});
@@ -241,10 +263,14 @@ var oui = {};
 				this.caret++;
 			}
 		}
+		else if (char)
+		{
+			this.chars.splice(this.caret, 0, char);
+			this.caret++;
+		}
 		else
 		{
-			this.chars.splice(this.caret, 0, String.fromCharCode(char));
-			this.caret++;
+			return;
 		}
 
 		this.text = this.chars.join('');
@@ -281,9 +307,9 @@ var oui = {};
 		data.push(this.number);
 	});
 
-	oui.Count.on('input:click', function (down_x, down_y)
+	oui.Count.on('input:click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on.click.call(this, down_x, down_y);
+		oui.Input.prototype.events.on['input:click'].call(this, down_x, down_y);
 
 		if (down_x < (this.width >>> 1))
 		{
@@ -333,9 +359,9 @@ var oui = {};
 		data.push(this.pick);
 	});
 
-	oui.Option.on('input:click', function (down_x, down_y)
+	oui.Option.on('input:click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on.click.call(this, down_x, down_y);
+		oui.Input.prototype.events.on['input:click'].call(this, down_x, down_y);
 		down_x < (this.width >>> 1) ? this.pick-- : this.pick++;
 		this.pick = ooo.wrap(this.pick, this.options.length);
 	});
@@ -363,9 +389,9 @@ var oui = {};
 		data.push(this.state);
 	});
 
-	oui.Switch.on('input:click', function (down_x, down_y)
+	oui.Switch.on('input:click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on.click.call(this, down_x, down_y);
+		oui.Input.prototype.events.on['input:click'].call(this, down_x, down_y);
 		this.state = this.state ? 0 : 1;
 	});
 
@@ -434,7 +460,7 @@ var oui = {};
 		}
 	});
 
-	oui.Menu.on('input:click', function (down_x, down_y)
+	oui.Menu.on('input:click', function (button, down_x, down_y)
 	{
 		if (this.vertical)
 		{
@@ -461,7 +487,7 @@ var oui = {};
 
 		if (this.options[i] != undefined)
 		{
-			this.trigger('pick', [this.options[i], i]);
+			this.trigger('input:pick', [this.options[i], i]);
 			return false;
 		}
 	});
@@ -509,7 +535,7 @@ var oui = {};
 		}
 	});
 
-	oui.SingleMenu.on('input:click', function (down_x, down_y)
+	oui.SingleMenu.on('input:click', function (button, down_x, down_y)
 	{
 		if (this.vertical)
 		{
@@ -537,7 +563,7 @@ var oui = {};
 		if (this.options[i] != undefined)
 		{
 			this.picked = i;
-			this.trigger('pick', [this.options[i], i]);
+			this.trigger('select', [this.options[i], i]);
 			return false;
 		}
 	});
@@ -591,7 +617,7 @@ var oui = {};
 		}
 	});
 
-	oui.MultiMenu.on('input:click', function (down_x, down_y)
+	oui.MultiMenu.on('input:click', function (button, down_x, down_y)
 	{
 		if (this.vertical)
 		{
@@ -650,8 +676,6 @@ var oui = {};
 		this.drag_y = 0;
 		this.drop_x = 0;
 		this.drop_y = 0;
-		this.costs = {0: 1};
-		this.marks = [];//remove!
 		this.tiles = [];
 		this.index = [];
 
@@ -697,6 +721,11 @@ var oui = {};
 		this.type = 0;
 	});
 
+	oui.TileMap.method('costs', function (data)
+	{
+		return 1;
+	});
+
 	oui.TileMap.method('drawTile', function (tile, time, context)
 	{
 		context.drawImage(this.image, this.coords[tile.data.type][0], this.coords[tile.data.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
@@ -704,13 +733,34 @@ var oui = {};
 
 	oui.TileMap.method('distance', function (a, b)
 	{
-		//todo wrapping distances (left/right/top/mid/bottom) (see hexmap)
-		throw 'TileMap distance calculation not implemented yet!!!';
-		return Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+		if (a.x < b.x)
+		{
+			var min_x = Math.min(b.x - a.x, a.x - (b.x - this.size));
+		}
+		else
+		{
+			var min_x = Math.min(a.x - b.x, (b.x + this.size) - a.x);
+		}
+
+		if (a.y < b.y)
+		{
+			var min_y = Math.min(b.y - a.y, a.y - (b.y - this.size));
+		}
+		else
+		{
+			var min_y = Math.min(a.y - b.y , (b.y + this.size) - a.y);
+		}
+
+		return (min_x + min_y);
 	});
 
-	oui.TileMap.method('findArea', function (origin, range)
+	oui.TileMap.method('findArea', function (origin, range, costs)
 	{
+		if (!costs)
+		{
+			costs = this.costs;
+		}
+
 		var done = [];
 		var open = [origin];
 		origin.g = 0;
@@ -718,7 +768,7 @@ var oui = {};
 		do
 		{
 			var current = open.pop();
-			done[current.i] = true;
+			done[current.i] = current.g;//muss das evtl geupdated werden falls billiger geht?
 
 			for (var i = 0; i < current.steps.length; i++)
 			{
@@ -729,7 +779,7 @@ var oui = {};
 					continue;
 				}
 
-				var next_c = this.costs[next.type];
+				var next_c = costs(next.data);
 
 				if (next_c == undefined)
 				{
@@ -769,11 +819,16 @@ var oui = {};
 		}
 		while (open.length)
 
-		return indices(done);
+		return done;
 	});
 
-	oui.TileMap.method('findPath', function (origin, target)
+	oui.TileMap.method('findPath', function (origin, target, costs)
 	{
+		if (!costs)
+		{
+			costs = this.costs;
+		}
+
 		var done = [];
 		var crumbs = [];
 		var open = [origin];
@@ -783,7 +838,7 @@ var oui = {};
 		do
 		{
 			var current = open.pop();
-			done[current.i] = true;
+			done[current.i] = current.g;//muss das evtl geupdated werden falls billiger geht?
 
 			for (var i = 0; i < current.steps.length; i++)
 			{
@@ -794,7 +849,7 @@ var oui = {};
 					continue;
 				}
 
-				var next_c = this.costs[next.type];
+				var next_c = costs(next.data);
 
 				if (next_c == undefined)
 				{
@@ -815,6 +870,7 @@ var oui = {};
 						current = crumbs[current.i][1];
 					}
 
+					//rückgabewert prüfen/kann ich hier was mit done[] machen?
 					return {tiles: tiles.reverse(), steps: steps.reverse(), cost: next_g};
 				}
 
@@ -881,11 +937,11 @@ var oui = {};
 		this.drag_y = 0;
 	});
 
-	oui.TileMap.on('input:click', function (down_x, down_y)
+	oui.TileMap.on('input:click', function (button, down_x, down_y)
 	{
 		var tile_x = Math.floor(((this.drop_x + down_x) % this.patch_w) / this.tile_w);
 		var tile_y = Math.floor(((this.drop_y + down_y) % this.patch_h) / this.tile_h);
-		this.trigger('pick', [this.tiles[tile_y][tile_x], tile_x, tile_y]);
+		this.trigger('input:pick', [this.tiles[tile_y][tile_x], button, tile_x, tile_y]);
 	});
 
 	oui.TileMap.on('draw', function (time, context)
@@ -1022,7 +1078,7 @@ var oui = {};
 		return (dist > quad ? quad : dist);
 	});
 
-	oui.HexMap.on('input:click', function (down_x, down_y)
+	oui.HexMap.on('input:click', function (button, down_x, down_y)
 	{
 		var raw_x = (this.drop_x + down_x) % this.patch_w;
 		var raw_y = (this.drop_y + down_y) % this.patch_h;
@@ -1058,7 +1114,7 @@ var oui = {};
 			}
 		}
 
-		this.trigger('pick', [this.tiles[tile_y][tile_x], tile_x, tile_y]);
+		this.trigger('input:pick', [this.tiles[tile_y][tile_x], button, tile_x, tile_y]);
 	});
 
 	oui.HexMap.on('draw', function (time, context)

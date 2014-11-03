@@ -21,6 +21,23 @@ ooo.map = function (keys, values)
 	return object;
 }
 
+ooo.merge = function (keep, add)
+{
+	for (var key in add)
+	{
+		var value = add[key];
+
+		if (keep[key] && (typeof value == 'object'))
+		{
+			ooo.merge(keep[key], value);
+		}
+		else
+		{
+			keep[key] = value;
+		}
+	}
+}
+
 ooo.clone = function (object)
 {
 	var clone = {};
@@ -45,7 +62,7 @@ ooo.indices = function (object)
 	return keys;
 }
 
-function sorted_index (open, tile, prop)
+ooo.sorted_index = function (open, tile, prop)
 {
 	var low = 0;
 	var high = open.length;
@@ -200,7 +217,6 @@ ooo.TileMap = ooo.Class.extend(function (size)
 {
 	ooo.Class.call(this);
 	this.size = size;
-	this.costs = {0: 1};
 	this.tiles = [];
 	this.index = [];
 
@@ -246,6 +262,11 @@ ooo.TileMap.method('Data', function (i, x, y)
 	this.type = 0;
 });
 
+ooo.TileMap.method('costs', function (data)
+{
+	return 1;
+});
+
 ooo.TileMap.method('distance', function (a, b)
 {
 	//todo wrapping distances (left/right/top/mid/bottom) (see hexmap)
@@ -255,19 +276,19 @@ ooo.TileMap.method('distance', function (a, b)
 
 ooo.TileMap.method('findArea', function (origin, range, costs)
 {
-	var done = [];
-	var open = [origin];
-	origin.g = 0;
-
 	if (!costs)
 	{
 		costs = this.costs;
 	}
 
+	var done = [];
+	var open = [origin];
+	origin.g = 0;
+
 	do
 	{
 		var current = open.pop();
-		done[current.i] = current.g;
+		done[current.i] = current.g;//muss das evtl geupdated werden falls billiger geht?
 
 		for (var i = 0; i < current.steps.length; i++)
 		{
@@ -278,7 +299,7 @@ ooo.TileMap.method('findArea', function (origin, range, costs)
 				continue;
 			}
 
-			var next_c = costs[next.data.type];
+			var next_c = costs(next.data);
 
 			if (next_c == undefined)
 			{
@@ -306,7 +327,7 @@ ooo.TileMap.method('findArea', function (origin, range, costs)
 			if (tile == null)
 			{
 				next.g = next_g;
-				open.splice(sorted_index(open, next, 'g'), 0, next);
+				open.splice(ooo.sorted_index(open, next, 'g'), 0, next);
 				continue;
 			}
 
@@ -321,8 +342,13 @@ ooo.TileMap.method('findArea', function (origin, range, costs)
 	return done;
 });
 
-ooo.TileMap.method('findPath', function (origin, target)
+ooo.TileMap.method('findPath', function (origin, target, costs)
 {
+	if (!costs)
+	{
+		costs = this.costs;
+	}
+
 	var done = [];
 	var crumbs = [];
 	var open = [origin];
@@ -332,7 +358,7 @@ ooo.TileMap.method('findPath', function (origin, target)
 	do
 	{
 		var current = open.pop();
-		done[current.i] = true;
+		done[current.i] = current.g;//muss das evtl geupdated werden falls billiger geht?
 
 		for (var i = 0; i < current.steps.length; i++)
 		{
@@ -343,7 +369,7 @@ ooo.TileMap.method('findPath', function (origin, target)
 				continue;
 			}
 
-			var next_c = this.costs[next.type];
+			var next_c = costs(next.data);
 
 			if (next_c == undefined)
 			{
@@ -364,6 +390,7 @@ ooo.TileMap.method('findPath', function (origin, target)
 					current = crumbs[current.i][1];
 				}
 
+				//rückgabewert prüfen/kann ich hier was mit done[] machen?
 				return {tiles: tiles.reverse(), steps: steps.reverse(), cost: next_g};
 			}
 
@@ -382,7 +409,7 @@ ooo.TileMap.method('findPath', function (origin, target)
 			{
 				next.g = next_g;
 				next.f = next_g + this.distance(next, target);
-				open.splice(sorted_index(open, next, 'f'), 0, next);
+				open.splice(ooo.sorted_index(open, next, 'f'), 0, next);
 				crumbs[next.i] = [i, current];
 				continue;
 			}
