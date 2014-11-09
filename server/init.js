@@ -10,16 +10,16 @@ var STATNAMES = ['insight', 'stamina', 'vision'];
 var MAPTYPES = [0, 10, 11, 12];
 
 var ITEMS = [];
-ITEMS[0] = {title: 'World', obscurity: 0, visibility: 0};
-ITEMS[1] = {title: 'Grass', obscurity: 1, visibility: 0};
-ITEMS[2] = {title: 'Forest', obscurity: 3, visibility: 0};
-ITEMS[3] = {title: 'Campfire', obscurity: 1, visibility: 1};
-ITEMS[4] = {title: 'Fishmonster', obscurity: 2, visibility: 1};
-ITEMS[5] = {title: 'Basket', obscurity: 2, visibility: 1};
-ITEMS[6] = {title: 'Apple', obscurity: 1, visibility: 2};
-ITEMS[7] = {title: 'Tree', obscurity: 9, visibility: 0};
-ITEMS[8] = {title: 'Ring', obscurity: 9, visibility: 1};
-ITEMS[9] = {title: 'Hero', obscurity: 9, visibility: 1};
+ITEMS[0] = {title: 'World', group: 0, obscurity: 0, visibility: 0};
+ITEMS[1] = {title: 'Grass', group: 0, obscurity: 1, visibility: 0};
+ITEMS[2] = {title: 'Forest', group: 0, obscurity: 3, visibility: 0};
+ITEMS[3] = {title: 'Campfire', group: 0, obscurity: 1, visibility: 1};
+ITEMS[4] = {title: 'Fishmonster', group: 1, obscurity: 2, visibility: 1};
+ITEMS[5] = {title: 'Basket', group: 2, obscurity: 3, visibility: 1};
+ITEMS[6] = {title: 'Apple', group: 2, obscurity: 1, visibility: 1};
+ITEMS[7] = {title: 'Tree', group: 2, obscurity: 9, visibility: 0};
+ITEMS[8] = {title: 'Ring', group: 2, obscurity: 9, visibility: 1};
+ITEMS[9] = {title: 'Hero', group: 1, obscurity: 5, visibility: 1};
 
 //char.state
 function examine (info, insight)
@@ -34,12 +34,20 @@ function examine (info, insight)
 			var child = info.children[id];
 			var item = ITEMS[child.type];
 
-			if (item.visibility <= insight)
+			if (this.info[id])
 			{
-				this.info[id] = [child.type, []];
-				this.info[info.id][1].push(id);
-				examine.call(this, child, insight - item.visibility);
+				if (insight > this.info[id][1])
+				{
+					this.info[id][1] = insight;
+				}
 			}
+			else
+			{
+				this.info[id] = [child.type, insight, []];
+				this.info[info.id][2].push(id);
+			}
+
+			examine.call(this, child, insight);
 		}
 	}
 }
@@ -266,7 +274,7 @@ Game.method('start', function ()
 		realm.chars = {};
 		this.realms[seat] = realm;
 		this.seats[name] = seat;
-		spawn_chars.call(this, seat, [['hero', [5, 5, 5], [9, [[8, []]]], 9, 4*32+4, [[[]], [[]], [[]], [[]], [[]]]]]);//build this char in game lobby
+		spawn_chars.call(this, seat, [['hero', [6, 5, 5], [9, [[8, []]]], 9, 4*32+4, [[[]], [[]], [[]], [[]], [[]]]]]);//build this char in game lobby
 		//spawn_chars.call(this, seat, [['hero', [5, 5, 2], [9, [[8, []]]], 9, 4*32+4, [[[]], [[], 0], [[], 0], [[], 0], [[], 0]]]]);//build this char in game lobby
 		seat++;
 	}
@@ -397,7 +405,7 @@ Game.method('tock', function ()
 				for (var id in area)
 				{
 					var info = this.world.info[id];
-					state.info[id] = [info.type, []];
+					state.info[id] = [info.type, char.stats.insight, []];
 					ACTIONS[0].call(char, id);
 				}
 			}
@@ -436,12 +444,8 @@ Game.method('tock', function ()
 				{
 					realm.info[this.time][time] = {};
 				}
-
-				for (var id in char.state.info)
-				{
-					realm.info[this.time][time][id] = char.state.info[id];
-				}
-
+				
+				realm.info[this.time][time][char.info.id] = char.state.info;
 				char.state.info = {};
 
 				if (char.step == char.steps.length)
@@ -558,6 +562,9 @@ Client.on('message:host', function (rules)
 	var game = new Game(rules);
 	game.world.index[2*32+5].data.info.type = 2;
 	game.world.spawn([8, []], 4*32+5);
+	game.world.spawn([6, []], 3*32+3);
+	game.world.spawn([6, []], 4*32+4);
+	game.world.spawn([5, [[6, []],[6, []]]], 5*32+4);
 	game.id = ooo.fill(this.server.games, game);
 	game.join(this.player);
 	this.expect('leave');

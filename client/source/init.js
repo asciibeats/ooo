@@ -1,4 +1,14 @@
 'use strict';
+
+//history group->type!->id->time
+//andere realms anerkennen!!!!
+//chars "follow" other chars
+////these leading chars pose laws
+////laws are enforced only by ingame power projection (no game mechanic prevents anything)
+//x char slots
+//if char is put in prison or something the slot is blocked
+//number of followers determine your level
+
 ////dreams depend on items&skills&node wichtig ist daß man wissen kann was kommen wird
 //erst alle looks dann anderes? usw?
 //home.items.chest.push();
@@ -7,22 +17,30 @@
 //WORLDSIZE: sqrt(playernum) * size
 var POW2 = [1, 2, 4, 8];
 var ITEMTILES = [0, 3, 5, 4, 3, 3, 3, 3, 9, 3, 9, 10, 11];
+var ITEMTILES2 = [0, 3, 5, 4, 3, 2, 1, 3, 0, 3, 9, 10, 11];
+var CHARTILES = [0, 3, 5, 4, 3, 2, 1, 3, 0, 0, 9, 10, 11];
+
+var GROUPS = [];
+GROUPS[0] = 'Terrain';
+GROUPS[1] = 'Characters';
+GROUPS[2] = 'Items';
 
 var ITEMS = [];
-ITEMS[0] = {title: 'World', obscurity: 0, visibility: 0};
-ITEMS[1] = {title: 'Grass', obscurity: 1, visibility: 1};
-ITEMS[2] = {title: 'Forest', obscurity: 4, visibility: 0};
-ITEMS[3] = {title: 'Campfire', obscurity: 1, visibility: 1};
-ITEMS[4] = {title: 'Fishmonster', obscurity: 2, visibility: 1};
-ITEMS[5] = {title: 'Basket', obscurity: 2, visibility: 1};
-ITEMS[6] = {title: 'Apple', obscurity: 1, visibility: 2};
-ITEMS[7] = {title: 'Tree', obscurity: 9, visibility: 0};
-ITEMS[8] = {title: 'Ring', obscurity: 9, visibility: 1};
-ITEMS[9] = {title: 'Hero', obscurity: 4, visibility: 1};
+ITEMS[0] = {title: 'World', group: 0, obscurity: 0, visibility: 0};
+ITEMS[1] = {title: 'Grass', group: 0, obscurity: 1, visibility: 0};
+ITEMS[2] = {title: 'Forest', group: 0, obscurity: 3, visibility: 0};
+ITEMS[3] = {title: 'Campfire', group: 0, obscurity: 1, visibility: 1};
+ITEMS[4] = {title: 'Fishmonster', group: 1, obscurity: 2, visibility: 1};
+ITEMS[5] = {title: 'Basket', group: 2, obscurity: 3, visibility: 1};
+ITEMS[6] = {title: 'Apple', group: 2, obscurity: 1, visibility: 1};
+ITEMS[7] = {title: 'Tree', group: 2, obscurity: 9, visibility: 0};
+ITEMS[8] = {title: 'Ring', group: 2, obscurity: 9, visibility: 1};
+ITEMS[9] = {title: 'Hero', group: 1, obscurity: 5, visibility: 1};
 
-ITEMS[10] = {title: 'MapGrass', obscurity: 9, visibility: 0};
+//second hand information (maps,rumors,traded info,etc) is drawn in map colors
+/*ITEMS[10] = {title: 'MapGrass', obscurity: 9, visibility: 0};
 ITEMS[11] = {title: 'MapForest', obscurity: 9, visibility: 1};
-ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
+ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 
 //at the beginning choose x cards to get initial resources/items nstuff
 
@@ -103,12 +121,6 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 		events[parent][time][id] = type;
 	}*/
 
-	//mark item as stolen and get/loose it finally if charjob gets cancelled
-	//World
-	function flatout (size, history)
-	{
-	}
-
 	/*/World
 	function mark_tile (tile, direction)
 	{
@@ -144,6 +156,130 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 		}
 	}*/
 
+	var ItemPool = oui.SingleMenu.clone(64, 64, 'items', {left: 10, width: 64, top: 10, bottom: 10}, true);
+
+	ItemPool.on('select', function (option, i)
+	{
+		console.log('ItemMenu', option, i);
+	});
+
+	ItemPool.method('reset', function (items)
+	{
+		delete this.picked;
+		this.options = [];
+
+		for (var id in items)
+		{
+			this.options.push(items[id]);
+		}
+
+		return this;
+	});
+
+	ItemPool.method('drawButton', function (time, context, data, picked)
+	{
+		if (false && picked)
+		{
+			context.fillStyle = '#f00';
+			context.fillRect(0, 0, this.button_w, this.button_h);
+		}
+		else
+		{
+			var type = ITEMTILES2[data.type];
+			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
+		}
+	});
+
+	ItemPool.on('draw', function (time, context)
+	{
+		if (this.reversed)
+		{
+			if (this.vertical)
+			{
+				context.translate(0, this.height - this.button_h);
+			}
+			else
+			{
+				context.translate(this.width - this.button_w, 0);
+			}
+		}
+
+		for (var i = 0; i < this.options.length; i++)
+		{
+			this.drawButton(time, context, this.options[i], this.picked == i);
+			context.translate(this.offset_x, this.offset_y);
+		}
+	});
+
+	var CharStack = oui.SingleMenu.clone(64, 64, 'items', {left: 84, right: 10, top: 10, bottom: 10});
+
+	CharStack.method('reset', function (chars)
+	{
+		delete this.picked;
+		this.options = [];
+
+		for (var id in chars)
+		{
+			this.options.push(chars[id]);
+		}
+
+		return this;
+	});
+
+	CharStack.method('drawButton', function (time, context, data, picked)
+	{
+		if (true || picked)
+		{
+			context.fillStyle = '#fff';
+			context.fillRect(0, 0, this.button_w, this.button_h);
+		}
+		else
+		{
+			
+			//var type = ITEMTILES2[data.type];
+			//context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
+		}
+	});
+
+	CharStack.on('draw', function (time, context)
+	{
+		if (this.reversed)
+		{
+			if (this.vertical)
+			{
+				context.translate(0, this.height - this.button_h);
+			}
+			else
+			{
+				context.translate(this.width - this.button_w, 0);
+			}
+		}
+
+		for (var i = 0; i < this.options.length; i++)
+		{
+			this.drawButton(time, context, this.options[i], this.picked == i);
+			context.translate(this.offset_x, this.offset_y);
+		}
+	});
+
+	var Land = ooo.Scene.extend(function (info)
+	{
+		ooo.Scene.call(this);
+		this.data = {};
+		this.data.info = info;
+		this.menu = {};
+		this.menu.pool = new ItemPool();
+		this.show(this.menu.pool);
+		this.menu.stack = new CharStack();
+		this.show(this.menu.stack);
+	});
+
+	Land.method('reset', function (id, time)
+	{
+		this.menu.pool.reset(this.data.info.by_root[id][2][time]);
+		this.menu.stack.reset(this.data.info.by_root[id][1][time]);
+	});
+
 	var World = oui.TileMap.extend(function (size, info, chars, tile_w, tile_h, type, layout)
 	{
 		oui.TileMap.call(this, size, tile_w, tile_h, type, layout);
@@ -165,6 +301,12 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 		{
 			context.drawImage(this.root.images['path'], this.coords[mark][0], this.coords[mark][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
 		}
+
+		if (this.landmark == tile.i)
+		{
+			context.fillStyle = '#fff';
+			context.fillRect(10, 10, 44, 44);
+		}
 	});
 
 	function rootof (info)
@@ -179,10 +321,12 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 
 	World.method('reset', function (history, chars)
 	{
+		this.landmark = 132;//focus on leader
 		this.marks = {};
 		this.picks = [];
 		this.info = {};
 		this.list = {};
+		this.menu = {};
 		this.mode = 'overview';
 
 		var times = ooo.intkeys(history);
@@ -201,11 +345,13 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 				var info = {};
 				info.id = id;
 				info.type = history[time][id][0];
+				info.insight = history[time][id][1];
 				//info.data = ['hallo'];//zb text auf blatt papier
 				info.children = {};
 				this.info[time][id] = info;
-				ooo.add(this.list, info, id, time);
-				var childr = history[time][id][1];
+				ooo.add(this.list, info, ITEMS[info.type].group, id, time);
+				ooo.add(this.menu, info, ITEMS[info.type].group, info.type, id, time);
+				var childr = history[time][id][2];
 
 				for (var j = 0; j < childr.length; j++)
 				{
@@ -241,11 +387,12 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 		for (var i = 0; i < this.index.length; i++)
 		{
 			var tile = this.index[i];
+			var terrain = this.list[0];
 
-			if (this.list[i])
+			if (terrain[i])
 			{
-				var last = Math.max.apply(null, ooo.intkeys(this.list[i]));
-				var info = this.list[i][last];
+				var last = Math.max.apply(null, ooo.intkeys(terrain[i]));
+				var info = terrain[i][last];
 				tile.data.type = ITEMTILES[info.type];
 				tile.data.info = info;
 				tile.data.list = {};
@@ -257,64 +404,62 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 		}
 
 		//build tile lists and mark hero paths
-		for (var id in this.list)
+		for (var group in this.list)
 		{
-			//skip tile info
-			if (this.index[id])
+			for (var id in this.list[group])
 			{
-				continue;
-			}
+				var steps = {};
 
-			var steps = {};
-
-			for (var time in this.list[id])
-			{
-				var info = this.list[id][time];
-				var root = rootof(info);
-				var tile = this.index[root.id];
-				ooo.add(tile.data.list, info, id, time);
-
-				//info.group ????
-				if (info.type == 9)
+				//use times array for ordered iteration!!!!
+				for (var time in this.list[group][id])
 				{
-					ooo.add(steps, tile, id, time);
-					var origin = steps[id][time - 1];
+					var info = this.list[group][id][time];
+					var root = rootof(info);
+					var tile = this.index[root.id];
+					ooo.add(tile.data.list, info, group, id, time);
 
-					if (origin)
+					//ITEMS array bei info init verlinken???
+					if (ITEMS[info.type].group == 1)
 					{
-						if (tile != origin)
+						ooo.add(steps, tile, id, time);
+						var origin = steps[id][time - 1];
+
+						if (origin)
 						{
-							for (var direction in origin.steps)
+							if (tile != origin)
 							{
-								if (origin.steps[direction] == tile)
+								for (var direction in origin.steps)
 								{
-									break;
+									if (origin.steps[direction] == tile)
+									{
+										break;
+									}
+								}
+
+								direction = parseInt(direction);
+								this.marks[origin.i] |= POW2[direction];
+								direction = (direction + 2) % 4;//only for squares!!! portals break here!!!!!!!!??????
+
+								if (this.marks[tile.i] != undefined)
+								{
+									this.marks[tile.i] |= POW2[direction];
+								}
+								else
+								{
+									this.marks[tile.i] = POW2[direction];
 								}
 							}
-
-							direction = parseInt(direction);
-							this.marks[origin.i] |= POW2[direction];
-							direction = (direction + 2) % 4;//only for squares!!! portals break here!!!!!!!!??????
-
-							if (this.marks[tile.i] != undefined)
-							{
-								this.marks[tile.i] |= POW2[direction];
-							}
-							else
-							{
-								this.marks[tile.i] = POW2[direction];
-							}
-						}
-					}
-					else
-					{
-						if (this.marks[tile.i] != undefined)
-						{
-							this.marks[tile.i] |= 16;
 						}
 						else
 						{
-							this.marks[tile.i] = 16;
+							if (this.marks[tile.i] != undefined)
+							{
+								this.marks[tile.i] |= 16;
+							}
+							else
+							{
+								this.marks[tile.i] = 16;
+							}
 						}
 					}
 				}
@@ -333,6 +478,9 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 				delete this.chars[id];
 			}
 		}
+
+		console.log('CHARS %s', JSON.stringify(ooo.intkeys(this.list[1])));
+		console.log('ITEMS %s', JSON.stringify(ooo.intkeys(this.list[2])));
 	});
 
 	//var EVENTS = ['discover', 'transform', 'appear', 'vanish'];
@@ -340,20 +488,19 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 	//World
 	function overview (tile)
 	{
-		console.log();
-		console.log('OVERVIEW');
-		console.log(JSON.stringify(ooo.intkeys(tile.data.list)));
-		return;
+		console.log('### OVERVIEW ###');
 
-		for (var time in this.diffs[tile.i])
+		for (var group in tile.data.list)
 		{
-			console.log('TIME %d', time);
-			console.log(JSON.stringify(this.diffs[tile.i][time]));
-			continue;
-			for (var id in this.diffs[tile.i][time])
+			console.log(GROUPS[group]);
+
+			for (var id in tile.data.list[group])
 			{
-				var event = this.diffs[tile.i][time][id];
-				console.log('%s %s (%d)', EVENTS[event], ITEMS[this.info[id][0]].title, id);
+				for (var time in tile.data.list[group][id])
+				{
+					var info = tile.data.list[group][id][time];
+					console.log('(%d@%d) %s', id, time, ITEMS[info.type].title);
+				}
 			}
 		}
 	}
@@ -378,6 +525,18 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 	//mark the changes!!!! diffs between times
 	World.on('input:pick', function (tile, button)
 	{
+		if (this.landmark == tile.i)
+		{
+			//switch to frontal view
+			console.log('frontal');
+			this.root.show(this.root.land);
+			this.hide();
+		}
+		else
+		{
+			this.landmark = tile.i;
+		}
+		return;
 		if (this.mode == 'delete')
 		{
 			if (this.marks[tile.i])
@@ -546,6 +705,125 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 		console.log('TaskMenu', option, i);
 	});
 
+	var ItemMenu = oui.SingleMenu.clone(64, 64, 'items', {left: 0, right: 10, height: 64, bottom: 74}, false, true);
+
+	ItemMenu.on('select', function (option, i)
+	{
+		console.log('ItemMenu', option, i);
+	});
+
+	ItemMenu.method('reset', function (items)
+	{
+		delete this.picked;
+		this.options = [];
+
+		for (var type in items)
+		{
+			//split into multiple entries if item changed state!!!!!!
+			//var last = Math.max.apply(null, ooo.intkeys(items[id]));
+			//var info = items[id][last];
+			this.options.push([ITEMTILES2[type], ooo.size(items[type])]);
+		}
+
+		return this;
+	});
+
+	ItemMenu.method('drawButton', function (time, context, data, picked)
+	{
+		if (picked)
+		{
+			context.fillStyle = '#f00';
+			context.fillRect(0, 0, this.button_w, this.button_h);
+		}
+		else
+		{
+			var type = data[0];
+			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
+		}
+	});
+
+	ItemMenu.on('draw', function (time, context)
+	{
+		if (this.reversed)
+		{
+			if (this.vertical)
+			{
+				context.translate(0, this.height - this.button_h);
+			}
+			else
+			{
+				context.translate(this.width - this.button_w, 0);
+			}
+		}
+
+		for (var i = 0; i < this.options.length; i++)
+		{
+			this.drawButton(time, context, this.options[i], this.picked == i);
+			context.translate(this.offset_x, this.offset_y);
+		}
+	});
+
+	var CharMenu = oui.SingleMenu.clone(64, 64, 'chars', {left: 64, width: 64, top: 0, bottom: 0}, true, false);
+
+	CharMenu.on('select', function (option, i)
+	{
+		console.log('ItemMenu', option, i);
+	});
+
+	CharMenu.method('reset', function (chars)
+	{
+		delete this.picked;
+		this.options = [];
+
+		for (var id in chars)
+		{
+			//split into multiple entries if item changed state!!!!!!
+			var last = Math.max.apply(null, ooo.intkeys(chars[id]));
+			var info = chars[id][last];
+			this.options.push(info);
+		}
+
+		return this;
+	});
+
+	CharMenu.on('draw', function (time, context)
+	{
+		if (this.reversed)
+		{
+			if (this.vertical)
+			{
+				context.translate(0, this.height - this.button_h);
+			}
+			else
+			{
+				context.translate(this.width - this.button_w, 0);
+			}
+		}
+
+		for (var i = 0; i < this.options.length; i++)
+		{
+			if (this.picked == i)
+			{
+				context.fillStyle = '#f00';
+				context.fillRect(0, 0, this.button_w, this.button_h);
+			}
+			else
+			{
+				var info = this.options[i];
+				var type = CHARTILES[info.type];
+				context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
+
+				if (info.insight < ITEMS[info.type].obscurity)
+				{
+					context.fillStyle = '#fff';
+					context.fillText('' + info.insight + '/' + ITEMS[info.type].obscurity, 10, 54);
+				}
+			}
+
+			context.translate(this.offset_x, this.offset_y);
+		}
+	});
+
 	var Client = ooo.Client.extend(function (url, hook, assets, color)
 	{
 		ooo.Client.call(this, url, hook, assets, color);
@@ -639,44 +917,162 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 		}
 	});
 
-	Client.on('message:start', function (time, info, chars)
+	//wie behandle ich doppelte infos (diff insight) //diff insight verhindern? vereinfachen?
+	function convert_history (history)
+	{
+		var times = ooo.intkeys(history).sort(function (a, b) { return (a > b) });
+		var by_time = {};
+		var by_id = {};
+		var by_type = {};
+		var by_root = {};
+
+		//build base info tree
+		for (var i = 0; i < times.length; i++)
+		{
+			var time = times[i];
+			var parents = {};
+			var children = {};
+
+			for (var char in history[time])
+			{
+				for (var id in history[time][char])
+				{
+					var info = {};
+					info.id = id;
+					info.type = history[time][char][id][0];
+					info.insight = history[time][char][id][1];
+					//info.data = ['hallo'];//zb text auf blatt papier
+					info.children = {};
+					var childr = history[time][char][id][2];
+
+					for (var j = 0; j < childr.length; j++)
+					{
+						var cid = childr[j];
+						var child = children[cid];
+
+						if (child)
+						{
+							info.children[cid] = child;
+							child.parent = info;
+						}
+						else
+						{
+							parents[cid] = info;
+						}
+					}
+
+					var parent = parents[id];
+
+					if (parent)
+					{
+						parent.children[id] = info;
+						info.parent = parent;
+					}
+					else
+					{
+						children[id] = info;
+					}
+
+					var group = ITEMS[info.type].group;
+					ooo.add(by_time, info, group, time, id);
+					ooo.add(by_id, info, group, id, time);
+					ooo.add(by_type, info, group, info.type, id, time);
+				}
+			}
+		}
+
+		for (var group in by_id)
+		{
+			for (var id in by_id[group])
+			{
+				for (var time in by_id[group][id])
+				{
+					var info = by_id[group][id][time];
+					var root = rootof(info);
+					ooo.add(by_root, info, root.id, group, time, id);
+				}
+			}
+		}
+
+		return {by_time: by_time, by_id: by_id, by_type: by_type, by_root: by_root};
+	}
+
+	Client.on('message:start', function (time, history, chars)
 	{
 		console.log('START', arguments);
 		//this.root.update = false;
 		//this.root.once = true;
 		this.game.time = time;
-		this.world = new World(this.game.rules[1], info, chars, 64, 64, 'steps');
-		this.show(this.world);
+		//this.world = new World(this.game.rules[1], info, chars, 64, 64, 'steps');
+		//this.show(this.world);
+		//this.landmark = 132;//focus on leader
+		this.data = {};
+		this.data.info = convert_history(history);
+		this.data.chars = chars;
+		this.scenes = {};
+		this.scenes.land = new Land(this.data.info);
+		this.scenes.land.reset(132, ooo.maxkey(this.data.info.by_id[1][132]));
+		this.show(this.scenes.land);
 
 		this.menus = {};
-		this.menus.chars = new CharMenu();
+		/*this.menus.chars = new CharMenu();
 		this.menus.chars.reset([2,1,2]);
 		this.show(this.menus.chars, 1);
 		this.menus.marks = new MarkMenu();
 		this.menus.marks.reset([1,2,1]);
-		this.show(this.menus.marks, 1);
+		this.show(this.menus.marks, 1);*/
+		/*this.menus.items = new ItemMenu();
+		this.menus.items.reset(this.info.group[2]);
+		this.show(this.menus.items, 1);*/
+		/*this.menus.chars = new CharMenu();
+		this.menus.chars.reset(this.info.group[1]);
+		this.show(this.menus.chars, 1);*/
 	});
 
-	Client.on('message:continue', function (rules, names, time, info, chars, waiting)
+	Client.on('message:continue', function (rules, names, time, history, chars, waiting)
 	{
 		console.log('CONTINUE', arguments);
 		this.forms.login.hide();
 		ooo.setLocal('auth', this.auth);
 		this.game = new Game(rules, names);
 		this.game.time = time;
-		this.world = new World(this.game.rules[1], info, chars, 64, 64, 'steps');
-		this.show(this.world);
+		//this.world = new World(this.game.rules[1], info, chars, 64, 64, 'steps');
+		//this.land = new Land();
+		//this.show(this.land);
+		//this.show(this.world);
+		this.data = {};
+		this.data.info = convert_history(history);
+		this.data.chars = chars;
+		this.scenes = {};
+		this.scenes.land = new Land(this.data.info);
+		this.scenes.land.reset(132, ooo.maxkey(this.data.info.by_id[0][132]));
+		this.show(this.scenes.land);
+
+		console.log('CHARS %s', JSON.stringify(ooo.intkeys(this.data.info.by_id[1])));
+		console.log('ITEMS %s', JSON.stringify(ooo.intkeys(this.data.info.by_id[2])));
+		var time = ooo.maxkey(this.data.info.by_id[0][133]);
+		console.log('@133 %s', JSON.stringify(ooo.intkeys(this.data.info.by_id[0][133][time].children)));
 
 		this.menus = {};
-		this.menus.chars = new CharMenu();
+		/*this.menus.chars = new CharMenu();
 		this.menus.chars.reset([2,1,2]);
-		this.show(this.menus.chars, 1);
+		this.show(this.menus.chars, 1);*/
+
 		/*this.menus.marks = new MarkMenu();
 		this.menus.marks.reset([1,2,1]);
 		this.show(this.menus.marks, 1);*/
-		this.menus.main = new MainMenu();
-		this.menus.main.reset([0,1,2]);
-		this.show(this.menus.main, 1);
+
+		/*this.menus.main = new MainMenu();
+		this.menus.main.reset([0,1]);
+		this.show(this.menus.main, 1);*/
+
+		/*this.menus.items = new ItemMenu();
+		this.menus.items.reset(this.info.type[2]);
+		this.show(this.menus.items, 1);*/
+
+		/*this.menus.chars = new CharMenu();
+		this.menus.chars.reset(this.world.list[1]);
+		this.show(this.menus.chars, 1);*/
 		//var that = this;
 
 		/*this.world.on('input:pick', function (tile, x, y)
@@ -686,8 +1082,6 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 		});*/
 		//this.land = new Site();
 		//this.show(this.land);
-
-		inventory(chars);
 
 		if (waiting)
 		{
@@ -717,6 +1111,8 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};
 		var hook = document.getElementById('hook');
 		var assets = {};
 		assets['steps'] = 'assets/steps.png';
+		assets['chars'] = 'assets/chars.png';
+		assets['items'] = 'assets/items.png';
 		assets['path'] = 'assets/path.png';
 		assets['options'] = 'assets/options.png';
 		var jupiter = new Client('http://10.0.0.19:11133', hook, assets, '#444');

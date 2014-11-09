@@ -128,6 +128,11 @@ var ooo = {};
 		return id;
 	}
 
+	ooo.maxkey = function (object)
+	{
+		return Math.max.apply(null, ooo.intkeys(object));
+	}
+
 	ooo.intkeys = function (object)
 	{
 		var keys = [];
@@ -986,13 +991,14 @@ var ooo = {};
 		{
 			if (event.keyCode < 48)
 			{
+				event.preventDefault();
 				that.trigger('input:press', [event.timeStamp, null, event.keyCode, event.shiftKey], true);
 			}
 
-			if (event.keyCode == 8 || event.keyCode == 9)
+			/*if (event.keyCode == 8 || event.keyCode == 9)
 			{
 				event.preventDefault();
-			}
+			}*/
 		}
 
 		function on_keypress (event)
