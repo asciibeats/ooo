@@ -13,7 +13,7 @@ var ooo = {};
 
 (function ()
 {
-	ooo.add = function (object, value)
+	ooo.add = function (value, object)
 	{
 		var pointer = object;
 		var loops = arguments.length - 1;
@@ -131,6 +131,11 @@ var ooo = {};
 	ooo.maxkey = function (object)
 	{
 		return Math.max.apply(null, ooo.intkeys(object));
+	}
+
+	ooo.minkey = function (object)
+	{
+		return Math.min.apply(null, ooo.intkeys(object));
 	}
 
 	ooo.intkeys = function (object)
@@ -308,7 +313,7 @@ var ooo = {};
 		}
 	}
 
-	function triggerLayer (actor, layer, type, argv)
+	function triggerLayer (actor, layer, type, argv, bubble)
 	{
 		for (var id in layer)
 		{
@@ -322,7 +327,7 @@ var ooo = {};
 					retv = argv;
 				}
 
-				if (child.trigger(type, retv) == false)
+				if (child.trigger(type, retv, bubble) == false)
 				{
 					return false;
 				}
@@ -439,10 +444,17 @@ var ooo = {};
 		this.prototype[name] = func;
 	}
 
-	ooo.Actor.method('on', function (type, func)
+	ooo.Actor.on('show', function (root, parent)
+	{
+		this.root = root;
+	});
+
+	/*ooo.Actor.method('on', function (type, func)
 	{
 		var channel = 'on';
 
+		//does not work if prototype.events exists!!!!!!!!!!
+		//if (!this.hasOwnProperty('events)
 		if (!this.events)
 		{
 			this.events = {};
@@ -468,7 +480,7 @@ var ooo = {};
 
 		delete this.events[channel][type];
 		return this;
-	});
+	});*/
 
 	ooo.Actor.method('place', function (rel_x, rel_y)
 	{
@@ -525,11 +537,6 @@ var ooo = {};
 		delete this.root;
 	});
 
-	ooo.Actor.on('show', function (root, parent)
-	{
-		this.root = root;
-	});
-
 	//Actor with image
 	ooo.Sprite = ooo.Actor.extend(function (image, width, height, img_x, img_y)
 	{
@@ -551,12 +558,6 @@ var ooo = {};
 	{
 		ooo.Actor.call(this);
 		this.layout = layout || {'left': 0, 'right': 0, 'top': 0, 'bottom': 0};
-	});
-
-	ooo.Cell.method('arrange', function (layout)
-	{
-		this.layout = layout;
-		return this;
 	});
 
 	ooo.Cell.on('resize', function (width, height)
@@ -644,6 +645,19 @@ var ooo = {};
 		this.place(rel_x, rel_y).resize(width, height);
 	});
 
+	ooo.Cell.method('arrange', function (layout)
+	{
+		this.layout = layout || {'left': 0, 'right': 0, 'top': 0, 'bottom': 0};
+
+		//if (this.root && this.root.loaded)
+		if (this.parent)
+		{
+			this.trigger('resize', [this.parent.width, this.parent.height]);
+		}
+
+		return this;
+	});
+
 	//Simple colored Box for testing
 	ooo.Box = ooo.Cell.extend(function (color, layout)
 	{
@@ -670,6 +684,33 @@ var ooo = {};
 	ooo.Scene.prepare = addEvent('prepare');
 	ooo.Scene.cleanup = addEvent('cleanup');
 	ooo.Scene.bubble = addEvent('bubble');
+
+	ooo.Scene.on('show', function (root, parent)
+	{
+		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		return [root, this];
+	});
+
+	ooo.Scene.on('resize', function (width, height)
+	{
+		ooo.Cell.prototype.events.on.resize.call(this, width, height);
+		return [this.width, this.height];
+	});
+
+	ooo.Scene.prepare('draw', function (time, context)
+	{
+		context.save();
+		context.scale(this.scale_x, this.scale_y);
+		context.globalAlpha = this.alpha;
+		context.translate(this.rel_x + this.mid_x, this.rel_y + this.mid_y);
+		context.rotate(this.angle);
+		context.translate(-this.mid_x, -this.mid_y);
+	});
+
+	ooo.Scene.cleanup('draw', function (time, context)
+	{
+		context.restore();
+	});
 
 	ooo.Scene.method('bubble', function (type, func)//temp
 	{
@@ -726,7 +767,7 @@ var ooo = {};
 				{
 					var layer = this.children[this.layers[i]];
 
-					if (triggerLayer(this, layer, type, retv) == false)
+					if (triggerLayer(this, layer, type, retv, bubble) == false)
 					{
 						return false;
 					}
@@ -738,7 +779,7 @@ var ooo = {};
 				{
 					var layer = this.children[this.layers[i]];
 
-					if (triggerLayer(this, layer, type, retv) == false)
+					if (triggerLayer(this, layer, type, retv, bubble) == false)
 					{
 						return false;
 					}
@@ -751,33 +792,6 @@ var ooo = {};
 		}
 
 		triggerActor(this, this, 'bubble', type, argv);
-	});
-
-	ooo.Scene.on('show', function (root, parent)
-	{
-		ooo.Cell.prototype.events.on.show.call(this, root, parent);
-		return [root, this];
-	});
-
-	ooo.Scene.on('resize', function (width, height)
-	{
-		ooo.Cell.prototype.events.on.resize.call(this, width, height);
-		return [this.width, this.height];
-	});
-
-	ooo.Scene.prepare('draw', function (time, context)
-	{
-		context.save();
-		context.scale(this.scale_x, this.scale_y);
-		context.globalAlpha = this.alpha;
-		context.translate(this.rel_x + this.mid_x, this.rel_y + this.mid_y);
-		context.rotate(this.angle);
-		context.translate(-this.mid_x, -this.mid_y);
-	});
-
-	ooo.Scene.cleanup('draw', function (time, context)
-	{
-		context.restore();
 	});
 
 	//layers komplett abschaffen? -> array also reihenfolge nicht undefined -> insert before after push, unshift//array id damit auch abschaffen
@@ -805,6 +819,27 @@ var ooo = {};
 		this.context = this.canvas.getContext('2d');
 		this.update = true;
 		this.once = false;
+	});
+
+	ooo.Stage.on('draw', function (time, context)
+	{
+		if (this.update || this.once)
+		{
+			this.once = false;
+			return [time, this.context];
+		}
+		else
+		{
+			return false;
+		}
+	});
+
+	ooo.Stage.bubble('draw', function (time, context)
+	{
+		if (context)
+		{
+			context.drawImage(this.canvas, 0, 0);
+		}
 	});
 
 	ooo.Stage.method('resize', function (width, height)
@@ -835,27 +870,6 @@ var ooo = {};
 		this.context.restore();
 	});
 
-	ooo.Stage.on('draw', function (time, context)
-	{
-		if (this.update || this.once)
-		{
-			this.once = false;
-			return [time, this.context];
-		}
-		else
-		{
-			return false;
-		}
-	});
-
-	ooo.Stage.bubble('draw', function (time, context)
-	{
-		if (context)
-		{
-			context.drawImage(this.canvas, 0, 0);
-		}
-	});
-
 	//root actor to be embedded into html
 	ooo.Root = ooo.Stage.extend(function (hook, assets, color)
 	{
@@ -881,52 +895,6 @@ var ooo = {};
 		});
 	});
 
-	ooo.Root.method('toggle', function ()
-	{
-		if (document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement)
-		{
-			if (document.exitFullscreen)
-			{
-				document.exitFullscreen();
-			}
-			else if (document.msExitFullscreen)
-			{
-				document.msExitFullscreen();
-			}
-			else if (document.mozCancelFullScreen)
-			{
-				document.mozCancelFullScreen();
-			}
-			else if (document.webkitExitFullscreen)
-			{
-				document.webkitExitFullscreen();
-			}
-
-			this.fullscreen = false;
-		}
-		else
-		{
-			if (this.hook.requestFullscreen)
-			{
-				this.hook.requestFullscreen();
-			}
-			else if (this.hook.msRequestFullscreen)
-			{
-				this.hook.msRequestFullscreen();
-			}
-			else if (this.hook.mozRequestFullScreen)
-			{
-				this.hook.mozRequestFullScreen();
-			}
-			else if (this.hook.webkitRequestFullscreen)
-			{
-				this.hook.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
-			}
-
-			this.fullscreen = true;
-		}
-	});
-
 	ooo.Root.on('show', function (root, parent)
 	{
 		var drag = false;
@@ -937,7 +905,7 @@ var ooo = {};
 		var argv = [0];
 		var requestFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame;
 		var that = this;
-		
+
 		function on_mousedown (event)
 		{
 			down_x = event.clientX;
@@ -946,7 +914,7 @@ var ooo = {};
 			//event.preventDefault();
 			//event.stopPropagation();
 		}
-		
+
 		function on_mousemove (event)
 		{
 			drag_x = event.clientX - down_x;
@@ -981,12 +949,12 @@ var ooo = {};
 			//event.preventDefault();
 			//event.stopPropagation();
 		}
-		
+
 		function on_mouseout (event)
 		{
 			//console.log('out', JSON.stringify(that));
 		}
-		
+
 		function on_keydown (event)
 		{
 			if (event.keyCode < 48)
@@ -1040,6 +1008,52 @@ var ooo = {};
 		this.canvas.addEventListener('mouseup', on_mouseup);
 		this.canvas.addEventListener('mouseout', on_mouseout);
 		window.addEventListener('resize', on_resize);*/
+	});
+
+	ooo.Root.method('toggle', function ()
+	{
+		if (document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement)
+		{
+			if (document.exitFullscreen)
+			{
+				document.exitFullscreen();
+			}
+			else if (document.msExitFullscreen)
+			{
+				document.msExitFullscreen();
+			}
+			else if (document.mozCancelFullScreen)
+			{
+				document.mozCancelFullScreen();
+			}
+			else if (document.webkitExitFullscreen)
+			{
+				document.webkitExitFullscreen();
+			}
+
+			this.fullscreen = false;
+		}
+		else
+		{
+			if (this.hook.requestFullscreen)
+			{
+				this.hook.requestFullscreen();
+			}
+			else if (this.hook.msRequestFullscreen)
+			{
+				this.hook.msRequestFullscreen();
+			}
+			else if (this.hook.mozRequestFullScreen)
+			{
+				this.hook.mozRequestFullScreen();
+			}
+			else if (this.hook.webkitRequestFullscreen)
+			{
+				this.hook.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+			}
+
+			this.fullscreen = true;
+		}
 	});
 
 	ooo.Client = ooo.Root.extend(function (url, hook, assets, color)

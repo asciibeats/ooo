@@ -1,5 +1,5 @@
 'use strict';
-
+//fabricate claims!!!
 //history group->type!->id->time
 //andere realms anerkennen!!!!
 //chars "follow" other chars
@@ -16,14 +16,14 @@
 //CHOOSE ABORT CONDITION FOR EVERY CHAR!? or x health or sth
 //WORLDSIZE: sqrt(playernum) * size
 var POW2 = [1, 2, 4, 8];
-var ITEMTILES = [0, 3, 5, 4, 3, 3, 3, 3, 9, 3, 9, 10, 11];
-var ITEMTILES2 = [0, 3, 5, 4, 3, 2, 1, 3, 0, 3, 9, 10, 11];
+var ITEMTILES = [0, 3, 5, 4, 3, 2, 1, 3, 0, 3, 9, 10, 11];
 var CHARTILES = [0, 3, 5, 4, 3, 2, 1, 3, 0, 0, 9, 10, 11];
 
 var GROUPS = [];
 GROUPS[0] = 'Terrain';
 GROUPS[1] = 'Characters';
 GROUPS[2] = 'Items';
+GROUPS[3] = 'Attributes';
 
 var ITEMS = [];
 ITEMS[0] = {title: 'World', group: 0, obscurity: 0, visibility: 0};
@@ -57,6 +57,47 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 
 (function ()
 {
+	var Login = oui.Form.extend(function (color, font, layout, align, baseline)
+	{
+		oui.Form.call(this, color, font, layout, align, baseline);
+		this.show(new oui.Field('auth', {'top': 10, 'left': 10, 'right':10, 'height': 30}));
+		this.show(new oui.Field('auth', {'top': 50, 'left': 10, 'right':10, 'height': 30}));
+		this.show(new oui.Submit('login', '#a50', {'top': 90, 'left': 10, 'right':10, 'height': 30}));
+	});
+
+	Login.bubble('form:submit', function (type, data)
+	{
+		this.root.auth = data;
+		this.root.send('login', data);
+	});
+
+	var Game = ooo.Class.extend(function (rules, names)
+	{
+		this.rules = rules;
+		this.time = 0;
+		this.players = {};
+
+		for (var i = 0; i < names.length; i++)
+		{
+			this.players[names[i]] = true;
+		}
+	});
+
+	Game.method('join', function (name)
+	{
+		this.players[name] = true;
+	});
+
+	Game.method('leave', function (name)
+	{
+		delete this.players[name];
+	});
+
+	Game.method('start', function (time)
+	{
+		this.time = time;
+	});
+
 	/*var Site = ooo.Stage.extend(function ()
 	{
 		ooo.Stage.call(this);
@@ -120,96 +161,6 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 
 		events[parent][time][id] = type;
 	}*/
-
-	/*/World
-	function mark_tile (tile, direction)
-	{
-		if (this.marks[tile.i] != undefined)
-		{
-			this.marks[tile.i] |= direction;
-		}
-		else
-		{
-			this.marks[tile.i] = direction;
-		}
-	}
-
-	//World
-	function mark_path (char, id)
-	{
-		var tile = this.index[char[4]];
-		mark_tile.call(this, tile, 16);
-
-		for (var i = 0; i < char[5].length; i++)
-		{
-			var direction = char[5][i][1];
-
-			if (direction != undefined)
-			{
-				var bit = POW2[direction];
-				mark_tile.call(this, tile, bit);
-				tile = tile.steps[direction];
-				var bit = POW2[(direction + 2) % 4];
-				mark_tile.call(this, tile, bit);
-				//mark_tile.call(this, tile, (bit << 2));
-			}
-		}
-	}*/
-
-	var ItemPool = oui.SingleMenu.clone(64, 64, 'items', {left: 10, width: 64, top: 10, bottom: 10}, true);
-
-	ItemPool.on('select', function (option, i)
-	{
-		console.log('ItemMenu', option, i);
-	});
-
-	ItemPool.method('reset', function (items)
-	{
-		delete this.picked;
-		this.options = [];
-
-		for (var id in items)
-		{
-			this.options.push(items[id]);
-		}
-
-		return this;
-	});
-
-	ItemPool.method('drawButton', function (time, context, data, picked)
-	{
-		if (false && picked)
-		{
-			context.fillStyle = '#f00';
-			context.fillRect(0, 0, this.button_w, this.button_h);
-		}
-		else
-		{
-			var type = ITEMTILES2[data.type];
-			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-		}
-	});
-
-	ItemPool.on('draw', function (time, context)
-	{
-		if (this.reversed)
-		{
-			if (this.vertical)
-			{
-				context.translate(0, this.height - this.button_h);
-			}
-			else
-			{
-				context.translate(this.width - this.button_w, 0);
-			}
-		}
-
-		for (var i = 0; i < this.options.length; i++)
-		{
-			this.drawButton(time, context, this.options[i], this.picked == i);
-			context.translate(this.offset_x, this.offset_y);
-		}
-	});
 
 	var CharStack = oui.SingleMenu.clone(64, 64, 'items', {left: 84, right: 10, top: 10, bottom: 10});
 
@@ -280,11 +231,11 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		this.menu.stack.reset(this.data.info.by_root[id][1][time]);
 	});
 
-	var World = oui.TileMap.extend(function (size, info, chars, tile_w, tile_h, type, layout)
+	var World = oui.TileMap.extend(function (size, data)
 	{
-		oui.TileMap.call(this, size, tile_w, tile_h, type, layout);
-		this.chars = {};
-		this.reset(info, chars);
+		oui.TileMap.call(this, size, 64, 64, 'steps');
+		this.data = data;
+		this.reset();
 	});
 
 	World.method('Data', function (map, i, x, y)
@@ -294,108 +245,143 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 
 	World.method('drawTile', function (tile, time, context)
 	{
-		context.drawImage(this.image, this.coords[tile.data.type][0], this.coords[tile.data.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
-		var mark = this.marks[tile.i];
-
-		if (mark != undefined)
+		if (this.focus_id != null)
 		{
-			context.drawImage(this.root.images['path'], this.coords[mark][0], this.coords[mark][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
+			if (tile.data.type == 0)
+			{
+				context.drawImage(this.image, this.coords[tile.data.type][0], this.coords[tile.data.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
+			}
+			else if (tile.i in this.data.info.by_char[this.focus_id][0])
+			{
+				context.drawImage(this.image, this.coords[tile.data.type][0], this.coords[tile.data.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
+			}
+			else
+			{
+				context.drawImage(this.image, this.coords[1][0], this.coords[1][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
+			}
+		}
+		else
+		{
+			context.drawImage(this.image, this.coords[tile.data.type][0], this.coords[tile.data.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
 		}
 
-		if (this.landmark == tile.i)
+		var other = this.marks.steps.other[tile.i];
+		var owner = this.marks.steps.owner[tile.i];
+		var focus = this.marks.steps.focus[tile.i];
+
+		if (other != undefined)
+		{
+			context.drawImage(this.root.images['path'], this.coords[other][0], this.coords[other][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
+		}
+
+		if (owner != undefined)
+		{
+			context.drawImage(this.root.images['path'], this.coords[owner][0], this.coords[owner][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
+		}
+
+		if (focus != undefined)
+		{
+			context.drawImage(this.root.images['path'], this.coords[focus][0], this.coords[focus][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
+		}
+
+		/*if (this.landmark == tile.i)
 		{
 			context.fillStyle = '#fff';
 			context.fillRect(10, 10, 44, 44);
-		}
+		}*/
 	});
 
-	function rootof (info)
+	function rootsof (info)
 	{
-		while (info.parent)
+		var roots = [];
+
+		if (ooo.size(info.parents))
 		{
-			info = info.parent;
+			for (var id in info.parents)
+			{
+				roots = roots.concat(rootsof(info.parents[id]));
+			}
+		}
+		else
+		{
+			roots.push(info);
 		}
 
-		return info;
+		return roots;
 	}
 
-	World.method('reset', function (history, chars)
+	//World
+	function mark_path (marks, id, shift)
 	{
-		this.landmark = 132;//focus on leader
-		this.marks = {};
-		this.picks = [];
-		this.info = {};
-		this.list = {};
-		this.menu = {};
-		this.mode = 'overview';
-
-		var times = ooo.intkeys(history);
-		times = times.sort(function (a, b) { return (a > b) });
-
-		//build base info tree
-		for (var i = 0; i < times.length; i++)
+		for (var i in this.steps[id])
 		{
-			var time = times[i];
-			var parents = {};
-			var children = {};
-			this.info[time] = {};
+			var tile = this.steps[id][i];
 
-			for (var id in history[time])
+			if (marks[i] == undefined)
 			{
-				var info = {};
-				info.id = id;
-				info.type = history[time][id][0];
-				info.insight = history[time][id][1];
-				//info.data = ['hallo'];//zb text auf blatt papier
-				info.children = {};
-				this.info[time][id] = info;
-				ooo.add(this.list, info, ITEMS[info.type].group, id, time);
-				ooo.add(this.menu, info, ITEMS[info.type].group, info.type, id, time);
-				var childr = history[time][id][2];
+				marks[i] = shift;
+			}
 
-				for (var j = 0; j < childr.length; j++)
+			for (var j = 0; j < tile.steps.length; j++)
+			{
+				var next = tile.steps[j];
+
+				if (next.i in this.steps[id])
 				{
-					var cid = childr[j];
-					var child = children[cid];
-
-					if (child)
-					{
-						info.children[cid] = child;
-						child.parent = info;
-					}
-					else
-					{
-						parents[cid] = info;
-					}
-				}
-
-				var parent = parents[id];
-
-				if (parent)
-				{
-					parent.children[id] = info;
-					info.parent = parent;
-				}
-				else
-				{
-					children[id] = info;
+					marks[i] |= POW2[j];
 				}
 			}
 		}
+	}
+
+	//World
+	function mark_paths ()
+	{
+		var focus = {};
+		var owner = {};
+		var other = {};
+
+		for (var id in this.steps)
+		{
+			if (this.focus_id && (this.focus_id == id))
+			{
+				mark_path.call(this, focus, id, 0);
+			}
+			else if (id in this.data.chars)
+			{
+				mark_path.call(this, owner, id, 16);
+			}
+			else
+			{
+				mark_path.call(this, other, id, 32);
+			}
+		}
+
+		this.marks.steps = {focus: focus, owner: owner, other: other};
+	}
+
+	World.method('reset', function (focus_id)
+	{
+		this.focus_id = focus_id;
+		this.steps = {};
+		this.marks = {};
 
 		//build terrain/map
 		for (var i = 0; i < this.index.length; i++)
 		{
 			var tile = this.index[i];
-			var terrain = this.list[0];
+			var info = this.data.info.by_id[0][i];
 
-			if (terrain[i])
+			if (info)
 			{
-				var last = Math.max.apply(null, ooo.intkeys(terrain[i]));
-				var info = terrain[i][last];
 				tile.data.type = ITEMTILES[info.type];
 				tile.data.info = info;
-				tile.data.list = {};
+				var chars = this.data.info.by_root[i][1];
+
+				for (var id in chars)
+				{
+					ooo.add(tile, this.steps, id, i);
+				}
 			}
 			else
 			{
@@ -403,225 +389,41 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 			}
 		}
 
-		//build tile lists and mark hero paths
-		for (var group in this.list)
-		{
-			for (var id in this.list[group])
-			{
-				var steps = {};
-
-				//use times array for ordered iteration!!!!
-				for (var time in this.list[group][id])
-				{
-					var info = this.list[group][id][time];
-					var root = rootof(info);
-					var tile = this.index[root.id];
-					ooo.add(tile.data.list, info, group, id, time);
-
-					//ITEMS array bei info init verlinken???
-					if (ITEMS[info.type].group == 1)
-					{
-						ooo.add(steps, tile, id, time);
-						var origin = steps[id][time - 1];
-
-						if (origin)
-						{
-							if (tile != origin)
-							{
-								for (var direction in origin.steps)
-								{
-									if (origin.steps[direction] == tile)
-									{
-										break;
-									}
-								}
-
-								direction = parseInt(direction);
-								this.marks[origin.i] |= POW2[direction];
-								direction = (direction + 2) % 4;//only for squares!!! portals break here!!!!!!!!??????
-
-								if (this.marks[tile.i] != undefined)
-								{
-									this.marks[tile.i] |= POW2[direction];
-								}
-								else
-								{
-									this.marks[tile.i] = POW2[direction];
-								}
-							}
-						}
-						else
-						{
-							if (this.marks[tile.i] != undefined)
-							{
-								this.marks[tile.i] |= 16;
-							}
-							else
-							{
-								this.marks[tile.i] = 16;
-							}
-						}
-					}
-				}
-			}
-		}
-
-		//update chars
-		for (var id in chars)
-		{
-			if (chars[id])
-			{
-				this.chars[id] = chars[id];
-			}
-			else
-			{
-				delete this.chars[id];
-			}
-		}
-
-		console.log('CHARS %s', JSON.stringify(ooo.intkeys(this.list[1])));
-		console.log('ITEMS %s', JSON.stringify(ooo.intkeys(this.list[2])));
+		mark_paths.call(this);
 	});
-
-	//var EVENTS = ['discover', 'transform', 'appear', 'vanish'];
 
 	//World
 	function overview (tile)
 	{
 		console.log('### OVERVIEW ###');
+		var by_root = this.data.info.by_root[tile.i];
 
-		for (var group in tile.data.list)
+		for (var group in by_root)
 		{
 			console.log(GROUPS[group]);
 
-			for (var id in tile.data.list[group])
+			for (var id in by_root[group])
 			{
-				for (var time in tile.data.list[group][id])
-				{
-					var info = tile.data.list[group][id][time];
-					console.log('(%d@%d) %s', id, time, ITEMS[info.type].title);
-				}
+				var info = by_root[group][id];
+				console.log('(%d) %s', id, ITEMS[info.type].title);
 			}
 		}
 	}
 
-	function inventory (chars)
-	{
-		console.log('INVENTORY');
+	//event grundrauschen? damit man nicht genau wissen kann ob ein event von einem mitspieler getriggert wurde
+	///oder reicht es wenn mehrere mitspieler dabei sind und man sich etwas geschickt anstellen muss?
+	////event beispiel: du siehst eine attraktive frau und bist abgelenkt. -x insight for next y steps
 
-		for (var id in chars)
-		{
-			var char = chars[id];
-			console.log('(%d) %s', id, char[0]);
-
-			for (var j = 0; j < char[2][1].length; j++)
-			{
-				console.log(ITEMS[char[2][1][j][0]].title);
-			}
-		}
-	}
-
-	//take chars of the board when you want but cooldown or spawncost
+	//take chars of the board when you want but cooldown or spawncost?????
 	//mark the changes!!!! diffs between times
-	World.on('input:pick', function (tile, button)
+	World.on('pick:tile', function (tile, button)
 	{
-		if (this.landmark == tile.i)
-		{
-			//switch to frontal view
-			console.log('frontal');
-			this.root.show(this.root.land);
-			this.hide();
-		}
-		else
-		{
-			this.landmark = tile.i;
-		}
-		return;
-		if (this.mode == 'delete')
-		{
-			if (this.marks[tile.i])
-			{
-				var id = parseInt(prompt(JSON.stringify(this.marks[tile.i])));
-				var chars = {};
-				chars[id] = null;
-				delete this.chars[id];
-				this.root.send('tick', [chars]);
-			}
-		}
-		else if (this.mode == 'newchar')
-		{
-			if ((button != 2) && this.marks[tile.i])
-			{
-				var when = parseInt(prompt('WHEN??:'));
-				var action = JSON.parse(prompt('ACTION??:'));
-				this.steps[when][0].push(action);
-			}
-			else
-			{
-				if (button == 2)
-				{
-					this.picks.pop();
-				}
-				else
-				{
-					this.picks.push(tile);
-				}
-
-				if (this.picks.length == 1)
-				{
-					this.wake = 7;
-					this.home = this.picks[0].i;
-					this.actions = {};
-					this.steps = [[[]]];
-					this.marks = {};
-					this.marks[this.home] = 0;
-				}
-				else if (this.picks.length > 1)
-				{
-					this.steps = [[[]]];
-					this.marks = {};
-					this.marks[this.home] = 0;
-				}
-				else
-				{
-					this.steps = [];
-					this.marks = {};
-				}
-
-				for (var i = 1; i < this.picks.length; i++)
-				{
-					////keine ticks mehr!!!jaaaaa
-					////alles wird durch resourcen gewinnung getimed
-					//name: tale of beast (beast bekomment man nie zu gesicht!!!beast ist das reine böse)
-					//weite transporte mit fliegenden einheiten
-					//tiles für mitspieler markieren z.b. hierhin bitte 2 holz liefern, ich gebe dafür x (und/oder y ...)
-					//auch markieren ich biete hier etwas an (markt oder wo auch immer; markt ist da wo straßen sich kreuzen;
-					//   markte bringen geld in die stadtkasse; geld erst später? am anfang nur waren?) :)! kosten dafür werden eingefroren(pseudo verbraucht)!!
-					//picks in echtzeit!!!!!
-					//pick kombo mit mehr wert wird bevorzugt
-					//ansonsten der erste?
-					//bei streitigkeiten verhandlung(auktion?)
-					//wenn ein versorgungsast im kampf abgebrochen wird bekommt der angreifer irgendwas
-					//kann in kampf ausarten!!!
-					//secret actions
-					//sneak->get telatively early (t-x) to other somehow disrupted players
-					var path = this.findPath(this.picks[i - 1], this.picks[i]);
-
-					for (var j = 0; j < path.steps.length; j++)
-					{
-						var direction = path.steps[j];
-						this.steps.push([[], direction]);
-						//else this.steps.unshift([[]]);
-						this.marks[path.tiles[j]] = Math.pow(2, direction);
-						this.marks[path.tiles[j]] = Math.pow(2, direction);
-					}
-				}
-			}
-		}
-		else if (this.mode == 'overview')
-		{
-			overview.call(this, tile);
-		}
+		//overview.call(this, tile);
+		//MARK TILE!!!!
+		//this.root.scenes.main.world.reset(option.id);
+		this.root.scenes.main.chars.picked = {};
+		this.reset();
+		this.root.scenes.side.showTileInfo(tile);
 	});
 
 	World.on('input:press', function (time, char, key, shift)
@@ -645,90 +447,23 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		{
 			if (key == 13)
 			{
-				var chars = JSON.parse(prompt('Char?:', JSON.stringify([['tilla', [5, 8, 2], [9, [[6, []]]], 10, this.home, this.steps]])));
+				var chars = JSON.parse(prompt('Char?:', JSON.stringify([['tilla', [5, 8, 2], [9, [[6, []]]], this.home, this.steps]])));
 				this.root.send('tick', [chars]);
 			}
 		}
 	});
 
-	var Login = oui.Form.extend(function (color, font, layout, align, baseline)
+	//Overwatch (XCOM) like mechanic (trigger autoresponse)
+	//Competitive/Tournament/Ladder mode (max 45min games) (1v1;2v2 etc symmetric maps)
+
+	var CharMenu = oui.Menu.extend(function (data)
 	{
-		oui.Form.call(this, color, font, layout, align, baseline);
-		this.show(new oui.Field('auth', {'top': 10, 'left': 10, 'right':10, 'height': 30}));
-		this.show(new oui.Field('auth', {'top': 50, 'left': 10, 'right':10, 'height': 30}));
-		this.show(new oui.Submit('login', '#a50', {'top': 90, 'left': 10, 'right':10, 'height': 30}));
+		oui.Menu.call(this, 64, 64, 'chars', {left: 10, right: 10, top: 84, bottom: 10}, true, OUI_BOTTOM | OUI_REVERSED | OUI_VERTICAL);
+		this.data = data;
+		this.reset();
 	});
 
-	Login.bubble('form:submit', function (type, data)
-	{
-		this.root.auth = data;
-		this.root.send('login', data);
-	});
-
-	var Game = ooo.Class.extend(function (rules, names)
-	{
-		this.rules = rules;
-		this.time = 0;
-		this.players = {};
-
-		for (var i = 0; i < names.length; i++)
-		{
-			this.players[names[i]] = true;
-		}
-	});
-
-	var CharMenu = oui.SingleMenu.clone(64, 64, 'steps', {left: 10, right: 10, height: 64, bottom: 84}, false, true);
-
-	CharMenu.on('select', function (option, i)
-	{
-		console.log('CharMenu', option, i);
-	});
-
-	var MarkMenu = oui.SingleMenu.clone(64, 64, 'steps', {left: 10, right: 10, height: 64, bottom: 84}, false, true);
-
-	MarkMenu.on('select', function (option, i)
-	{
-		console.log('MarkMenu', option, i);
-	});
-
-	var MainMenu = oui.SingleMenu.clone(64, 64, 'options', {left: 10, right: 10, height: 64, bottom: 10}, false, true);
-
-	MainMenu.on('select', function (option, i)
-	{
-		console.log('MainMenu', option, i);
-	});
-
-	var TaskMenu = oui.SingleMenu.clone(64, 64, 'options', {left: 10, right: 10, height: 64, bottom: 158}, false, true);
-
-	TaskMenu.on('select', function (option, i)
-	{
-		console.log('TaskMenu', option, i);
-	});
-
-	var ItemMenu = oui.SingleMenu.clone(64, 64, 'items', {left: 0, right: 10, height: 64, bottom: 74}, false, true);
-
-	ItemMenu.on('select', function (option, i)
-	{
-		console.log('ItemMenu', option, i);
-	});
-
-	ItemMenu.method('reset', function (items)
-	{
-		delete this.picked;
-		this.options = [];
-
-		for (var type in items)
-		{
-			//split into multiple entries if item changed state!!!!!!
-			//var last = Math.max.apply(null, ooo.intkeys(items[id]));
-			//var info = items[id][last];
-			this.options.push([ITEMTILES2[type], ooo.size(items[type])]);
-		}
-
-		return this;
-	});
-
-	ItemMenu.method('drawButton', function (time, context, data, picked)
+	CharMenu.method('drawButton', function (time, context, option, picked)
 	{
 		if (picked)
 		{
@@ -737,91 +472,254 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		}
 		else
 		{
-			var type = data[0];
+			//var type = CHARTILES[info.type];
+			var type = 0;
 			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
 		}
 	});
 
-	ItemMenu.on('draw', function (time, context)
+	CharMenu.method('reset', function ()
 	{
-		if (this.reversed)
-		{
-			if (this.vertical)
-			{
-				context.translate(0, this.height - this.button_h);
-			}
-			else
-			{
-				context.translate(this.width - this.button_w, 0);
-			}
-		}
-
-		for (var i = 0; i < this.options.length; i++)
-		{
-			this.drawButton(time, context, this.options[i], this.picked == i);
-			context.translate(this.offset_x, this.offset_y);
-		}
-	});
-
-	var CharMenu = oui.SingleMenu.clone(64, 64, 'chars', {left: 64, width: 64, top: 0, bottom: 0}, true, false);
-
-	CharMenu.on('select', function (option, i)
-	{
-		console.log('ItemMenu', option, i);
-	});
-
-	CharMenu.method('reset', function (chars)
-	{
-		delete this.picked;
 		this.options = [];
+		this.picked = {};
 
-		for (var id in chars)
+		for (var id in this.data.chars)
 		{
-			//split into multiple entries if item changed state!!!!!!
-			var last = Math.max.apply(null, ooo.intkeys(chars[id]));
-			var info = chars[id][last];
+			var info = this.data.info.by_id[1][id];
 			this.options.push(info);
 		}
 
 		return this;
 	});
 
-	CharMenu.on('draw', function (time, context)
+	CharMenu.on('menu:pick', function (option, i)
 	{
-		if (this.reversed)
+		this.picked = {};
+		this.picked[i] = true;
+		this.root.scenes.main.world.reset(option.id);
+		this.root.scenes.side.showCharInfo(option);
+	});
+
+	var MainScene = ooo.Scene.extend(function (game, data)
+	{
+		ooo.Scene.call(this, {left: 0, right: 276, top: 0, bottom: 0});
+		this.world = new World(game.rules[1], data);
+		this.notes = new oui.Menu(64, 64, 'steps', {left: 10, right: 10, top: 10, height: 64}, false, OUI_REVERSED).reset([1,1,1]);
+		this.chars = new CharMenu(data);
+		this.show(this.world);
+		this.show(this.notes, 1);
+		this.show(this.chars, 1);
+	});
+
+	var ItemPool = oui.Menu.extend(function (data)
+	{
+		oui.Menu.call(this, 64, 64, 'items', {left: 10, right: 10, top: 10, bottom: 74}, true, OUI_BOTTOM | OUI_REVERSED);
+		this.data = data;
+		this.reset();
+	});
+
+	ItemPool.method('drawButton', function (time, context, option, picked)
+	{
+		if (picked)
 		{
-			if (this.vertical)
-			{
-				context.translate(0, this.height - this.button_h);
-			}
-			else
-			{
-				context.translate(this.width - this.button_w, 0);
-			}
+			context.fillStyle = '#f00';
+			context.fillRect(0, 0, this.button_w, this.button_h);
+		}
+		else
+		{
+			var type = ITEMTILES[option];
+			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
+		}
+	});
+
+	ItemPool.method('reset', function ()
+	{
+		this.options = [];
+		this.picked = {};
+
+		for (var type in this.data.info.by_type[2])
+		{
+			this.options.push(parseInt(type));
 		}
 
-		for (var i = 0; i < this.options.length; i++)
+		return this;
+	});
+
+	ItemPool.on('menu:pick', function (option, i)
+	{
+		console.log('ITEM_TYPE', option);
+	});
+
+	var Overview = ooo.Scene.extend(function (game, data)
+	{
+		ooo.Scene.call(this);
+		this.items = new ItemPool(data);
+		this.options = new oui.Menu(64, 64, 'steps', {left: 10, right: 10, height: 64, bottom: 10}, false, OUI_BOTTOM).reset([0,2,1,2]);
+		this.show(new ooo.Box('#c02515'));
+		this.show(this.items, 1);
+		this.show(this.options, 1);
+	});
+
+	var Stuff = oui.Menu.extend(function (data)
+	{
+		oui.Menu.call(this, 64, 64, 'items', {left: 10, right: 10, top: 10, bottom: 74}, true, OUI_BOTTOM | OUI_REVERSED);
+		this.data = data;
+		//this.reset();
+	});
+
+	Stuff.method('drawButton', function (time, context, option, picked)
+	{
+		if (picked)
 		{
-			if (this.picked == i)
-			{
-				context.fillStyle = '#f00';
-				context.fillRect(0, 0, this.button_w, this.button_h);
-			}
-			else
-			{
-				var info = this.options[i];
-				var type = CHARTILES[info.type];
-				context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-
-				if (info.insight < ITEMS[info.type].obscurity)
-				{
-					context.fillStyle = '#fff';
-					context.fillText('' + info.insight + '/' + ITEMS[info.type].obscurity, 10, 54);
-				}
-			}
-
-			context.translate(this.offset_x, this.offset_y);
+			context.fillStyle = '#f00';
+			context.fillRect(0, 0, this.button_w, this.button_h);
 		}
+		else
+		{
+			var type = ITEMTILES[option.type];
+			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
+		}
+	});
+
+	Stuff.method('reset', function (tile)
+	{
+		this.options = [];
+		this.picked = {};
+
+		for (var id in this.data.info.by_root[tile.i][2])
+		{
+			var info = this.data.info.by_root[tile.i][2][id];
+			this.options.push(info);
+		}
+
+		return this;
+	});
+
+	Stuff.on('menu:pick', function (option, i)
+	{
+		console.log('ITEM_ID', option.id);
+	});
+
+	var TileOptions = oui.Menu.extend(function ()
+	{
+		oui.Menu.call(this, 64, 64, 'steps', {left: 10, right: 10, height: 64, bottom: 10}, false, OUI_BOTTOM);
+		this.reset([1,0,2,1]);
+	});
+
+	TileOptions.on('menu:pick', function (option, i)
+	{
+		//this.root.scenes.main.chars.picked = {};
+		this.root.scenes.main.world.reset();
+		this.root.scenes.side.showOverview();
+	});
+
+	var TileInfo = ooo.Scene.extend(function (data)
+	{
+		ooo.Scene.call(this);
+		this.stuff = new Stuff(data);
+		this.options = new TileOptions();
+		this.show(new ooo.Box('#792e8c'));
+		this.show(this.stuff, 1);
+		this.show(this.options, 1);
+	});
+
+	var Inventory = oui.Menu.extend(function (data)
+	{
+		oui.Menu.call(this, 64, 64, 'items', {left: 10, right: 10, top: 10, bottom: 74}, true, OUI_BOTTOM | OUI_REVERSED);
+		this.data = data;
+		//this.reset();
+	});
+
+	Inventory.method('drawButton', function (time, context, option, picked)
+	{
+		if (picked)
+		{
+			context.fillStyle = '#f00';
+			context.fillRect(0, 0, this.button_w, this.button_h);
+		}
+		else
+		{
+			var type = ITEMTILES[option.type];
+			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
+		}
+	});
+
+	Inventory.method('reset', function (char_info)
+	{
+		this.options = [];
+		this.picked = {};
+
+		for (var id in this.data.info.by_char[char_info.id][2])
+		{
+			var info = this.data.info.by_char[char_info.id][2][id];
+			this.options.push(info);
+		}
+
+		return this;
+	});
+
+	Inventory.on('menu:pick', function (option, i)
+	{
+		console.log('ITEM_ID', option.id);
+	});
+
+	var CharOptions = oui.Menu.extend(function ()
+	{
+		oui.Menu.call(this, 64, 64, 'steps', {left: 10, right: 10, height: 64, bottom: 10}, false, OUI_BOTTOM);
+		this.reset([0,2,1,2]);
+	});
+
+	CharOptions.on('menu:pick', function (option, i)
+	{
+		this.root.scenes.main.chars.picked = {};
+		this.root.scenes.main.world.reset();
+		this.root.scenes.side.showOverview();
+	});
+
+	var CharInfo = ooo.Scene.extend(function (data)
+	{
+		ooo.Scene.call(this);
+		this.inventory = new Inventory(data);
+		this.options = new CharOptions();
+		this.show(new ooo.Box('#2e588c'));
+		this.show(this.inventory, 1);
+		this.show(this.options, 1);
+	});
+
+	var SideScene = ooo.Scene.extend(function (game, data)
+	{
+		ooo.Scene.call(this, {width: 276, right: 0, top: 0, bottom: 0});
+		this.scenes = {};
+		this.scenes.overview = new Overview(game, data);
+		this.scenes.tileinfo = new TileInfo(data);
+		this.scenes.charinfo = new CharInfo(data);
+		this.upfront = this.scenes.overview;
+		this.show(this.upfront);
+	});
+
+	SideScene.method('showTileInfo', function (tile)
+	{
+		console.log('showTileInfo', tile.i);
+		this.upfront.hide();
+		this.upfront = this.scenes.tileinfo;
+		this.upfront.stuff.reset(tile);
+		this.show(this.upfront);
+	});
+
+	SideScene.method('showCharInfo', function (info)
+	{
+		console.log('showCharInfo', info.id);
+		this.upfront.hide();
+		this.upfront = this.scenes.charinfo;
+		this.upfront.inventory.reset(info);
+		this.show(this.upfront);
+	});
+
+	SideScene.method('showOverview', function ()
+	{
+		this.upfront.hide();
+		this.upfront = this.scenes.overview;
+		this.show(this.upfront);
 	});
 
 	var Client = ooo.Client.extend(function (url, hook, assets, color)
@@ -886,13 +784,13 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 	Client.on('message:join', function (name)
 	{
 		console.log('JOIN %s', name);
-		this.game.players[name] = true;
+		this.game.join(name);
 	});
 
 	Client.on('message:leave', function (name)
 	{
 		console.log('LEAVE %s', name);
-		delete this.game.players[name];
+		this.game.leave(name);
 
 		if (this.timeout)
 		{
@@ -901,82 +799,88 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		}
 	});
 
-	Client.on('message:ready', function (delay)
+	//Client
+	function count_down (delay)
 	{
-		console.log('READY %d', delay);
+		console.log('starting in %d', delay);
 		delay--;
 
 		if (delay > 0)
 		{
 			var that = this;
-			this.timeout = setTimeout(function () { that.events.on['message:ready'].call(that, delay) }, 1000);
+			this.timeout = setTimeout(function () { count_down.call(that, delay) }, 1000);
 		}
 		else
 		{
 			delete this.timeout;
 		}
+	}
+
+	Client.on('message:ready', function (delay)
+	{
+		console.log('READY %d', delay);
+		count_down.call(this, delay);
 	});
 
-	//wie behandle ich doppelte infos (diff insight) //diff insight verhindern? vereinfachen?
 	function convert_history (history)
 	{
-		var times = ooo.intkeys(history).sort(function (a, b) { return (a > b) });
-		var by_time = {};
 		var by_id = {};
 		var by_type = {};
+		var by_char = {};
 		var by_root = {};
 
 		//build base info tree
-		for (var i = 0; i < times.length; i++)
+		var has_parents = {};
+		var has_children = {};
+
+		for (var char in history)
 		{
-			var time = times[i];
-			var parents = {};
-			var children = {};
-
-			for (var char in history[time])
+			for (var id in history[char])
 			{
-				for (var id in history[time][char])
+				var argv = history[char][id];
+				var info = {};
+				info.id = parseInt(id);
+				info.type = argv[0];
+				info.insight = argv[1];
+				//info.data = ['hallo'];//zb text auf blatt papier
+				info.parents = {};
+				info.children = {};
+
+				var group = ITEMS[info.type].group;
+				ooo.add(info, by_id, group, id);
+				ooo.add(info, by_type, group, info.type, id);
+				ooo.add(info, by_char, char, group, id);
+
+				//link to children
+				for (var j = 0; j < argv[2].length; j++)
 				{
-					var info = {};
-					info.id = id;
-					info.type = history[time][char][id][0];
-					info.insight = history[time][char][id][1];
-					//info.data = ['hallo'];//zb text auf blatt papier
-					info.children = {};
-					var childr = history[time][char][id][2];
+					var cid = argv[2][j];
+					var child = has_children[cid];
 
-					for (var j = 0; j < childr.length; j++)
+					if (child)
 					{
-						var cid = childr[j];
-						var child = children[cid];
-
-						if (child)
-						{
-							info.children[cid] = child;
-							child.parent = info;
-						}
-						else
-						{
-							parents[cid] = info;
-						}
-					}
-
-					var parent = parents[id];
-
-					if (parent)
-					{
-						parent.children[id] = info;
-						info.parent = parent;
+						info.children[cid] = child;
+						child.parents[id] = info;
 					}
 					else
 					{
-						children[id] = info;
+						ooo.add(info, has_parents, cid, id);
 					}
+				}
 
-					var group = ITEMS[info.type].group;
-					ooo.add(by_time, info, group, time, id);
-					ooo.add(by_id, info, group, id, time);
-					ooo.add(by_type, info, group, info.type, id, time);
+				//link to parents
+				if (id in has_parents)
+				{
+					for (var asdf in has_parents[id])
+					{
+						var parent = has_parents[id][asdf];
+						parent.children[id] = info;
+						info.parents[asdf] = parent;
+					}
+				}
+				else
+				{
+					has_children[id] = info;
 				}
 			}
 		}
@@ -985,48 +889,45 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		{
 			for (var id in by_id[group])
 			{
-				for (var time in by_id[group][id])
+				var info = by_id[group][id];
+				var roots = rootsof(info);
+
+				for (var i = 0; i < roots.length; i++)
 				{
-					var info = by_id[group][id][time];
-					var root = rootof(info);
-					ooo.add(by_root, info, root.id, group, time, id);
+					ooo.add(info, by_root, roots[i].id, group, id);
 				}
 			}
 		}
 
-		return {by_time: by_time, by_id: by_id, by_type: by_type, by_root: by_root};
+		return {by_id: by_id, by_type: by_type, by_char: by_char, by_root: by_root};
+	}
+
+	//vision entfernen!!! pathfinding nur mit costs!!! low energy char hat kleineres areal!!!!
+
+	//Client
+	function start_game (time, history, chars)
+	{
+		this.game.start(time);
+
+		this.data = {};
+		this.data.info = convert_history(history);
+		this.data.chars = chars;
+
+		this.scenes = {};
+		this.scenes.main = new MainScene(this.game, this.data);
+		this.scenes.side = new SideScene(this.game, this.data);
+
+		this.show(this.scenes.main);
+		this.show(this.scenes.side);
 	}
 
 	Client.on('message:start', function (time, history, chars)
 	{
-		console.log('START', arguments);
 		//this.root.update = false;
 		//this.root.once = true;
-		this.game.time = time;
-		//this.world = new World(this.game.rules[1], info, chars, 64, 64, 'steps');
-		//this.show(this.world);
-		//this.landmark = 132;//focus on leader
-		this.data = {};
-		this.data.info = convert_history(history);
-		this.data.chars = chars;
-		this.scenes = {};
-		this.scenes.land = new Land(this.data.info);
-		this.scenes.land.reset(132, ooo.maxkey(this.data.info.by_id[1][132]));
-		this.show(this.scenes.land);
-
-		this.menus = {};
-		/*this.menus.chars = new CharMenu();
-		this.menus.chars.reset([2,1,2]);
-		this.show(this.menus.chars, 1);
-		this.menus.marks = new MarkMenu();
-		this.menus.marks.reset([1,2,1]);
-		this.show(this.menus.marks, 1);*/
-		/*this.menus.items = new ItemMenu();
-		this.menus.items.reset(this.info.group[2]);
-		this.show(this.menus.items, 1);*/
-		/*this.menus.chars = new CharMenu();
-		this.menus.chars.reset(this.info.group[1]);
-		this.show(this.menus.chars, 1);*/
+		console.log('START', arguments);
+		start_game.call(this, time, history, chars);
+		console.log('MAKE A MOVE');
 	});
 
 	Client.on('message:continue', function (rules, names, time, history, chars, waiting)
@@ -1034,54 +935,9 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		console.log('CONTINUE', arguments);
 		this.forms.login.hide();
 		ooo.setLocal('auth', this.auth);
+
 		this.game = new Game(rules, names);
-		this.game.time = time;
-		//this.world = new World(this.game.rules[1], info, chars, 64, 64, 'steps');
-		//this.land = new Land();
-		//this.show(this.land);
-		//this.show(this.world);
-		this.data = {};
-		this.data.info = convert_history(history);
-		this.data.chars = chars;
-		this.scenes = {};
-		this.scenes.land = new Land(this.data.info);
-		this.scenes.land.reset(132, ooo.maxkey(this.data.info.by_id[0][132]));
-		this.show(this.scenes.land);
-
-		console.log('CHARS %s', JSON.stringify(ooo.intkeys(this.data.info.by_id[1])));
-		console.log('ITEMS %s', JSON.stringify(ooo.intkeys(this.data.info.by_id[2])));
-		var time = ooo.maxkey(this.data.info.by_id[0][133]);
-		console.log('@133 %s', JSON.stringify(ooo.intkeys(this.data.info.by_id[0][133][time].children)));
-
-		this.menus = {};
-		/*this.menus.chars = new CharMenu();
-		this.menus.chars.reset([2,1,2]);
-		this.show(this.menus.chars, 1);*/
-
-		/*this.menus.marks = new MarkMenu();
-		this.menus.marks.reset([1,2,1]);
-		this.show(this.menus.marks, 1);*/
-
-		/*this.menus.main = new MainMenu();
-		this.menus.main.reset([0,1]);
-		this.show(this.menus.main, 1);*/
-
-		/*this.menus.items = new ItemMenu();
-		this.menus.items.reset(this.info.type[2]);
-		this.show(this.menus.items, 1);*/
-
-		/*this.menus.chars = new CharMenu();
-		this.menus.chars.reset(this.world.list[1]);
-		this.show(this.menus.chars, 1);*/
-		//var that = this;
-
-		/*this.world.on('input:pick', function (tile, x, y)
-		{
-			this.diffs[til
-			that.menu.reset([tile.data.type]);
-		});*/
-		//this.land = new Site();
-		//this.show(this.land);
+		start_game.call(this, time, history, chars);
 
 		if (waiting)
 		{

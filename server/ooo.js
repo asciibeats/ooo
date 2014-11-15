@@ -9,6 +9,54 @@ ooo.Wrap = function (Func, argv)
     return Func.bind.apply(Func, [Func].concat(argv));
 }
 
+ooo.add = function (value, object)
+{
+	var pointer = object;
+	var loops = arguments.length - 1;
+	var key = null;
+
+	for (var i = 2; i < loops; i++)
+	{
+		key = arguments[i];
+
+		if (!pointer[key])
+		{
+			pointer[key] = {};
+		}
+
+		pointer = pointer[key];
+	}
+	
+	pointer[arguments[i]] = value;
+}
+
+ooo.remove = function (object)
+{
+	var pointers = [object];
+	var loops = arguments.length - 1;
+
+	for (var i = 1; i < loops; i++)
+	{
+		pointers[i] = pointers[i - 1][arguments[i]];
+	}
+
+	//besser lösen?
+	if (!pointers[i - 1])
+	{
+		return;
+	}
+
+	delete pointers[i - 1][arguments[i]];
+
+	for (i--; i > 0; i--)
+	{
+		if (Object.keys(pointers[i]).length === 0)
+		{
+			delete pointers[i - 1][arguments[i]];
+		}
+	}
+}
+
 ooo.map = function (keys, values)
 {
 	var object = {};

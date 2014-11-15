@@ -1,4 +1,7 @@
 'use strict';
+var OUI_BOTTOM = 1;
+var OUI_REVERSED = 2;
+var OUI_VERTICAL = 4;
 var oui = {};
 
 //separate (replacable) tiledraw function in tilemap/hexmap (no event!)
@@ -401,23 +404,79 @@ var oui = {};
 		context.fillText(this.state, 0, 0);
 	});
 
-	oui.Menu = ooo.Cell.extend(function (button_w, button_h, type, layout, vertical, reversed)//switch to oui.Button.extend
+	oui.Menu = ooo.Cell.extend(function (button_w, button_h, type, layout, wrap, style)//switch to oui.Button.extend
 	{
 		ooo.Cell.call(this, layout);
 		this.button_w = button_w;
 		this.button_h = button_h;
 		this.type = type;
-		this.vertical = vertical;
-		this.reversed = reversed;
-		this.offset_x = vertical ? 0 : reversed ? -button_w : button_w;
-		this.offset_y = vertical ? reversed ? -button_h : button_h : 0;
+		this.wrap = wrap || false;
+		this.style = style || 0;
 		this.options = [];
 	});
 
-	oui.Menu.method('reset', function (options)
+	oui.Menu.on('resize', function (width, height)
 	{
-		this.options = options || [];
-		return this;
+		ooo.Cell.prototype.events.on.resize.call(this, width, height);
+		this.cols = Math.floor(this.width / this.button_w);
+		this.rows = Math.floor(this.height / this.button_h);
+
+		if (this.style & OUI_VERTICAL)
+		{
+			this.shift_x = 0;
+			this.break_y = 0;
+			this.line_br = Math.floor(this.height / this.button_h);
+
+			if (this.style & OUI_REVERSED)
+			{
+				this.init_x = this.width - this.button_w;
+				this.break_x = -this.button_w;
+			}
+			else
+			{
+				this.init_x = 0;
+				this.break_x = this.button_w;
+			}
+
+			if (this.style & OUI_BOTTOM)
+			{
+				this.init_y = this.height - this.button_h;
+				this.shift_y = -this.button_h;
+			}
+			else
+			{
+				this.init_y = 0;
+				this.shift_y = this.button_h;
+			}
+		}
+		else
+		{
+			this.shift_y = 0;
+			this.break_x = 0;
+			this.line_br = Math.floor(this.width / this.button_w);
+
+			if (this.style & OUI_REVERSED)
+			{
+				this.init_x = this.width - this.button_w;
+				this.shift_x = -this.button_w;
+			}
+			else
+			{
+				this.init_x = 0;
+				this.shift_x = this.button_w;
+			}
+
+			if (this.style & OUI_BOTTOM)
+			{
+				this.init_y = this.height - this.button_h;
+				this.break_y = -this.button_h;
+			}
+			else
+			{
+				this.init_y = 0;
+				this.break_y = this.button_h;
+			}
+		}
 	});
 
 	oui.Menu.on('show', function (root, parent)
@@ -438,226 +497,141 @@ var oui = {};
 		}
 	});
 
+	//max_lines bestimmen und bei überschreitung neue seite oder so!!!???
 	oui.Menu.on('draw', function (time, context)
 	{
-		if (this.reversed)
+		context.translate(this.init_x, this.init_y);
+		context.save();
+
+		for (var i = 0; i < this.options.length;)
 		{
-			if (this.vertical)
+			this.drawButton(time, context, this.options[i], this.picked[i]);
+			context.translate(this.shift_x, this.shift_y);
+			i++;
+
+			if ((i % this.line_br) == 0)
 			{
-				context.translate(0, this.height - this.button_h);
+				if (!this.wrap)
+				{
+					break;
+				}
+
+				context.restore();
+				context.translate(this.break_x, this.break_y);
+				context.save();
 			}
-			else
+		}
+		
+		context.restore();
+	});
+
+	oui.Menu.method('reset', function (options, picked)
+	{
+		this.options = options || [];
+		this.picked = {};
+
+		if (picked)
+		{
+			for (var i = 0; i < picked.length; i++)
 			{
-				context.translate(this.width - this.button_w, 0);
+				this.picked[i] = true;
 			}
 		}
 
-		for (var i = 0; i < this.options.length; i++)
+		return this;
+	});
+
+	oui.Menu.method('drawButton', function (time, context, option, picked)
+	{
+		if (picked)
 		{
-			var index = this.options[i];
-			context.drawImage(this.image, this.tiles[index][0], this.tiles[index][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-			context.translate(this.offset_x, this.offset_y);
+			context.fillStyle = '#f00';
+			context.fillRect(0, 0, this.button_w, this.button_h);
+		}
+		else
+		{
+			context.drawImage(this.image, this.tiles[option][0], this.tiles[option][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
 		}
 	});
 
 	oui.Menu.on('input:click', function (button, down_x, down_y)
 	{
-		if (this.vertical)
+		if (this.style & OUI_BOTTOM)
 		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.height - down_y) / this.button_h);
-			}
-			else
-			{
-				var i = Math.floor(down_y / this.button_h);
-			}
+			var row = Math.floor((this.height - down_y) / this.button_h);
 		}
 		else
 		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.width - down_x) / this.button_w);
-			}
-			else
-			{
-				var i = Math.floor(down_x / this.button_w);
-			}
+			var row = Math.floor(down_y / this.button_h);
 		}
 
-		if (this.options[i] != undefined)
+		if (this.style & OUI_REVERSED)
 		{
-			this.trigger('input:pick', [this.options[i], i]);
+			var col = Math.floor((this.width - down_x) / this.button_w);
+		}
+		else
+		{
+			var col = Math.floor(down_x / this.button_w);
+		}
+
+		if (this.style & OUI_VERTICAL)
+		{
+			var index = col * this.rows + row;
+		}
+		else
+		{
+			var index = row * this.cols + col;
+		}
+
+		if ((this.options[index] != undefined) && (col < this.cols) && (row < this.rows))
+		{
+			var argv = this.preparePick(this.options[index], index);
+			this.trigger('menu:pick', argv);
 			return false;
 		}
 	});
 
-	oui.SingleMenu = oui.Menu.extend(function (button_w, button_h, image, layout, vertical, reversed)
+	oui.Menu.method('preparePick', function (option, index)
+	{
+		return [option, index];
+	});
+
+	oui.SingleMenu = oui.Menu.extend(function (button_w, button_h, image, layout, wrap, style)
 	{
 		oui.Menu.apply(this, arguments);
 	});
 
-	oui.SingleMenu.method('reset', function (options)
+	oui.SingleMenu.method('preparePick', function (option, index)
 	{
-		this.options = options || [];
-		delete this.picked;
-		return this;
+		this.picked = {};
+		this.picked[index] = true;
+		return [option, index];
 	});
 
-	oui.SingleMenu.on('draw', function (time, context)
-	{
-		if (this.reversed)
-		{
-			if (this.vertical)
-			{
-				context.translate(0, this.height - this.button_h);
-			}
-			else
-			{
-				context.translate(this.width - this.button_w, 0);
-			}
-		}
-
-		for (var i = 0; i < this.options.length; i++)
-		{
-			if (this.picked == i)
-			{
-				context.fillStyle = '#f00';
-				context.fillRect(0, 0, this.button_w, this.button_h);
-			}
-			else
-			{
-				var type = this.options[i];
-				context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-			}
-
-			context.translate(this.offset_x, this.offset_y);
-		}
-	});
-
-	oui.SingleMenu.on('input:click', function (button, down_x, down_y)
-	{
-		if (this.vertical)
-		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.height - down_y) / this.button_h);
-			}
-			else
-			{
-				var i = Math.floor(down_y / this.button_h);
-			}
-		}
-		else
-		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.width - down_x) / this.button_w);
-			}
-			else
-			{
-				var i = Math.floor(down_x / this.button_w);
-			}
-		}
-
-		if (this.options[i] != undefined)
-		{
-			this.picked = i;
-			this.trigger('select', [this.options[i], i]);
-			return false;
-		}
-	});
-
-	oui.MultiMenu = oui.Menu.extend(function (button_w, button_h, image, layout)
+	oui.MultiMenu = oui.Menu.extend(function (button_w, button_h, image, layout, wrap, style)
 	{
 		oui.Menu.apply(this, arguments);
 	});
 
-	oui.MultiMenu.method('reset', function (options)
+	oui.MultiMenu.method('preparePick', function (option, index)
 	{
-		this.options = options || [];
-		this.picked = [];
-
-		for (var i = 0; i < this.options.length; i++)
+		if (this.picked[index])
 		{
-			this.picked[i] = false;
-		}
-
-		return this;
-	});
-
-	oui.MultiMenu.on('draw', function (time, context)
-	{
-		if (this.reversed)
-		{
-			if (this.vertical)
-			{
-				context.translate(0, this.height - this.button_h);
-			}
-			else
-			{
-				context.translate(this.width - this.button_w, 0);
-			}
-		}
-
-		for (var i = 0; i < this.options.length; i++)
-		{
-			if (this.picked[i])
-			{
-				context.fillStyle = '#f00';
-				context.fillRect(0, 0, this.button_w, this.button_h);
-			}
-			else
-			{
-				var type = this.options[i];
-				context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-			}
-
-			context.translate(this.offset_x, this.offset_y);
-		}
-	});
-
-	oui.MultiMenu.on('input:click', function (button, down_x, down_y)
-	{
-		if (this.vertical)
-		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.height - down_y) / this.button_h);
-			}
-			else
-			{
-				var i = Math.floor(down_y / this.button_h);
-			}
+			delete this.picked[index];
 		}
 		else
 		{
-			if (this.reversed)
-			{
-				var i = Math.floor((this.width - down_x) / this.button_w);
-			}
-			else
-			{
-				var i = Math.floor(down_x / this.button_w);
-			}
+			this.picked[index] = true;
 		}
 
-		if (this.options[i] != undefined)
+		var selection = [];
+
+		for (var i in this.picked)
 		{
-			this.picked[i] = !this.picked[i];
-			var selection = [];
-
-			for (var j = 0; j < this.options.length; j++)
-			{
-				if (this.picked[j])
-				{
-					selection.push(this.options[j]);
-				}
-			}
-
-			this.trigger('pick', [selection, this.options[i], i]);
-			return false;
+			selection.push(this.options[i]);
 		}
+
+		return [selection, option, index];
 	});
 
 	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -716,12 +690,80 @@ var oui = {};
 		}
 	});
 
+	oui.TileMap.on('show', function (root, parent)
+	{
+		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.type];
+		this.coords = [];
+
+		var cols = Math.floor(this.image.width / this.tile_w);
+		var rows = Math.floor(this.image.height / this.tile_h);
+
+		for (var y = 0; y < rows; y++)
+		{
+			for (var x = 0; x < cols; x++)
+			{
+				this.coords.push([x * this.tile_w, y * this.tile_h]);
+			}
+		}
+	});
+
+	oui.TileMap.on('input:drag', function (drag_x, drag_y)
+	{
+		this.drag_x = drag_x;
+		this.drag_y = drag_y;
+	});
+
+	oui.TileMap.on('input:drop', function (drop_x, drop_y)
+	{
+		this.drop_x = ooo.wrap(this.drop_x - this.drag_x, this.patch_w);
+		this.drop_y = ooo.wrap(this.drop_y - this.drag_y, this.patch_h);
+		this.drag_x = 0;
+		this.drag_y = 0;
+	});
+
+	oui.TileMap.on('input:click', function (button, down_x, down_y)
+	{
+		var tile_x = Math.floor(((this.drop_x + down_x) % this.patch_w) / this.tile_w);
+		var tile_y = Math.floor(((this.drop_y + down_y) % this.patch_h) / this.tile_h);
+		this.trigger('pick:tile', [this.tiles[tile_y][tile_x], button, tile_x, tile_y]);
+	});
+
+	oui.TileMap.on('draw', function (time, context)
+	{
+		var drop_x = ooo.wrap(this.drop_x - this.drag_x, this.patch_w);
+		var drop_y = ooo.wrap(this.drop_y - this.drag_y, this.patch_h);
+		var start_x = Math.floor(drop_x / this.tile_w);
+		var start_y = Math.floor(drop_y / this.tile_h);
+		var end_x = start_x + Math.ceil(this.width / this.tile_w);
+		var end_y = start_y + Math.ceil(this.height / this.tile_h);
+
+		context.translate(-(drop_x % this.tile_w), -(drop_y % this.tile_h));
+
+		for (var y = start_y; y <= end_y; y++)
+		{
+			var tile_y = y % this.size;
+			context.save();
+
+			for (var x = start_x; x <= end_x; x++)
+			{
+				var tile_x = x % this.size;
+				var tile = this.tiles[tile_y][tile_x];
+				this.drawTile(tile, time, context);
+				context.translate(this.tile_w, 0);
+			}
+
+			context.restore();
+			context.translate(0, this.tile_h);
+		}
+	});
+
 	oui.TileMap.method('Data', function (map, i, x, y)
 	{
 		this.type = 0;
 	});
 
-	oui.TileMap.method('costs', function (data)
+	oui.TileMap.method('calcCosts', function (data)
 	{
 		return 1;
 	});
@@ -731,7 +773,7 @@ var oui = {};
 		context.drawImage(this.image, this.coords[tile.data.type][0], this.coords[tile.data.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
 	});
 
-	oui.TileMap.method('distance', function (a, b)
+	oui.TileMap.method('calcDistance', function (a, b)
 	{
 		if (a.x < b.x)
 		{
@@ -754,11 +796,11 @@ var oui = {};
 		return (min_x + min_y);
 	});
 
-	oui.TileMap.method('findArea', function (origin, range, costs)
+	oui.TileMap.method('findArea', function (origin, range, calcCost)
 	{
-		if (!costs)
+		if (!calcCost)
 		{
-			costs = this.costs;
+			calcCost = this.calcCost;
 		}
 
 		var done = [];
@@ -779,7 +821,7 @@ var oui = {};
 					continue;
 				}
 
-				var next_c = costs(next.data);
+				var next_c = calcCost(next.data);
 
 				if (next_c == undefined)
 				{
@@ -822,18 +864,18 @@ var oui = {};
 		return done;
 	});
 
-	oui.TileMap.method('findPath', function (origin, target, costs)
+	oui.TileMap.method('findPath', function (origin, target, calcCost)
 	{
-		if (!costs)
+		if (!calcCost)
 		{
-			costs = this.costs;
+			calcCost = this.calcCost;
 		}
 
 		var done = [];
 		var crumbs = [];
 		var open = [origin];
 		origin.g = 0;
-		origin.f = this.distance(origin, target);
+		origin.f = this.calcDistance(origin, target);
 
 		do
 		{
@@ -849,7 +891,7 @@ var oui = {};
 					continue;
 				}
 
-				var next_c = costs(next.data);
+				var next_c = calcCost(next.data);
 
 				if (next_c == undefined)
 				{
@@ -888,7 +930,7 @@ var oui = {};
 				if (tile == null)
 				{
 					next.g = next_g;
-					next.f = next_g + this.distance(next, target);
+					next.f = next_g + this.calcDistance(next, target);
 					open.splice(sorted_index(open, next, 'f'), 0, next);
 					crumbs[next.i] = [i, current];
 					continue;
@@ -897,80 +939,12 @@ var oui = {};
 				if (next_g < tile.g)
 				{
 					tile.g = next_g;
-					tile.f = next_g + this.distance(tile, target);
+					tile.f = next_g + this.calcDistance(tile, target);
 					crumbs[tile.i] = [i, current];
 				}
 			}
 		}
 		while (open.length)
-	});
-
-	oui.TileMap.on('show', function (root, parent)
-	{
-		ooo.Cell.prototype.events.on.show.call(this, root, parent);
-		this.image = root.images[this.type];
-		this.coords = [];
-
-		var cols = Math.floor(this.image.width / this.tile_w);
-		var rows = Math.floor(this.image.height / this.tile_h);
-
-		for (var y = 0; y < rows; y++)
-		{
-			for (var x = 0; x < cols; x++)
-			{
-				this.coords.push([x * this.tile_w, y * this.tile_h]);
-			}
-		}
-	});
-
-	oui.TileMap.on('input:drag', function (drag_x, drag_y)
-	{
-		this.drag_x = drag_x;
-		this.drag_y = drag_y;
-	});
-
-	oui.TileMap.on('input:drop', function (drop_x, drop_y)
-	{
-		this.drop_x = ooo.wrap(this.drop_x - this.drag_x, this.patch_w);
-		this.drop_y = ooo.wrap(this.drop_y - this.drag_y, this.patch_h);
-		this.drag_x = 0;
-		this.drag_y = 0;
-	});
-
-	oui.TileMap.on('input:click', function (button, down_x, down_y)
-	{
-		var tile_x = Math.floor(((this.drop_x + down_x) % this.patch_w) / this.tile_w);
-		var tile_y = Math.floor(((this.drop_y + down_y) % this.patch_h) / this.tile_h);
-		this.trigger('input:pick', [this.tiles[tile_y][tile_x], button, tile_x, tile_y]);
-	});
-
-	oui.TileMap.on('draw', function (time, context)
-	{
-		var drop_x = ooo.wrap(this.drop_x - this.drag_x, this.patch_w);
-		var drop_y = ooo.wrap(this.drop_y - this.drag_y, this.patch_h);
-		var start_x = Math.floor(drop_x / this.tile_w);
-		var start_y = Math.floor(drop_y / this.tile_h);
-		var end_x = start_x + Math.ceil(this.width / this.tile_w);
-		var end_y = start_y + Math.ceil(this.height / this.tile_h);
-
-		context.translate(-(drop_x % this.tile_w), -(drop_y % this.tile_h));
-
-		for (var y = start_y; y <= end_y; y++)
-		{
-			var tile_y = y % this.size;
-			context.save();
-
-			for (var x = start_x; x <= end_x; x++)
-			{
-				var tile_x = x % this.size;
-				var tile = this.tiles[tile_y][tile_x];
-				this.drawTile(tile, time, context);
-				context.translate(this.tile_w, 0);
-			}
-
-			context.restore();
-			context.translate(0, this.tile_h);
-		}
 	});
 
 	oui.HexMap = oui.TileMap.extend(function (size, tile_w, tile_h, type, layout)
@@ -1038,7 +1012,7 @@ var oui = {};
 		return Math.min(dist1, dist2, dist3);
 	}
 
-	oui.HexMap.method('distance', function (a, b)
+	oui.HexMap.method('calcDistance', function (a, b)
 	{
 		var dx = b.x - a.x;
 		var dy = b.y - a.y;

@@ -1,13 +1,16 @@
 var ooo = require('./ooo.js');
 var fs = require('fs');
 
-var START_DELAY = 0;
-var DENY_DELAY = 0;
+//randomize (only some?) research: ingredients change
+
+var START_DELAY = 1;
+var DENY_DELAY = 1;
 //var COOLDOWN = [1, 0];
 var SUBTICKS = 24;
 //var MAXSKILL = 9;
 var STATNAMES = ['insight', 'stamina', 'vision'];
 var MAPTYPES = [0, 10, 11, 12];
+var POW2 = [1, 2, 4, 8];
 
 var ITEMS = [];
 ITEMS[0] = {title: 'World', group: 0, obscurity: 0, visibility: 0};
@@ -44,9 +47,9 @@ function examine (info, insight)
 			else
 			{
 				this.info[id] = [child.type, insight, []];
-				this.info[info.id][2].push(id);
 			}
 
+			this.info[info.id][2].push(id);
 			examine.call(this, child, insight);
 		}
 	}
@@ -122,22 +125,27 @@ World.method('Data', function (map, i, x, y)
 	this.info = info;
 });
 
-World.method('spawn', function (stack, parent)
+World.method('spawn', function (stack, parents)
 {
 	var info = {};
-	info.type = stack[0];
-	info.children = {};
 	info.id = ooo.fill(this.info, info);//array mit gelöschten ids!!! (kein object mehr)
+	info.type = stack[0];
+	info.parents = {};
+	info.children = {};
 
-	if (parent)
+	if (parents)
 	{
-		info.parent = this.info[parent];
-		info.parent.children[info.id] = info;
+		for (var i = 0; i < parents.length; i++)
+		{
+			var id = parents[i];
+			info.parents[id] = this.info[id];
+			info.parents[id].children[info.id] = info;
+		}
 	}
 
 	for (var i = 0; i < stack[1].length; i++)
 	{
-		this.spawn(stack[1][i], info.id);
+		this.spawn(stack[1][i], [info.id]);
 	}
 
 	return info;
@@ -241,23 +249,79 @@ Game.method('leave', function (player)
 	}
 });
 
+//home, path, task
+//spawn hero with footsteps that have hero as child!!!!!
+
 //Game
-function spawn_chars (seat, chars)
+function spawn_char (seat, argv)
 {
+	var char = {};
+	char.seat = seat;
+	char.name = argv[0];//bit number; not string!!!; name not custom but randomized; can be re-randomized before spawn until satisfactory
+	char.stats = ooo.map(STATNAMES, argv[1]);
+
+	var tile = this.world.index[argv[2]];
+	char.steps = [tile];
+	var parents = [tile.i];
+
+	for (var i = 0; i < argv[3].length; i++)
+	{
+		tile = tile.steps[argv[3][i]];
+		//execute self centered actions? (non interacting, stat modifying actions) //besser keine ausnahmen!!
+		char.steps.push(tile);
+		parents.push(tile.i);
+	}
+
+	char.info = this.world.spawn(argv[4], parents);
+	//children are qualifiers (not only content in a box)
+	this.chars[char.info.id] = char;
+
+	var realm = this.realms[seat];
+	realm.chars[char.info.id] = argv;
+}
+
+//Game
+function update_realm (seat, chars)
+{
+	//spawn new chars
 	for (var i = 0; i < chars.length; i++)
 	{
 		var argv = chars[i];
-		var char = {};
-		char.seat = seat;
-		char.name = argv[0];
-		char.stats = ooo.map(STATNAMES, argv[1]);
-		char.info = this.world.spawn(argv[2]);
-		char.wake = argv[3];
-		char.home = this.world.index[argv[4]];
-		char.steps = argv[5];
-		this.chars[char.info.id] = char;
-		this.realms[seat].chars[char.info.id] = argv;
+		spawn_char.call(this, seat, argv);
 	}
+
+	//update existing chars
+	/*for (var id in update)
+	{
+		if (!realm.chars[id])
+		{
+			throw 'not your char';
+		}
+		else if (update[id])
+		{
+			var argv = update[id];
+			this.chars[id] = chars[id];
+			realm.chars[char.info.id] = argv;
+		}
+		else
+		{
+			delete this.chars[id];
+		}
+	}*/
+
+	//update info
+	/*for (var id in realm.chars)
+	{
+		var char = this.chars[id];
+		var tile = this.world.index[char.home];
+		ooo.add(POW2[char.steps[i]], steps, tile.i, char.info.id);
+
+		for (var i = 1; i < char.steps.length; i++)
+		{
+			tile = tile.steps[char.steps[i - 1]];
+			ooo.add(POW2[(char.steps[i - 1] + 2) % 2] | POW2[char.steps[i]], steps, tile.i, char.info.id);
+		}
+	}*/
 }
 
 Game.method('start', function ()
@@ -274,8 +338,16 @@ Game.method('start', function ()
 		realm.chars = {};
 		this.realms[seat] = realm;
 		this.seats[name] = seat;
-		spawn_chars.call(this, seat, [['hero', [6, 5, 5], [9, [[8, []]]], 9, 4*32+4, [[[]], [[]], [[]], [[]], [[]]]]]);//build this char in game lobby
-		//spawn_chars.call(this, seat, [['hero', [5, 5, 2], [9, [[8, []]]], 9, 4*32+4, [[[]], [[], 0], [[], 0], [[], 0], [[], 0]]]]);//build this char in game lobby
+
+		if (seat == 1)
+		{
+			update_realm.call(this, seat, [['hero', [6, 5, 5], 4*32+4, [], [9, [[8, []]]]]]);//build this char in game lobby
+		}
+		else
+		{
+			update_realm.call(this, seat, [['hero', [6, 5, 5], 4*32+4, [0,0,3,3], [9, []]], ['sven', [6, 5, 5], 4*32+4, [1,1,2,2,1], [9, [[8, []]]]]]);//build this char in game lobby
+		}
+
 		seat++;
 	}
 
@@ -295,6 +367,8 @@ Game.method('start', function ()
 		}
 	}
 });
+
+//zwei arten von interaktionen mit anderen chars: disrupting (normal task will not be executed until resolved) and ignorable
 
 Game.method('tick', function (player, chars)
 {
@@ -326,6 +400,62 @@ function stack_info (info)
 Game.method('tock', function ()
 {
 	console.log('TOCK %d %d', this.id, this.time);
+	this.ticks = 0;
+	var states = {};
+
+	//0) load char-states
+	for (var id in this.chars)
+	{
+		var char = this.chars[id];
+		states[id] = {};
+		//state.id = char.info.id;
+		//state.items = char.info.children;
+		states[id].stats = ooo.clone(char.stats);
+		//state.tile = char.home;
+		states[id].info = {};
+	}
+
+	//1) mark paths [9, [args], [children]] (bit notation; left-to-right=10)
+	////////////////[9, [10], []]
+	//2) execute actions (mark effects)
+
+	//3) examine patharea (gather paths & effects & other info)
+	for (var id in this.chars)
+	{
+		var char = this.chars[id];
+		var state = states[id];
+
+		for (var i in char.steps)
+		{
+			var tile = char.steps[i];
+			var area = this.world.findArea(tile, state.stats.vision, function (data) { return 1 });
+			//var area = this.world.findArea(state.tile, state.stats.vision, function (data) { return ITEMS[data.info.type].obscurity });
+
+			for (var j in area)
+			{
+				var info = this.world.info[j];
+				state.info[j] = [info.type, state.stats.insight, []];
+				examine.call(state, info, state.stats.insight);
+				//ACTIONS[0].call(char, id);//examine
+			}
+		}
+	}
+
+	//4) return area&effects info and save char-states
+	for (var id in this.chars)
+	{
+		var char = this.chars[id];
+		var realm = this.realms[char.seat];
+		var state = states[id];
+		realm.info[this.time][char.info.id] = state.info;
+		realm.chars[char.info.id][1] = [state.stats.insight, state.stats.stamina, state.stats.vision];
+		realm.chars[char.info.id][2] = stack_info(char.info);
+	}
+
+	//sort encounters by step-time (earliest first)
+
+	this.time++;
+	return;
 	this.ticks = 0;
 
 	for (var time = 0; time < SUBTICKS; time++)
@@ -536,9 +666,13 @@ Client.on('message:login', function (name, pass)
 		player.shout('back', [name]);
 		var seat = game.seats[name];
 		var realm = game.realms[seat];
-		var waiting = (game.time != realm.info.length);
+		var waiting = (game.time == realm.info.length);
 		this.send('continue', [game.rules, game.names(), game.time, realm.info[game.time - 1], realm.chars, waiting]);
-		this.expect('tick');
+
+		if (waiting)
+		{
+			this.expect('tick');
+		}
 	}
 	else
 	{
@@ -561,10 +695,11 @@ Client.on('message:host', function (rules)
 	console.log('HOST %s %s', this.player.name, JSON.stringify(rules));
 	var game = new Game(rules);
 	game.world.index[2*32+5].data.info.type = 2;
-	game.world.spawn([8, []], 4*32+5);
-	game.world.spawn([6, []], 3*32+3);
-	game.world.spawn([6, []], 4*32+4);
-	game.world.spawn([5, [[6, []],[6, []]]], 5*32+4);
+	game.world.index[4*32+4].data.info.type = 3;
+	game.world.spawn([8, []], [4*32+5]);
+	game.world.spawn([6, []], [3*32+3]);
+	game.world.spawn([6, []], [4*32+4]);
+	game.world.spawn([5, [[6, []],[6, []]]], [5*32+4]);
 	game.id = ooo.fill(this.server.games, game);
 	game.join(this.player);
 	this.expect('leave');
