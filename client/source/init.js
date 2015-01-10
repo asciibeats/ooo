@@ -15,27 +15,35 @@
 //traum deuten/trigger one time events
 //CHOOSE ABORT CONDITION FOR EVERY CHAR!? or x health or sth
 //WORLDSIZE: sqrt(playernum) * size
+var STATNAMES = ['insight', 'stamina', 'vision'];
 var POW2 = [1, 2, 4, 8];
 var ITEMTILES = [0, 3, 5, 4, 3, 2, 1, 3, 0, 3, 9, 10, 11];
 var CHARTILES = [0, 3, 5, 4, 3, 2, 1, 3, 0, 0, 9, 10, 11];
+var SPAWNSLOTS = [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+var MOVE = 'MAKE A MOVE';
+var WAIT = 'WAIT FOR OTHER PLAYERS';
 
 var GROUPS = [];
 GROUPS[0] = 'Terrain';
-GROUPS[1] = 'Characters';
-GROUPS[2] = 'Items';
-GROUPS[3] = 'Attributes';
+GROUPS[1] = 'Spawns';
+GROUPS[2] = 'Characters';
+GROUPS[3] = 'Items';
+GROUPS[4] = 'Events';
 
 var ITEMS = [];
 ITEMS[0] = {title: 'World', group: 0, obscurity: 0, visibility: 0};
 ITEMS[1] = {title: 'Grass', group: 0, obscurity: 1, visibility: 0};
 ITEMS[2] = {title: 'Forest', group: 0, obscurity: 3, visibility: 0};
 ITEMS[3] = {title: 'Campfire', group: 0, obscurity: 1, visibility: 1};
-ITEMS[4] = {title: 'Fishmonster', group: 1, obscurity: 2, visibility: 1};
-ITEMS[5] = {title: 'Basket', group: 2, obscurity: 3, visibility: 1};
-ITEMS[6] = {title: 'Apple', group: 2, obscurity: 1, visibility: 1};
-ITEMS[7] = {title: 'Tree', group: 2, obscurity: 9, visibility: 0};
-ITEMS[8] = {title: 'Ring', group: 2, obscurity: 9, visibility: 1};
-ITEMS[9] = {title: 'Hero', group: 1, obscurity: 5, visibility: 1};
+ITEMS[4] = {title: 'Fishmonster', group: 2, obscurity: 2, visibility: 1};
+ITEMS[5] = {title: 'Basket', group: 3, obscurity: 3, visibility: 1};
+ITEMS[6] = {title: 'Apple', group: 3, obscurity: 1, visibility: 1};
+ITEMS[7] = {title: 'Tree', group: 3, obscurity: 9, visibility: 0};
+ITEMS[8] = {title: 'Ring', group: 3, obscurity: 9, visibility: 1};
+ITEMS[9] = {title: 'Hero', group: 2, obscurity: 5, visibility: 1};
+ITEMS[10] = {title: 'Spawn', group: 1, obscurity: 1, visibility: 1};
+ITEMS[11] = {title: 'Build', group: 4, obscurity: 1, visibility: 1};
 
 //second hand information (maps,rumors,traded info,etc) is drawn in map colors
 /*ITEMS[10] = {title: 'MapGrass', obscurity: 9, visibility: 0};
@@ -60,42 +68,15 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 	var Login = oui.Form.extend(function (color, font, layout, align, baseline)
 	{
 		oui.Form.call(this, color, font, layout, align, baseline);
-		this.show(new oui.Field('auth', {'top': 10, 'left': 10, 'right':10, 'height': 30}));
-		this.show(new oui.Field('auth', {'top': 50, 'left': 10, 'right':10, 'height': 30}));
+		this.show(new oui.Field('auth_token', {'top': 10, 'left': 10, 'right':10, 'height': 30}));
+		this.show(new oui.Field('auth_token', {'top': 50, 'left': 10, 'right':10, 'height': 30}));
 		this.show(new oui.Submit('login', '#a50', {'top': 90, 'left': 10, 'right':10, 'height': 30}));
 	});
 
 	Login.bubble('form:submit', function (type, data)
 	{
-		this.root.auth = data;
+		this.root.auth_token = data;
 		this.root.send('login', data);
-	});
-
-	var Game = ooo.Class.extend(function (rules, names)
-	{
-		this.rules = rules;
-		this.time = 0;
-		this.players = {};
-
-		for (var i = 0; i < names.length; i++)
-		{
-			this.players[names[i]] = true;
-		}
-	});
-
-	Game.method('join', function (name)
-	{
-		this.players[name] = true;
-	});
-
-	Game.method('leave', function (name)
-	{
-		delete this.players[name];
-	});
-
-	Game.method('start', function (time)
-	{
-		this.time = time;
 	});
 
 	/*var Site = ooo.Stage.extend(function ()
@@ -135,19 +116,7 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		}
 	});*/
 
-	/*function get_hash (array)
-	{
-		var hash = {};
-
-		for (var i = 0; i < array.length; i++)
-		{
-			hash[array[i]] = true;
-		}
-
-		return hash;
-	}
-
-	function add_event (events, parent, time, id, type)
+	/*function add_event (events, parent, time, id, type)
 	{
 		if (!events[parent])
 		{
@@ -162,7 +131,7 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		events[parent][time][id] = type;
 	}*/
 
-	var CharStack = oui.SingleMenu.clone(64, 64, 'items', {left: 84, right: 10, top: 10, bottom: 10});
+	/*var CharStack = oui.SingleMenu.clone(64, 64, 'items', {left: 84, right: 10, top: 10, bottom: 10});
 
 	CharStack.method('reset', function (chars)
 	{
@@ -219,7 +188,7 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		this.data = {};
 		this.data.info = info;
 		this.menu = {};
-		this.menu.pool = new ItemPool();
+		this.menu.pool = new ItemTypes();
 		this.show(this.menu.pool);
 		this.menu.stack = new CharStack();
 		this.show(this.menu.stack);
@@ -227,15 +196,14 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 
 	Land.method('reset', function (id, time)
 	{
-		this.menu.pool.reset(this.data.info.by_root[id][2][time]);
-		this.menu.stack.reset(this.data.info.by_root[id][1][time]);
-	});
+		this.menu.pool.reset(this.data.info.by_tile[id][2][time]);
+		this.menu.stack.reset(this.data.info.by_tile[id][1][time]);
+	});*/
 
-	var World = oui.TileMap.extend(function (size, data)
+	var World = oui.TileMap.extend(function (size, asset)
 	{
-		oui.TileMap.call(this, size, 64, 64, 'steps');
-		this.data = data;
-		this.reset();
+		oui.TileMap.call(this, size, asset);
+		this.tile_mask = 0;
 	});
 
 	World.method('Data', function (map, i, x, y)
@@ -243,503 +211,186 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		this.type = 0;
 	});
 
-	World.method('drawTile', function (tile, time, context)
+	World.method('drawTile', function (tile, data, time, context)
 	{
-		if (this.focus_id != null)
-		{
-			if (tile.data.type == 0)
-			{
-				context.drawImage(this.image, this.coords[tile.data.type][0], this.coords[tile.data.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
-			}
-			else if (tile.i in this.data.info.by_char[this.focus_id][0])
-			{
-				context.drawImage(this.image, this.coords[tile.data.type][0], this.coords[tile.data.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
-			}
-			else
-			{
-				context.drawImage(this.image, this.coords[1][0], this.coords[1][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
-			}
-		}
-		else
-		{
-			context.drawImage(this.image, this.coords[tile.data.type][0], this.coords[tile.data.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
-		}
+		context.drawImage(this.image, this.image.tile_x[data.type], this.image.tile_y[data.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 
-		var other = this.marks.steps.other[tile.i];
-		var owner = this.marks.steps.owner[tile.i];
-		var focus = this.marks.steps.focus[tile.i];
-
-		if (other != undefined)
+		if (data.mask && data.mask[this.tile_mask])
 		{
-			context.drawImage(this.root.images['path'], this.coords[other][0], this.coords[other][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
+			context.globalAlpha = 0.4;
+			context.fillStyle = '#00f';
+			context.fillRect(0, 0, 64, 64);
 		}
-
-		if (owner != undefined)
-		{
-			context.drawImage(this.root.images['path'], this.coords[owner][0], this.coords[owner][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
-		}
-
-		if (focus != undefined)
-		{
-			context.drawImage(this.root.images['path'], this.coords[focus][0], this.coords[focus][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
-		}
-
-		/*if (this.landmark == tile.i)
-		{
-			context.fillStyle = '#fff';
-			context.fillRect(10, 10, 44, 44);
-		}*/
 	});
 
-	function rootsof (info)
+	World.on('update:data', function (terrain, tiles, homes)
 	{
-		var roots = [];
-
-		if (ooo.size(info.parents))
-		{
-			for (var id in info.parents)
-			{
-				roots = roots.concat(rootsof(info.parents[id]));
-			}
-		}
-		else
-		{
-			roots.push(info);
-		}
-
-		return roots;
-	}
-
-	//World
-	function mark_path (marks, id, shift)
-	{
-		for (var i in this.steps[id])
-		{
-			var tile = this.steps[id][i];
-
-			if (marks[i] == undefined)
-			{
-				marks[i] = shift;
-			}
-
-			for (var j = 0; j < tile.steps.length; j++)
-			{
-				var next = tile.steps[j];
-
-				if (next.i in this.steps[id])
-				{
-					marks[i] |= POW2[j];
-				}
-			}
-		}
-	}
-
-	//World
-	function mark_paths ()
-	{
-		var focus = {};
-		var owner = {};
-		var other = {};
-
-		for (var id in this.steps)
-		{
-			if (this.focus_id && (this.focus_id == id))
-			{
-				mark_path.call(this, focus, id, 0);
-			}
-			else if (id in this.data.chars)
-			{
-				mark_path.call(this, owner, id, 16);
-			}
-			else
-			{
-				mark_path.call(this, other, id, 32);
-			}
-		}
-
-		this.marks.steps = {focus: focus, owner: owner, other: other};
-	}
-
-	World.method('reset', function (focus_id)
-	{
-		this.focus_id = focus_id;
-		this.steps = {};
-		this.marks = {};
-
-		//build terrain/map
 		for (var i = 0; i < this.index.length; i++)
 		{
 			var tile = this.index[i];
-			var info = this.data.info.by_id[0][i];
+			var info = terrain[i];
 
 			if (info)
 			{
+				var groups = tiles[i];
 				tile.data.type = ITEMTILES[info.type];
 				tile.data.info = info;
-				var chars = this.data.info.by_root[i][1];
-
-				for (var id in chars)
-				{
-					ooo.add(tile, this.steps, id, i);
-				}
+				tile.data.mask = [];
+				tile.data.mask[0] = groups[2] ? 1 : 0;
 			}
 			else
 			{
-				tile.data.type = 0;
+				tile.data = {type: 0};
 			}
 		}
-
-		mark_paths.call(this);
 	});
 
-	//World
-	function overview (tile)
+	World.on('update:focus', function (char, home, tile)
 	{
-		console.log('### OVERVIEW ###');
-		var by_root = this.data.info.by_root[tile.i];
+		this.focus_char = char;
+		this.focus_home = this.index[home];
+		this.focus_tile = tile;
+	});
 
-		for (var group in by_root)
-		{
-			console.log(GROUPS[group]);
-
-			for (var id in by_root[group])
-			{
-				var info = by_root[group][id];
-				console.log('(%d) %s', id, ITEMS[info.type].title);
-			}
-		}
-	}
-
-	//event grundrauschen? damit man nicht genau wissen kann ob ein event von einem mitspieler getriggert wurde
-	///oder reicht es wenn mehrere mitspieler dabei sind und man sich etwas geschickt anstellen muss?
-	////event beispiel: du siehst eine attraktive frau und bist abgelenkt. -x insight for next y steps
-
-	//take chars of the board when you want but cooldown or spawncost?????
-	//mark the changes!!!! diffs between times
 	World.on('pick:tile', function (tile, button)
 	{
-		//overview.call(this, tile);
-		//MARK TILE!!!!
-		//this.root.scenes.main.world.reset(option.id);
-		this.root.scenes.main.chars.picked = {};
-		this.reset();
-		this.root.scenes.side.showTileInfo(tile);
+		var path = this.findPath(this.focus_home, tile, function (data) { return ((data.type == 1) ? 1 : 3); });
+		var action = JSON.parse(prompt('Action?:', JSON.stringify([path.steps, [11, [], []]])));//path;type;param(could be targets,extra card+param, ...)
+
+		if (action)
+		{
+			this.root.trigger('put:action', [this.focus_char, tile.i, action]);
+		}
 	});
 
-	World.on('input:press', function (time, char, key, shift)
+	var CharMenu = oui.SingleMenu.extend(function (asset, layout, style)
 	{
-		if (char == 'n')
+		oui.SingleMenu.call(this, asset, layout, style);
+	});
+
+	CharMenu.method('drawButton', function (time, context, data, pick)
+	{
+		if (pick)
 		{
-			this.mode = 'newchar';
-			console.log('NEWCHAR MODE!!!');
+			var type = 1;
 		}
-		else if (char == 'i')
+		else
 		{
-			this.mode = 'overview';
-			console.log('OVERVIEW MODE!!!');
+			var type = 0;
 		}
-		else if (char == 'd')
+
+		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+	});
+
+	CharMenu.on('update:data', function (terrain, tiles, homes)
+	{
+		this.data = [];
+		this.picked = {};
+
+		for (var char_id in homes)
 		{
-			this.mode = 'delete';
-			console.log('DELETE MODE!!!');
+			this.data.push(homes[char_id]);
 		}
-		else if (this.steps && key)
+	});
+
+	/*CharMenu.on('update:focus', function (char_id, home_i, tile_i)
+	{
+		this.pick = {};
+
+		for (var i = 0; i < this.data.length; i++)
 		{
-			if (key == 13)
+			if (data.id == this.data[i].id)
 			{
-				var chars = JSON.parse(prompt('Char?:', JSON.stringify([['tilla', [5, 8, 2], [9, [[6, []]]], this.home, this.steps]])));
-				this.root.send('tick', [chars]);
+				this.pick[i] = true;
+				break;
 			}
 		}
+	});*/
+
+	CharMenu.on('pick:item', function (data, index)
+	{
+		//this.root.trigger('update:focus', []);
 	});
 
-	//Overwatch (XCOM) like mechanic (trigger autoresponse)
-	//Competitive/Tournament/Ladder mode (max 45min games) (1v1;2v2 etc symmetric maps)
-
-	var CharMenu = oui.Menu.extend(function (data)
+	///////////////////////////TURN_MENU
+	var TurnOptions = oui.Menu.extend(function ()
 	{
-		oui.Menu.call(this, 64, 64, 'chars', {left: 10, right: 10, top: 84, bottom: 10}, true, OUI_BOTTOM | OUI_REVERSED | OUI_VERTICAL);
-		this.data = data;
-		this.reset();
+		oui.Menu.call(this, 'buttons', {left: 0, width: 128, top: 0, bottom: 0});
+		this.reset([7,1]);
 	});
 
-	CharMenu.method('drawButton', function (time, context, option, picked)
+	TurnOptions.on('pick:item', function (data, index)
 	{
-		if (picked)
+		if (index == 0)
 		{
-			context.fillStyle = '#f00';
-			context.fillRect(0, 0, this.button_w, this.button_h);
+			this.root.send('tock', [this.parent.actionlist.data]);
+			console.log(WAIT);
+		}
+
+		this.parent.actionlist.data = [];
+	});
+
+	var ActionList = oui.Menu.extend(function ()
+	{
+		oui.Menu.call(this, 'chars', {left: 138, right: 0, top: 0, bottom: 0});
+	});
+
+	ActionList.method('drawButton', function (time, context, data, pick)
+	{
+		var type = 1;
+		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+	});
+
+	ActionList.on('put:action', function (char_id, tile_i, action)
+	{
+		this.data.push([char_id, tile_i, action]);
+	});
+
+	ActionList.on('update:actions', function (data)
+	{
+		this.data = data;
+	});
+
+	ActionList.on('pick:item', function (data, index)
+	{
+		var action = JSON.parse(prompt('Action?:', JSON.stringify(data[2])));
+
+		if (action)
+		{
+			data[2] = action;
 		}
 		else
 		{
-			//var type = CHARTILES[info.type];
-			var type = 0;
-			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
+			this.data.splice(index, 1);
 		}
 	});
 
-	CharMenu.method('reset', function ()
+	var TurnMenu = ooo.Scene.extend(function (layout)
 	{
-		this.options = [];
-		this.picked = {};
-
-		for (var id in this.data.chars)
-		{
-			var info = this.data.info.by_id[1][id];
-			this.options.push(info);
-		}
-
-		return this;
-	});
-
-	CharMenu.on('menu:pick', function (option, i)
-	{
-		this.picked = {};
-		this.picked[i] = true;
-		this.root.scenes.main.world.reset(option.id);
-		this.root.scenes.side.showCharInfo(option);
-	});
-
-	var MainScene = ooo.Scene.extend(function (game, data)
-	{
-		ooo.Scene.call(this, {left: 0, right: 276, top: 0, bottom: 0});
-		this.world = new World(game.rules[1], data);
-		this.notes = new oui.Menu(64, 64, 'steps', {left: 10, right: 10, top: 10, height: 64}, false, OUI_REVERSED).reset([1,1,1]);
-		this.chars = new CharMenu(data);
-		this.show(this.world);
-		this.show(this.notes, 1);
-		this.show(this.chars, 1);
-	});
-
-	var ItemPool = oui.Menu.extend(function (data)
-	{
-		oui.Menu.call(this, 64, 64, 'items', {left: 10, right: 10, top: 10, bottom: 74}, true, OUI_BOTTOM | OUI_REVERSED);
-		this.data = data;
-		this.reset();
-	});
-
-	ItemPool.method('drawButton', function (time, context, option, picked)
-	{
-		if (picked)
-		{
-			context.fillStyle = '#f00';
-			context.fillRect(0, 0, this.button_w, this.button_h);
-		}
-		else
-		{
-			var type = ITEMTILES[option];
-			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-		}
-	});
-
-	ItemPool.method('reset', function ()
-	{
-		this.options = [];
-		this.picked = {};
-
-		for (var type in this.data.info.by_type[2])
-		{
-			this.options.push(parseInt(type));
-		}
-
-		return this;
-	});
-
-	ItemPool.on('menu:pick', function (option, i)
-	{
-		console.log('ITEM_TYPE', option);
-	});
-
-	var Overview = ooo.Scene.extend(function (game, data)
-	{
-		ooo.Scene.call(this);
-		this.items = new ItemPool(data);
-		this.options = new oui.Menu(64, 64, 'steps', {left: 10, right: 10, height: 64, bottom: 10}, false, OUI_BOTTOM).reset([0,2,1,2]);
-		this.show(new ooo.Box('#c02515'));
-		this.show(this.items, 1);
+		ooo.Scene.call(this, layout);
+		this.options = new TurnOptions();
+		this.actionlist = new ActionList();
 		this.show(this.options, 1);
+		this.show(this.actionlist, 1);
 	});
 
-	var Stuff = oui.Menu.extend(function (data)
+	var Game = ooo.Client.extend(function (hook, color)
 	{
-		oui.Menu.call(this, 64, 64, 'items', {left: 10, right: 10, top: 10, bottom: 74}, true, OUI_BOTTOM | OUI_REVERSED);
-		this.data = data;
-		//this.reset();
-	});
-
-	Stuff.method('drawButton', function (time, context, option, picked)
-	{
-		if (picked)
-		{
-			context.fillStyle = '#f00';
-			context.fillRect(0, 0, this.button_w, this.button_h);
-		}
-		else
-		{
-			var type = ITEMTILES[option.type];
-			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-		}
-	});
-
-	Stuff.method('reset', function (tile)
-	{
-		this.options = [];
-		this.picked = {};
-
-		for (var id in this.data.info.by_root[tile.i][2])
-		{
-			var info = this.data.info.by_root[tile.i][2][id];
-			this.options.push(info);
-		}
-
-		return this;
-	});
-
-	Stuff.on('menu:pick', function (option, i)
-	{
-		console.log('ITEM_ID', option.id);
-	});
-
-	var TileOptions = oui.Menu.extend(function ()
-	{
-		oui.Menu.call(this, 64, 64, 'steps', {left: 10, right: 10, height: 64, bottom: 10}, false, OUI_BOTTOM);
-		this.reset([1,0,2,1]);
-	});
-
-	TileOptions.on('menu:pick', function (option, i)
-	{
-		//this.root.scenes.main.chars.picked = {};
-		this.root.scenes.main.world.reset();
-		this.root.scenes.side.showOverview();
-	});
-
-	var TileInfo = ooo.Scene.extend(function (data)
-	{
-		ooo.Scene.call(this);
-		this.stuff = new Stuff(data);
-		this.options = new TileOptions();
-		this.show(new ooo.Box('#792e8c'));
-		this.show(this.stuff, 1);
-		this.show(this.options, 1);
-	});
-
-	var Inventory = oui.Menu.extend(function (data)
-	{
-		oui.Menu.call(this, 64, 64, 'items', {left: 10, right: 10, top: 10, bottom: 74}, true, OUI_BOTTOM | OUI_REVERSED);
-		this.data = data;
-		//this.reset();
-	});
-
-	Inventory.method('drawButton', function (time, context, option, picked)
-	{
-		if (picked)
-		{
-			context.fillStyle = '#f00';
-			context.fillRect(0, 0, this.button_w, this.button_h);
-		}
-		else
-		{
-			var type = ITEMTILES[option.type];
-			context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-		}
-	});
-
-	Inventory.method('reset', function (char_info)
-	{
-		this.options = [];
-		this.picked = {};
-
-		for (var id in this.data.info.by_char[char_info.id][2])
-		{
-			var info = this.data.info.by_char[char_info.id][2][id];
-			this.options.push(info);
-		}
-
-		return this;
-	});
-
-	Inventory.on('menu:pick', function (option, i)
-	{
-		console.log('ITEM_ID', option.id);
-	});
-
-	var CharOptions = oui.Menu.extend(function ()
-	{
-		oui.Menu.call(this, 64, 64, 'steps', {left: 10, right: 10, height: 64, bottom: 10}, false, OUI_BOTTOM);
-		this.reset([0,2,1,2]);
-	});
-
-	CharOptions.on('menu:pick', function (option, i)
-	{
-		this.root.scenes.main.chars.picked = {};
-		this.root.scenes.main.world.reset();
-		this.root.scenes.side.showOverview();
-	});
-
-	var CharInfo = ooo.Scene.extend(function (data)
-	{
-		ooo.Scene.call(this);
-		this.inventory = new Inventory(data);
-		this.options = new CharOptions();
-		this.show(new ooo.Box('#2e588c'));
-		this.show(this.inventory, 1);
-		this.show(this.options, 1);
-	});
-
-	var SideScene = ooo.Scene.extend(function (game, data)
-	{
-		ooo.Scene.call(this, {width: 276, right: 0, top: 0, bottom: 0});
-		this.scenes = {};
-		this.scenes.overview = new Overview(game, data);
-		this.scenes.tileinfo = new TileInfo(data);
-		this.scenes.charinfo = new CharInfo(data);
-		this.upfront = this.scenes.overview;
-		this.show(this.upfront);
-	});
-
-	SideScene.method('showTileInfo', function (tile)
-	{
-		console.log('showTileInfo', tile.i);
-		this.upfront.hide();
-		this.upfront = this.scenes.tileinfo;
-		this.upfront.stuff.reset(tile);
-		this.show(this.upfront);
-	});
-
-	SideScene.method('showCharInfo', function (info)
-	{
-		console.log('showCharInfo', info.id);
-		this.upfront.hide();
-		this.upfront = this.scenes.charinfo;
-		this.upfront.inventory.reset(info);
-		this.show(this.upfront);
-	});
-
-	SideScene.method('showOverview', function ()
-	{
-		this.upfront.hide();
-		this.upfront = this.scenes.overview;
-		this.show(this.upfront);
-	});
-
-	var Client = ooo.Client.extend(function (url, hook, assets, color)
-	{
-		ooo.Client.call(this, url, hook, assets, color);
-		//this.update = false;
-		//this.once = true;
+		ooo.Client.call(this, hook, color);
+		this.started = false;
 		this.forms = {};
 		this.forms.login = new Login('#5a0', '30px sans-serif', {'width': 200, 'height': 130}).center(100, 65).rotate(-10);
-		this.show(new ooo.Box('#a0a'));
+		//this.show(new ooo.Box('#a0a'));
 	});
 
-	Client.on('socket:open', function ()
+	Game.on('socket:open', function ()
 	{
-		var auth = ooo.getLocal('auth');
+		var auth_token = ooc.getLocal('auth_token');
 
-		if (auth)
+		if (auth_token)
 		{
-			this.auth = auth;
-			this.send('login', auth);
+			this.auth_token = auth_token;
+			this.send('login', auth_token);
 		}
 		else
 		{
@@ -747,50 +398,101 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		}
 	});
 
-	Client.on('socket:close', function (code)
+	Game.on('socket:close', function (code)
 	{
 		console.log('CLOSED %s', code);
 	});
 
-	Client.on('message:deny', function ()
+	Game.on('message:deny', function ()
 	{
 		this.forms.login.reset();
 		this.show(this.forms.login);
 	});
 
-	Client.on('message:grant', function (games)
+	//Game
+	function init_game (rules, names)
+	{
+		this.rules = rules;
+		this.players = {};
+
+		for (var i = 0; i < names.length; i++)
+		{
+			this.players[names[i]] = true;
+		}
+
+		this.world = new World(rules[1], 'steps');
+	}
+
+	//Game
+	function start_game (time, info)//, chars
+	{
+		//this.update = false;
+		//this.once = true;
+		this.started = true;
+		this.show(this.world);
+
+		this.charmenu = new CharMenu('chars', {left: 0, right: 0, height: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM);
+		this.show(this.charmenu, 1);
+
+		this.notemenu = new oui.Menu('steps', {width: 64, right: 0, top: 0, bottom: 64}, OUI_REVERSED | OUI_BOTTOM | OUI_VERTICAL).reset([1,1,1]);
+		this.show(this.notemenu, 1);
+
+		this.turnmenu = new TurnMenu({left: 0, right: 0, top: 0, height: 64});
+		this.show(this.turnmenu, 1);
+
+		/*this.chartabs = new oui.Tabbed({left: 0, right: 0, top: 0, bottom: 64}, 'buttons', {left: 0, right: 0, top: 0, height: 64}, OUI_REVERSED | OUI_BOTTOM);
+		this.chartabs.open(5, new Inventory('items', {left: 0, right: 0, top: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM));
+		this.chartabs.open(6, new CharSheet('#333', {left: 0, right: 0, top: 64, bottom: 0}));
+		this.chartabs.open(7, new PickAction('#333', {left: 0, right: 0, top: 64, bottom: 0}));
+
+		this.tiletabs = new oui.Tabbed({left: 0, right: 0, top: 0, bottom: 64}, 'buttons', {left: 0, right: 0, top: 0, height: 64}, OUI_REVERSED | OUI_BOTTOM);
+		this.tiletabs.open(5, new ItemPool('items', {left: 0, right: 0, top: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM));
+		this.tiletabs.open(6, new SpawnSlots('chars', {left: 0, right: 0, top: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM));
+
+		this.mainmenu = new oui.Tabbed({width: 320, right: 0, top: 0, bottom: 0}, 'options', {left: 0, right: 0, height: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM | OUI_VERTICAL);
+		this.mainmenu.show(new ooo.Box('#555'));
+		this.mainmenu.open(1, this.chartabs);
+		this.mainmenu.open(2, this.tiletabs);
+		this.show(this.mainmenu, 1);*/
+
+		this.data.time = time;
+		process_tick.call(this, info);
+		//this.trigger('put:action', [[]]);//fill with repeated actions
+	}
+
+	Game.on('message:grant', function (games)
 	{
 		this.forms.login.hide();
-		ooo.setLocal('auth', this.auth);
+		ooc.setLocal('auth_token', this.auth_token);
 
-		if (ooo.size(games) > 0)
+		if (ooc.size(games) > 0)
 		{
 			var id = parseInt(prompt('choose from: ' + JSON.stringify(games), '0'));
 			var rules = games[id][0];
 			var names = games[id][1];
-			names.push(this.auth[0]);
-			this.game = new Game(rules, names);
+			names.push(this.auth_token[0]);
+			init_game.call(this, rules, names);
 			this.send('join', [id]);
 		}
 		else
 		{
 			var rules = JSON.parse(prompt('type rules:', '[1,32]'));
-			var names = [this.auth[0]];
-			this.game = new Game(rules, names);
+			var names = [this.auth_token[0]];
+			init_game.call(this, rules, names);
 			this.send('host', [rules]);
 		}
 	});
 
-	Client.on('message:join', function (name)
+	Game.on('message:join', function (name)
 	{
 		console.log('JOIN %s', name);
-		this.game.join(name);
+		this.updatez(true, 'players', name);
 	});
 
-	Client.on('message:leave', function (name)
+	Game.on('message:leave', function (name)
 	{
 		console.log('LEAVE %s', name);
-		this.game.leave(name);
+		this.deletez('players', name);
 
 		if (this.timeout)
 		{
@@ -799,7 +501,7 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		}
 	});
 
-	//Client
+	//Game
 	function count_down (delay)
 	{
 		console.log('starting in %d', delay);
@@ -816,161 +518,197 @@ ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
 		}
 	}
 
-	Client.on('message:ready', function (delay)
+	Game.on('message:ready', function (delay)
 	{
 		console.log('READY %d', delay);
 		count_down.call(this, delay);
 	});
 
-	function convert_history (history)
+	function terrainof (info)
 	{
-		var by_id = {};
-		var by_type = {};
-		var by_char = {};
-		var by_root = {};
+		var tiles = [];
 
-		//build base info tree
-		var has_parents = {};
-		var has_children = {};
-
-		for (var char in history)
+		if (ooc.size(info.parents))
 		{
-			for (var id in history[char])
+			for (var id in info.parents)
 			{
-				var argv = history[char][id];
+				tiles = tiles.concat(terrainof(info.parents[id]));
+			}
+		}
+		else
+		{
+			tiles.push(info);
+		}
+
+		return tiles;
+	}
+
+	//Game
+	function process_tick (history)
+	{
+		var groups = {};
+		var tiles = {};
+		var homes = {};
+		var parents = {};
+		var children = {};
+
+		for (var char_id in history)
+		{
+			homes[char_id] = history[char_id][0];
+			//var know = history[char_id][1];
+			//var jobs = history[char_id][2];
+
+			for (var info_id in history[char_id][1])
+			{
+				var argv = history[char_id][1][info_id];
 				var info = {};
-				info.id = parseInt(id);
+				info.id = parseInt(info_id);
 				info.type = argv[0];
 				info.insight = argv[1];
-				//info.data = ['hallo'];//zb text auf blatt papier
 				info.parents = {};
 				info.children = {};
 
-				var group = ITEMS[info.type].group;
-				ooo.add(info, by_id, group, id);
-				ooo.add(info, by_type, group, info.type, id);
-				ooo.add(info, by_char, char, group, id);
-
-				//link to children
-				for (var j = 0; j < argv[2].length; j++)
+				if (argv[2])
 				{
-					var cid = argv[2][j];
-					var child = has_children[cid];
+					info.argv = argv[2];
+				}
 
-					if (child)
+				if (argv[3])
+				{
+					//link to children
+					for (var i = 0; i < argv[3].length; i++)
 					{
-						info.children[cid] = child;
-						child.parents[id] = info;
-					}
-					else
-					{
-						ooo.add(info, has_parents, cid, id);
+						var child_id = argv[3][i];
+						var child = children[child_id];
+
+						if (child)
+						{
+							info.children[child_id] = child;
+							child.parents[info_id] = info;
+						}
+						else
+						{
+							ooc.add(info, parents, child_id, info_id);
+						}
 					}
 				}
 
 				//link to parents
-				if (id in has_parents)
+				if (info_id in parents)
 				{
-					for (var asdf in has_parents[id])
+					for (var parent_id in parents[info_id])
 					{
-						var parent = has_parents[id][asdf];
-						parent.children[id] = info;
-						info.parents[asdf] = parent;
+						var parent = parents[info_id][parent_id];
+						parent.children[info_id] = info;
+						info.parents[parent_id] = parent;
 					}
 				}
 				else
 				{
-					has_children[id] = info;
+					children[info_id] = info;
 				}
+
+				var group_id = ITEMS[info.type].group;
+				ooc.add(info, groups, group_id, info_id);
+				//ooo.add(info, data.by_id, group, id);
+				//ooo.add(info, data.by_type, group, info.type, id);
+				//ooo.add(info, data.by_char, char, group, id);
 			}
 		}
 
-		for (var group in by_id)
+		for (var group_id in groups)
 		{
-			for (var id in by_id[group])
+			for (var info_id in groups[group_id])
 			{
-				var info = by_id[group][id];
-				var roots = rootsof(info);
+				var info = groups[group_id][info_id];
+				var terrain = terrainof(info);
 
-				for (var i = 0; i < roots.length; i++)
+				for (var i = 0; i < terrain.length; i++)
 				{
-					ooo.add(info, by_root, roots[i].id, group, id);
+					ooc.add(info, tiles, terrain[i].id, group_id, info_id);
 				}
 			}
 		}
 
-		return {by_id: by_id, by_type: by_type, by_char: by_char, by_root: by_root};
+		this.trigger('update:data', [groups[0], tiles, homes]);
+		var char_id = ooc.minkey(homes);
+		var home = homes[char_id];
+		var tile = null;
+		this.trigger('update:focus', [char_id, home, tile]);
+		this.trigger('update:actions', [[]]);
 	}
 
-	//vision entfernen!!! pathfinding nur mit costs!!! low energy char hat kleineres areal!!!!
-
-	//Client
-	function start_game (time, history, chars)
+	//Game
+	/*function process_chars (chars)
 	{
-		this.game.start(time);
+		var data = {};
 
-		this.data = {};
-		this.data.info = convert_history(history);
-		this.data.chars = chars;
+		for (var id in chars)
+		{
+			var argv = chars[id];
+			var char = {};
+			char.id = parseInt(id);
+			char.argv = argv;
+			//char.home = argv[0];
+			//char.slot = argv[1];
+			char.name = argv[0];
+			char.stats = ooo.map(STATNAMES, argv[1]);
+			char.path = argv[2];
+			char.info = this.data.info.by_id[2][id];
+			char.groups = this.data.info.by_char[id];
+			data[id] = char;
+		}
 
-		this.scenes = {};
-		this.scenes.main = new MainScene(this.game, this.data);
-		this.scenes.side = new SideScene(this.game, this.data);
+		//data.focus.tile = data.info.by_tile[0];
+		//data.focus.char = data.chars(ooo.minkey(data.chars));
+		return data;
+	}*/
 
-		this.show(this.scenes.main);
-		this.show(this.scenes.side);
-	}
-
-	Client.on('message:start', function (time, history, chars)
-	{
-		//this.root.update = false;
-		//this.root.once = true;
-		console.log('START', arguments);
-		start_game.call(this, time, history, chars);
-		console.log('MAKE A MOVE');
-	});
-
-	Client.on('message:continue', function (rules, names, time, history, chars, waiting)
+	Game.on('message:continue', function (rules, names, time, info, move)
 	{
 		console.log('CONTINUE', arguments);
 		this.forms.login.hide();
-		ooo.setLocal('auth', this.auth);
+		ooo.setLocal('auth_token', this.auth_token);
 
-		this.game = new Game(rules, names);
-		start_game.call(this, time, history, chars);
-
-		if (waiting)
-		{
-			console.log('MAKE A MOVE');
-		}
+		init_game.call(this, rules, names);
+		start_game.call(this, time, info);
+		console.log(move ? MOVE : WAIT);
 	});
 
-	Client.on('message:away', function (name)
+	Game.on('message:tick', function (info)
+	{
+		console.log('TICK', arguments);
+
+		if (!this.started)
+		{
+			start_game.call(this, 0, info);
+		}
+
+		this.data.time++;
+		process_tick.call(this, info);
+		console.log(MOVE);
+	});
+
+	Game.on('message:away', function (name)
 	{
 		console.log('AWAY %s', name);
 	});
 
-	Client.on('message:back', function (name)
+	Game.on('message:back', function (name)
 	{
 		console.log('BACK %s', name);
-	});
-
-	Client.on('message:tock', function (info, chars)
-	{
-		console.log('TOCK', arguments);
-		this.game.time++;
-		this.world.reset(info, chars);
 	});
 
 	window.addEventListener('load', function ()
 	{
 		var hook = document.getElementById('hook');
-		var assets = {};
-		assets['steps'] = 'assets/steps.png';
-		assets['chars'] = 'assets/chars.png';
-		assets['items'] = 'assets/items.png';
-		assets['path'] = 'assets/path.png';
-		assets['options'] = 'assets/options.png';
-		var jupiter = new Client('http://10.0.0.19:11133', hook, assets, '#444');
+		var jupiter = new Game(hook, '#444');
+		jupiter.load('steps', 'assets/steps.png', 64, 64);
+		jupiter.load('chars', 'assets/chars.png', 64, 64);
+		jupiter.load('items', 'assets/items.png', 64, 64);
+		jupiter.load('path', 'assets/path.png', 64, 64);
+		jupiter.load('options', 'assets/options.png', 64, 64);
+		jupiter.load('buttons', 'assets/buttons.png', 64, 64);
+		jupiter.open('http://10.0.0.19:11133');
 	});
 })();

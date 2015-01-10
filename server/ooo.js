@@ -3,267 +3,14 @@ module.exports = ooo;
 
 var http = require('http');
 var sockjs = require('sockjs');
-
-ooo.Wrap = function (Func, argv)
-{
-    return Func.bind.apply(Func, [Func].concat(argv));
-}
-
-ooo.add = function (value, object)
-{
-	var pointer = object;
-	var loops = arguments.length - 1;
-	var key = null;
-
-	for (var i = 2; i < loops; i++)
-	{
-		key = arguments[i];
-
-		if (!pointer[key])
-		{
-			pointer[key] = {};
-		}
-
-		pointer = pointer[key];
-	}
-	
-	pointer[arguments[i]] = value;
-}
-
-ooo.remove = function (object)
-{
-	var pointers = [object];
-	var loops = arguments.length - 1;
-
-	for (var i = 1; i < loops; i++)
-	{
-		pointers[i] = pointers[i - 1][arguments[i]];
-	}
-
-	//besser lösen?
-	if (!pointers[i - 1])
-	{
-		return;
-	}
-
-	delete pointers[i - 1][arguments[i]];
-
-	for (i--; i > 0; i--)
-	{
-		if (Object.keys(pointers[i]).length === 0)
-		{
-			delete pointers[i - 1][arguments[i]];
-		}
-	}
-}
-
-ooo.map = function (keys, values)
-{
-	var object = {};
-
-	for (var i = 0; i < keys.length; i++)
-	{
-		object[keys[i]] = values[i];
-	}
-
-	return object;
-}
-
-ooo.merge = function (keep, add)
-{
-	for (var key in add)
-	{
-		var value = add[key];
-
-		if (keep[key] && (typeof value == 'object'))
-		{
-			ooo.merge(keep[key], value);
-		}
-		else
-		{
-			keep[key] = value;
-		}
-	}
-}
-
-ooo.clone = function (object)
-{
-	var clone = {};
-
-	for (var key in object)
-	{
-		clone[key] = object[key];
-	}
-
-	return clone;
-}
-
-ooo.indices = function (object)
-{
-	var keys = [];
-
-	for (var key in object)
-	{
-		keys.push(parseInt(key));
-	}
-
-	return keys;
-}
-
-ooo.sorted_index = function (open, tile, prop)
-{
-	var low = 0;
-	var high = open.length;
-
-	while (low < high)
-	{
-		var mid = (low + high) >>> 1;
-
-		if (tile[prop] > open[mid][prop])
-		{
-			high = mid;
-		}
-		else
-		{
-			low = mid + 1;
-		}
-	}
-
-	return low;
-}
-
-ooo.size = function (object)
-{
-	return Object.keys(object).length;
-}
-
-ooo.fill = function (object, value)
-{
-	var keys = Object.keys(object);
-
-	for (var id = 0; id < keys.length; id++)
-	{
-		if (id != keys[id])
-		{
-			break;
-		}
-	}
-
-	object[id] = value;
-	return id;
-}
-
-function inherit (Child, Parent)
-{
-	Child.prototype = Object.create(Parent.prototype);
-	Child.prototype.constructor = Child;
-
-	for (var name in Parent)
-	{
-		if (Parent.hasOwnProperty(name))
-		{
-			Child[name] = Parent[name];
-		}
-	}
-
-	if (Parent.prototype.events)
-	{
-		var events = {};
-
-		for (var type in Parent.prototype.events)
-		{
-			events[type] = Parent.prototype.events[type];
-		}
-
-		Child.prototype.events = events;
-	}
-}
-
-ooo.Class = function ()
-{
-}
-
-ooo.Class.clone = function ()
-{
-	var argv = arguments;
-	var Parent = this;
-
-	var Child = function ()
-	{
-		Parent.apply(this, argv);
-	}
-
-	inherit(Child, Parent);
-	return Child;
-}
-
-ooo.Class.extend = function (func)
-{
-	var Parent = this;
-
-	var Child = function ()
-	{
-		func.apply(this, arguments);
-	}
-
-	inherit(Child, Parent);
-	return Child;
-}
-
-ooo.Class.on = function (type, func)
-{
-	if (!this.prototype.events)
-	{
-		this.prototype.events = {};
-	}
-
-	this.prototype.events[type] = func;
-}
-
-ooo.Class.method = function (name, func)
-{
-	this.prototype[name] = func;
-}
-
-ooo.Class.method('attach', function (child)
-{
-	//this.children.push(child);
-});
-
-ooo.Class.method('detach', function (child)
-{
-});
-
-ooo.Class.method('trigger', function (type, argv)
-{
-	if (this.events && this.events[type])
-	{
-		try
-		{
-			this.events[type].apply(this, argv);
-		}
-		catch (e)
-		{
-			console.log('EXCEPTION %s', e.toString());
-
-			if (e.stack)
-			{
-				console.log(e.stack);
-			}
-		}
-	}
-	else
-	{
-		console.log('NOTYPE: ' + type);
-	}
-});
+var ooc = require('../client/source/ooc.js');
 
 var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
 
-ooo.TileMap = ooo.Class.extend(function (size)
+ooo.TileMap = ooc.Class.extend(function (size)
 {
-	ooo.Class.call(this);
+	ooc.Class.call(this);
 	this.size = size;
 	this.tiles = [];
 	this.index = [];
@@ -322,16 +69,19 @@ ooo.TileMap.method('distance', function (a, b)
 	return Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
 });
 
-ooo.TileMap.method('findArea', function (origin, range, costs)
+ooo.TileMap.method('findArea', function (open, range, costs)
 {
 	if (!costs)
 	{
 		costs = this.costs;
 	}
 
+	for (var i = 0; i < open.length; i++)
+	{
+		open[i].g = 0;
+	}
+
 	var done = [];
-	var open = [origin];
-	origin.g = 0;
 
 	do
 	{
@@ -375,7 +125,7 @@ ooo.TileMap.method('findArea', function (origin, range, costs)
 			if (tile == null)
 			{
 				next.g = next_g;
-				open.splice(ooo.sorted_index(open, next, 'g'), 0, next);
+				open.splice(ooc.sorted_index(open, next, 'g'), 0, next);
 				continue;
 			}
 
@@ -457,7 +207,7 @@ ooo.TileMap.method('findPath', function (origin, target, costs)
 			{
 				next.g = next_g;
 				next.f = next_g + this.distance(next, target);
-				open.splice(ooo.sorted_index(open, next, 'f'), 0, next);
+				open.splice(ooc.sorted_index(open, next, 'f'), 0, next);
 				crumbs[next.i] = [i, current];
 				continue;
 			}
@@ -473,8 +223,9 @@ ooo.TileMap.method('findPath', function (origin, target, costs)
 	while (open.length)
 });
 
-ooo.Client = ooo.Class.extend(function (server, socket)
+ooo.Client = ooc.Class.extend(function (server, socket)
 {
+	ooc.Class.call(this);
 	this.server = server;
 	this.socket = socket;
 	this.expected = {};
@@ -509,6 +260,7 @@ ooo.Client.method('send', function (type, data)
 {
 	var message = JSON.stringify(Array.prototype.slice.call(arguments));
 	this.socket.write(message);
+	return this;
 });
 
 ooo.Client.method('close', function (code)
@@ -522,11 +274,14 @@ ooo.Client.method('expect', function ()
 	{
 		this.expected[arguments[i]] = true;
 	}
+
+	return this;
 });
 
-ooo.Server = ooo.Class.extend(function (Client, port)
+ooo.Server = ooc.Class.extend(function (Client, port)
 {
 	console.log('OPEN %d', port);
+	ooc.Class.call(this);
 	this.http = http.createServer();
 	this.http.listen(port);//, '0.0.0.0'
 	this.sockjs = sockjs.createServer({'log': function (type, message) { if (type != 'info') { console.log(type, message) }}});
@@ -537,7 +292,7 @@ ooo.Server = ooo.Class.extend(function (Client, port)
 	this.sockjs.on('connection', function (socket)
 	{
 		var client = new Client(that, socket);
-		client.id = ooo.fill(that.clients, client);
+		client.id = ooc.fill(that.clients, client);
 		//client.trigger('socket:open');
 
 		socket.on('data', function (string)
@@ -554,7 +309,7 @@ ooo.Server = ooo.Class.extend(function (Client, port)
 
 			if (!client.expected[type])
 			{
-				client.close('unexpected message');
+				client.close('unexpected message "%s"', type);
 				return;
 			}
 

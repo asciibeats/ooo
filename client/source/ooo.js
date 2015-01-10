@@ -1,6 +1,5 @@
 'use strict';
 var ooo = {};
-
 //////TODO
 //system vars von user vars trennen!!! (passiert zu oft daß man wichtige classvars pberschreibet weil man nicht dran denkt daß die schon existiert (und ich habs geschrieben!!!))
 //wenn exception in draw function catch -> this.once = false; this.update = false;
@@ -13,271 +12,6 @@ var ooo = {};
 
 (function ()
 {
-	ooo.add = function (value, object)
-	{
-		var pointer = object;
-		var loops = arguments.length - 1;
-		var key = null;
-
-		for (var i = 2; i < loops; i++)
-		{
-			key = arguments[i];
-
-			if (!pointer[key])
-			{
-				pointer[key] = {};
-			}
-
-			pointer = pointer[key];
-		}
-		
-		pointer[arguments[i]] = value;
-	}
-
-	ooo.remove = function (object)
-	{
-		var pointers = [object];
-		var loops = arguments.length - 1;
-
-		for (var i = 1; i < loops; i++)
-		{
-			pointers[i] = pointers[i - 1][arguments[i]];
-		}
-
-		//besser lösen?
-		if (!pointers[i - 1])
-		{
-			return;
-		}
-
-		delete pointers[i - 1][arguments[i]];
-
-		for (i--; i > 0; i--)
-		{
-		    if (Object.keys(pointers[i]).length === 0)
-		    {
-		        delete pointers[i - 1][arguments[i]];
-		    }
-		}
-	}
-
-	ooo.map = function (keys, values)
-	{
-		var object = {};
-
-		for (var i = 0; i < keys.length; i++)
-		{
-			object[keys[i]] = values[i];
-		}
-
-		return object;
-	}
-
-	ooo.clone = function (object)
-	{
-		var clone = {};
-
-		for (var key in object)
-		{
-			clone[key] = object[key];
-		}
-
-		return clone;
-	}
-
-	ooo.wrap = function (index, size)
-	{
-		return ((index % size) + size) % size;
-	}
-
-	ooo.size = function (object)
-	{
-		return Object.keys(object).length;
-	}
-
-	ooo.matrix = function (width, height, value)
-	{
-		var array = [];
-
-		for (var y = 0; y < height; y++)
-		{
-			array[y] = [];
-
-			for (var x = 0; x < width; x++)
-			{
-				array[y][x] = value;
-			}
-		}
-
-		return array;
-	}
-
-	ooo.fill = function (object, value)
-	{
-		var keys = Object.keys(object);
-
-		for (var id = 0; id < keys.length; id++)
-		{
-			if (id != keys[id])
-			{
-				break;
-			}
-		}
-
-		object[id] = value;
-		return id;
-	}
-
-	ooo.maxkey = function (object)
-	{
-		return Math.max.apply(null, ooo.intkeys(object));
-	}
-
-	ooo.minkey = function (object)
-	{
-		return Math.min.apply(null, ooo.intkeys(object));
-	}
-
-	ooo.intkeys = function (object)
-	{
-		var keys = [];
-
-		for (var key in object)
-		{
-			keys.push(parseInt(key));
-		}
-
-		return keys;
-	}
-
-	ooo.preload = function (assets, callback)
-	{
-		var images = {};
-		var toload = ooo.size(assets);
-		var loaded = 0;
-
-		for (var name in assets)
-		{
-			images[name] = new Image();
-
-			images[name].onload = function()
-			{
-				loaded++;
-
-				if (loaded == toload)
-				{
-					callback(images);
-				}
-			}
-
-			images[name].src = assets[name];
-		}
-	}
-
-	ooo.setLocal = function (name, object)
-	{
-		localStorage[name] = JSON.stringify(object);
-	}
-
-	ooo.getLocal = function (name)
-	{
-		if (localStorage[name])
-		{
-			return JSON.parse(localStorage[name]);
-		}
-		/*else
-		{
-			localStorage[name] = JSON.stringify({});
-		}*/
-	}
-
-	ooo.Class = function ()
-	{
-	}
-
-	ooo.Class.clone = function ()
-	{
-		var argv = arguments;
-		var Parent = this;
-
-		var Child = function ()
-		{
-			Parent.apply(this, argv);
-		}
-
-		inherit(Child, Parent);
-		return Child;
-	}
-
-	ooo.Class.extend = function (func)
-	{
-		var Parent = this;
-
-		var Child = function ()
-		{
-			func.apply(this, arguments);
-		}
-
-		inherit(Child, Parent);
-		return Child;
-	}
-
-	ooo.Class.on = function (type, func)
-	{
-		if (!this.prototype.events)
-		{
-			this.prototype.events = {};
-		}
-
-		this.prototype.events[type] = func;
-	}
-
-	ooo.Class.method = function (name, func)
-	{
-		this.prototype[name] = func;
-	}
-
-	ooo.Class.method('trigger', function (type, argv)
-	{
-		if (this.events && this.events[type])
-		{
-			try
-			{
-				this.events[type].apply(this, argv);
-			}
-			catch (e)
-			{
-				console.log('EXCEPTION %s', e.toString());
-
-				if (e.stack)
-				{
-					console.log(e.stack);
-				}
-			}
-		}
-		else
-		{
-			console.log('NOTYPE: ' + type);
-		}
-	});
-
-	/*function indices (object)//use with sparse arr: i < length
-	{
-		var keys = [];
-
-		for (var key in object)
-		{
-			keys.push(parseInt(key));
-		}
-
-		return keys;
-	}*/
-
-	/*function Wrap (Func, argv)
-	{
-		return Func.bind.apply(Func, [Func].concat(argv));
-	}*/
-
 	function addEvent (channel)
 	{
 		return function (type, func)
@@ -296,72 +30,6 @@ var ooo = {};
 		}
 	}
 
-	function triggerActor (actor, child, channel, type, argv)
-	{
-		if (actor.events && actor.events[channel] && actor.events[channel][type])
-		{
-			try
-			{
-				return actor.events[channel][type].apply(child, argv);
-			}
-			catch (e)
-			{
-				console.log('EXCEPTION %s', type);
-				console.log(e.toString());
-				console.log(e.stack);
-			}
-		}
-	}
-
-	function triggerLayer (actor, layer, type, argv, bubble)
-	{
-		for (var id in layer)
-		{
-			var child = layer[id];
-			var retv = triggerActor(actor, child, 'prepare', type, argv);
-
-			if (retv != false)
-			{
-				if (retv == null)
-				{
-					retv = argv;
-				}
-
-				if (child.trigger(type, retv, bubble) == false)
-				{
-					return false;
-				}
-			}
-
-			triggerActor(actor, child, 'cleanup', type, argv);
-		}
-	}
-
-	function showActor (scene, actor, layer)
-	{
-		if (actor.id != undefined)
-		{
-			actor.hide();
-		}
-
-		if (layer == null)
-		{
-			layer = 0;
-		}
-
-		if (!scene.children[layer])
-		{
-			scene.children[layer] = {};
-			//insert + sort could potentially be optimized
-			scene.layers.push(layer);
-			scene.layers.sort(ascend);
-		}
-
-		actor.id = ooo.fill(scene.children[layer], actor);
-		actor.layer = layer;
-		actor.parent = scene;
-	}
-
 	function ascend (a, b)
 	{
 		return a - b;
@@ -377,6 +45,7 @@ var ooo = {};
 		this.height = 0;
 		this.alpha = 1;
 		this.angle = 0;
+		this.ignore = {};
 	}
 
 	ooo.Actor.on = addEvent('on');
@@ -509,9 +178,42 @@ var ooo = {};
 		return this;
 	});
 
+	ooo.Actor.method('mask', function (type)
+	{
+		this.ignore[type] = true;
+		return this;
+	});
+
+	ooo.Actor.method('unmask', function (type)
+	{
+		delete this.ignore[type];
+		return this;
+	});
+
+	//Actor
+	function triggerActor (child, channel, type, argv)
+	{
+		if (this.events && this.events[channel] && this.events[channel][type])
+		{
+			try
+			{
+				return this.events[channel][type].apply(child, argv);
+			}
+			catch (e)
+			{
+				console.log('EXCEPTION %s', type);
+				console.log(e.toString());
+				console.log(e.stack);
+			}
+		}
+	}
+
 	ooo.Actor.method('trigger', function (type, argv)
 	{
-		return triggerActor(this, this, 'on', type, argv);
+		if (!this.ignore[type])
+		{
+			return triggerActor.call(this, this, 'on', type, argv);
+		}
 	});
 
 	ooo.Actor.method('hide', function ()
@@ -524,7 +226,7 @@ var ooo = {};
 		var layer = this.parent.children[this.layer];
 		delete layer[this.id];
 
-		if (ooo.size(layer) == 0)
+		if (ooc.size(layer) == 0)
 		{
 			delete this.parent.children[this.layer];
 			var layers = this.parent.layers;
@@ -712,47 +414,83 @@ var ooo = {};
 		context.restore();
 	});
 
-	ooo.Scene.method('bubble', function (type, func)//temp
-	{
-		var channel = 'bubble';
-
-		if (!this.events)
-		{
-			this.events = {};
-		}
-
-		if (!this.events[channel])
-		{
-			this.events[channel] = {};
-		}
-
-		this.events[channel][type] = func;
-		return this;
-	});
-
-	ooo.Scene.method('hideChildren', function ()
+	/*ooo.Scene.method('hideChildren', function ()
 	{
 		this.children = [];
 		this.layers = [];
 		return this;
-	});
+	});*/
 
 	ooo.Scene.method('show', function (actor, layer)
 	{
-		showActor(this, actor, layer);
-		actor.trigger('resize', [this.width, this.height]);
+		if (actor.id != undefined)
+		{
+			actor.hide();
+		}
+
+		if (layer == null)
+		{
+			layer = 0;
+		}
+
+		if (!this.children[layer])
+		{
+			this.children[layer] = {};
+			//insert + sort could potentially be optimized
+			this.layers.push(layer);
+			this.layers.sort(ascend);
+		}
+
+		actor.id = ooc.fill(actor, this.children[layer]);
+		actor.layer = layer;
+		actor.parent = this;
 
 		if (this.root && this.root.loaded)
 		{
 			actor.trigger('show', [this.root, this]);
+			actor.trigger('resize', [this.width, this.height]);
+			//actor.trigger('update', [this.root.data, []]);
 		}
 
 		return this;
 	});
 
+	//Scene
+	function triggerLayer (i, type, argv, bubble)
+	{
+		var lid = this.layers[i];
+		var layer = this.children[lid];
+
+		for (var id in layer)
+		{
+			var child = layer[id];
+			var retv = triggerActor.call(this, child, 'prepare', type, argv);
+
+			if (retv != false)
+			{
+				if (retv == null)
+				{
+					retv = argv;
+				}
+
+				if (child.trigger(type, retv, bubble) == false)
+				{
+					return false;
+				}
+			}
+
+			triggerActor.call(this, child, 'cleanup', type, argv);
+		}
+	}
+
 	ooo.Scene.method('trigger', function (type, argv, bubble)
 	{
-		var retv = triggerActor(this, this, 'on', type, argv);
+		if (this.ignore[type])
+		{
+			return;
+		}
+
+		var retv = triggerActor.call(this, this, 'on', type, argv);
 
 		if (retv != false)
 		{
@@ -760,14 +498,12 @@ var ooo = {};
 			{
 				retv = argv;
 			}
-			
+
 			if (bubble)
 			{
 				for (var i = (this.layers.length - 1); i >= 0; i--)
 				{
-					var layer = this.children[this.layers[i]];
-
-					if (triggerLayer(this, layer, type, retv, bubble) == false)
+					if (triggerLayer.call(this, i, type, retv, bubble) == false)
 					{
 						return false;
 					}
@@ -777,9 +513,7 @@ var ooo = {};
 			{
 				for (var i = 0; i < this.layers.length; i++)
 				{
-					var layer = this.children[this.layers[i]];
-
-					if (triggerLayer(this, layer, type, retv, bubble) == false)
+					if (triggerLayer.call(this, i, type, retv, bubble) == false)
 					{
 						return false;
 					}
@@ -788,10 +522,10 @@ var ooo = {};
 		}
 		else
 		{
-			return false;//propblematisch da bubble nicht mehr ausgeführt wird??? drauf achten!!
+			return false;
 		}
 
-		triggerActor(this, this, 'bubble', type, argv);
+		triggerActor.call(this, this, 'bubble', type, argv);
 	});
 
 	//layers komplett abschaffen? -> array also reihenfolge nicht undefined -> insert before after push, unshift//array id damit auch abschaffen
@@ -871,7 +605,7 @@ var ooo = {};
 	});
 
 	//root actor to be embedded into html
-	ooo.Root = ooo.Stage.extend(function (hook, assets, color)
+	ooo.Root = ooo.Stage.extend(function (hook, color)
 	{
 		ooo.Stage.call(this);
 		this.canvas.style.position = 'absolute';
@@ -885,14 +619,123 @@ var ooo = {};
 		this.fullscreen = false;
 		this.loaded = false;
 		this.root = this;
-		var that = this;
+		this.assets = {};
+		this.images = {};
+		this.data = {};
+	});
 
-		ooo.preload(assets, function (images)
+	/*ooo.Root.method('triggerUpdate', function (type, argv)
+	{
+		//var type = 'update:' + Array.prototype.slice.call(arguments, 1).join('_');
+		//Array.prototype.splice.call(arguments, 1, 0, this.data);
+		//ooo.add.apply(null, arguments);
+		this.data[type] = argv;
+		this.trigger(type, argv);
+	});*/
+
+	/*ooo.Root.method('deletez', function ()
+	{
+		var type = 'delete:' + Array.prototype.slice.call(arguments).join('_');
+		Array.prototype.unshift.call(arguments, this.data);
+		ooo.remove.apply(null, arguments);
+		this.trigger(type);
+		//console.log('delete', type, this.data);
+	});*/
+
+	ooo.Root.method('load', function (name, source, width, height)
+	{
+		this.assets[name] = {source: source, width: width, height: height};
+	});
+
+	function loaded (root, asset, image)
+	{
+		return function ()
 		{
-			that.images = images;
-			that.loaded = true;
-			that.trigger('show', [that, that]);
-		});
+			root.toload--;
+			image.tile_w = asset.width || image.width;
+			image.tile_h = asset.height || image.height;
+			image.tile_x = [];
+			image.tile_y = [];
+
+			var cols = Math.floor(image.width / image.tile_w);
+			var rows = Math.floor(image.height / image.tile_h);
+
+			for (var y = 0; y < rows; y++)
+			{
+				for (var x = 0; x < cols; x++)
+				{
+					image.tile_x.push(x * image.tile_w);
+					image.tile_y.push(y * image.tile_h);
+				}
+			}
+
+			if (root.toload == 0)
+			{
+				root.loaded = true;
+				root.trigger('show', [root, root]);
+				root.trigger('resize', [root.width, root.height]);
+			}
+		}
+	}
+
+	ooo.Root.method('open', function ()
+	{
+		this.toload = ooc.size(this.assets);
+
+		for (var name in this.assets)
+		{
+			var asset = this.assets[name];
+			var image = new Image();
+			image.onload = loaded(this, asset, image);
+			image.src = asset.source;
+			this.images[name] = image;
+		}
+	});
+
+	ooo.Root.method('toggle', function ()
+	{
+		if (document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement)
+		{
+			if (document.exitFullscreen)
+			{
+				document.exitFullscreen();
+			}
+			else if (document.msExitFullscreen)
+			{
+				document.msExitFullscreen();
+			}
+			else if (document.mozCancelFullScreen)
+			{
+				document.mozCancelFullScreen();
+			}
+			else if (document.webkitExitFullscreen)
+			{
+				document.webkitExitFullscreen();
+			}
+
+			this.fullscreen = false;
+		}
+		else
+		{
+			if (this.hook.requestFullscreen)
+			{
+				this.hook.requestFullscreen();
+			}
+			else if (this.hook.msRequestFullscreen)
+			{
+				this.hook.msRequestFullscreen();
+			}
+			else if (this.hook.mozRequestFullScreen)
+			{
+				this.hook.mozRequestFullScreen();
+			}
+			else if (this.hook.webkitRequestFullscreen)
+			{
+				this.hook.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+			}
+
+			this.fullscreen = true;
+		}
 	});
 
 	ooo.Root.on('show', function (root, parent)
@@ -1010,63 +853,22 @@ var ooo = {};
 		window.addEventListener('resize', on_resize);*/
 	});
 
-	ooo.Root.method('toggle', function ()
+	ooo.Client = ooo.Root.extend(function (hook, color)
 	{
-		if (document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement)
-		{
-			if (document.exitFullscreen)
-			{
-				document.exitFullscreen();
-			}
-			else if (document.msExitFullscreen)
-			{
-				document.msExitFullscreen();
-			}
-			else if (document.mozCancelFullScreen)
-			{
-				document.mozCancelFullScreen();
-			}
-			else if (document.webkitExitFullscreen)
-			{
-				document.webkitExitFullscreen();
-			}
-
-			this.fullscreen = false;
-		}
-		else
-		{
-			if (this.hook.requestFullscreen)
-			{
-				this.hook.requestFullscreen();
-			}
-			else if (this.hook.msRequestFullscreen)
-			{
-				this.hook.msRequestFullscreen();
-			}
-			else if (this.hook.mozRequestFullScreen)
-			{
-				this.hook.mozRequestFullScreen();
-			}
-			else if (this.hook.webkitRequestFullscreen)
-			{
-				this.hook.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
-			}
-
-			this.fullscreen = true;
-		}
+		ooo.Root.call(this, hook, color);
+		this.connected = false;
 	});
 
-	ooo.Client = ooo.Root.extend(function (url, hook, assets, color)
+	ooo.Client.method('open', function (url)
 	{
-		ooo.Root.call(this, hook, assets, color);
+		ooo.Root.prototype.open.call(this);
 		this.sockjs = new SockJS(url);
-		this.opened = false;
 		var that = this;
 
 		this.sockjs.onopen = function ()
 		{
-			this.opened = true;
-			that.trigger('socket:open', []);
+			that.connected = true;
+			that.trigger('socket:open');
 		}
 
 		this.sockjs.onmessage = function (message)
@@ -1086,7 +888,7 @@ var ooo = {};
 
 		this.sockjs.onclose = function (message)
 		{
-			this.opened = false;
+			that.connected = false;
 			that.trigger('socket:close', [message.code]);
 		}
 	});
