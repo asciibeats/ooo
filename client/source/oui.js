@@ -4,8 +4,6 @@ var OUI_REVERSED = 2;
 var OUI_VERTICAL = 4;
 var oui = {};
 
-//separate (replacable) tiledraw function in tilemap/hexmap (no event!)
-
 (function ()
 {
 	oui.Button = ooo.Cell.extend(function (button_w, button_h, source, styles, layout)
@@ -883,7 +881,7 @@ var oui = {};
 
 				var next_c = calcCost(next.data);
 
-				if (next_c == undefined)
+				if (next_c == null)
 				{
 					continue;
 				}

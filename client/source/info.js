@@ -48,7 +48,7 @@ GROUPS[4] = 'Events';*/
 
 	INFO[1] = new Terrain(1, 'Grassland', [0, 0, 1]);
 	INFO[2] = new Terrain(2, 'Forest', [0, 4, 3]);
-	INFO[9] = new Character(9, 'Hero', [1, 1, 5, 5]);
+	INFO[9] = new Character(9, 'Hero', [1, 1, 10, 5]);
 	INFO[8] = new Item(8, 'Apple', [1, 1]);
 	INFO[11] = new Action(11, 'Fireplace', [1, 1], {0: 1});
 })();

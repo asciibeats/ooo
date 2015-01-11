@@ -1,4 +1,211 @@
 
+//fabricate claims!!!
+//history group->type!->id->time
+//andere realms anerkennen!!!!
+//chars "follow" other chars
+////these leading chars pose laws
+////laws are enforced only by ingame power projection (no game mechanic prevents anything)
+//x char slots
+//if char is put in prison or something the slot is blocked
+//number of followers determine your level
+
+////dreams depend on items&skills&node wichtig ist daß man wissen kann was kommen wird
+//erst alle looks dann anderes? usw?
+//home.items.chest.push();
+//traum deuten/trigger one time events
+//CHOOSE ABORT CONDITION FOR EVERY CHAR!? or x health or sth
+//WORLDSIZE: sqrt(playernum) * size
+//var STATNAMES = ['insight', 'stamina', 'vision'];
+//var POW2 = [1, 2, 4, 8];
+//var CHARTILES = [0, 3, 5, 4, 3, 2, 1, 3, 0, 0, 9, 10, 11];
+//var SPAWNSLOTS = [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+
+/*var GROUPS = [];
+GROUPS[0] = 'Terrain';
+GROUPS[1] = 'Spawns';
+GROUPS[2] = 'Characters';
+GROUPS[3] = 'Items';
+GROUPS[4] = 'Events';
+
+var ITEMS = [];
+ITEMS[0] = {title: 'World', group: 0, obscurity: 0, visibility: 0};
+ITEMS[1] = {title: 'Grass', group: 0, obscurity: 1, visibility: 0};
+ITEMS[2] = {title: 'Forest', group: 0, obscurity: 3, visibility: 0};
+ITEMS[3] = {title: 'Campfire', group: 0, obscurity: 1, visibility: 1};
+ITEMS[4] = {title: 'Fishmonster', group: 2, obscurity: 2, visibility: 1};
+ITEMS[5] = {title: 'Basket', group: 3, obscurity: 3, visibility: 1};
+ITEMS[6] = {title: 'Apple', group: 3, obscurity: 1, visibility: 1};
+ITEMS[7] = {title: 'Tree', group: 3, obscurity: 9, visibility: 0};
+ITEMS[8] = {title: 'Ring', group: 3, obscurity: 9, visibility: 1};
+ITEMS[9] = {title: 'Hero', group: 2, obscurity: 5, visibility: 1};
+ITEMS[10] = {title: 'Spawn', group: 1, obscurity: 1, visibility: 1};
+ITEMS[11] = {title: 'Build', group: 4, obscurity: 1, visibility: 1};*/
+
+//second hand information (maps,rumors,traded info,etc) is drawn in map colors
+/*ITEMS[10] = {title: 'MapGrass', obscurity: 9, visibility: 0};
+ITEMS[11] = {title: 'MapForest', obscurity: 9, visibility: 1};
+ITEMS[12] = {title: 'MapCampfire', obscurity: 4, visibility: 1};*/
+
+//at the beginning choose x cards to get initial resources/items nstuff
+
+//spawn shadow at some time/tile on a way
+//char hat max energy & regen; if you use more than regen a day you loose the diff from your energy
+//if you use less you fill up until max energy
+//routine-meter: wiederholung eines jobs erhöht level (0 bis max routine; pro wiederholung +1)
+//arbeitskraft in 1er schritten verteilen können: haus dauert 18 char baut über drei tage mit je 6ticks a x energy (oder 1 tag mit 7 chars mit je 2ticks a x energy und einem mit 4 etc)
+//spawn needs 1 food
+//wenn char schläft belegt er einen platz in home
+//häuser immer separat von anderen gebäuden!
+//kann man ja daneben bauen
+//not moving (waiting) costs 1 energy
+
+	/*var Site = ooo.Stage.extend(function ()
+	{
+		ooo.Stage.call(this);
+		this.update = false;
+	});
+
+	Site.on('show', function (root, parent)
+	{
+		this.once = true;
+	});
+
+	Site.on('resize', function (width, height)
+	{
+		ooo.Stage.
+		this.once = true;
+	});
+
+	Site.on('draw', function (time, context)
+	{
+		if (this.update || this.once)
+		{
+			context = this.context;
+			context.fillStyle = '#0f0';
+			//context.fillRect(0, 0, this.width, this.height);
+			context.fillRect(0, 0, 100, 100);
+			console.log('UPDATE');
+
+			//draw background
+			this.once = false;
+			return [time, this.context];
+		}
+		else
+		{
+			return false;
+		}
+	});*/
+
+	/*function add_event (events, parent, time, id, type)
+	{
+		if (!events[parent])
+		{
+			events[parent] = {};
+		}
+
+		if (!events[parent][time])
+		{
+			events[parent][time] = {};
+		}
+
+		events[parent][time][id] = type;
+	}*/
+
+	/*var CharStack = oui.SingleMenu.clone(64, 64, 'items', {left: 84, right: 10, top: 10, bottom: 10});
+
+	CharStack.method('reset', function (chars)
+	{
+		delete this.picked;
+		this.options = [];
+
+		for (var id in chars)
+		{
+			this.options.push(chars[id]);
+		}
+
+		return this;
+	});
+
+	CharStack.method('drawButton', function (time, context, data, picked)
+	{
+		if (true || picked)
+		{
+			context.fillStyle = '#fff';
+			context.fillRect(0, 0, this.button_w, this.button_h);
+		}
+		else
+		{
+			
+			//var type = ITEMTILES2[data.type];
+			//context.drawImage(this.image, this.tiles[type][0], this.tiles[type][1], this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
+		}
+	});
+
+	CharStack.on('draw', function (time, context)
+	{
+		if (this.reversed)
+		{
+			if (this.vertical)
+			{
+				context.translate(0, this.height - this.button_h);
+			}
+			else
+			{
+				context.translate(this.width - this.button_w, 0);
+			}
+		}
+
+		for (var i = 0; i < this.options.length; i++)
+		{
+			this.drawButton(time, context, this.options[i], this.picked == i);
+			context.translate(this.offset_x, this.offset_y);
+		}
+	});
+
+	var Land = ooo.Scene.extend(function (info)
+	{
+		ooo.Scene.call(this);
+		this.data = {};
+		this.data.info = info;
+		this.menu = {};
+		this.menu.pool = new ItemTypes();
+		this.show(this.menu.pool);
+		this.menu.stack = new CharStack();
+		this.show(this.menu.stack);
+	});
+
+	Land.method('reset', function (id, time)
+	{
+		this.menu.pool.reset(this.data.info.by_tile[id][2][time]);
+		this.menu.stack.reset(this.data.info.by_tile[id][1][time]);
+	});*/
+
+	//Game
+	/*function process_chars (chars)
+	{
+		var data = {};
+
+		for (var id in chars)
+		{
+			var argv = chars[id];
+			var char = {};
+			char.id = parseInt(id);
+			char.argv = argv;
+			//char.home = argv[0];
+			//char.slot = argv[1];
+			char.name = argv[0];
+			char.stats = ooo.map(STATNAMES, argv[1]);
+			char.path = argv[2];
+			char.info = this.data.info.by_id[2][id];
+			char.groups = this.data.info.by_char[id];
+			data[id] = char;
+		}
+
+		//data.focus.tile = data.info.by_tile[0];
+		//data.focus.char = data.chars(ooo.minkey(data.chars));
+		return data;
+	}*/
 //var COOLDOWN = [1, 0];
 //var SUBTICKS = 24;
 //var MAXSKILL = 9;
