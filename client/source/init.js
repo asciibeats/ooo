@@ -3,11 +3,13 @@
 //ein job ist aktion die jede runde wiederholt wird
 //holzfäller (+x holz)
 //alle item spawner sind jobs??
+
 (function ()
 {
+	var HOST = 'http://' + window.location.hostname + ':11133';
 	var TILES = [0, 3, 5, 4, 3, 2, 1, 3, 0, 3, 9, 10, 11];
-	var MOVE = 'MAKE A MOVE';
 	var WAIT = 'WAIT FOR OTHER PLAYERS';
+	var MOVE = 'MAKE A MOVE';
 
 	var Login = oui.Form.extend(function (color, font, layout, align, baseline)
 	{
@@ -517,6 +519,6 @@
 		jupiter.load('path', 'assets/path.png', 64, 64);
 		jupiter.load('options', 'assets/options.png', 64, 64);
 		jupiter.load('buttons', 'assets/buttons.png', 64, 64);
-		jupiter.open('http://10.0.0.19:11133');
+		jupiter.open(HOST);
 	});
 })();

@@ -1,11 +1,11 @@
 'use strict';
 var ooo = {};
 //////TODO
-
 ///ooc.Class für Actor benutzen!!!!
 ///tilemap rename tiles->coords index->tiles
 
 //system vars von user vars trennen!!! (passiert zu oft daß man wichtige classvars pberschreibet weil man nicht dran denkt daß die schon existiert (und ich habs geschrieben!!!))
+//////user vars in data objekt??
 //wenn exception in draw function catch -> this.once = false; this.update = false;
 //svg parser!!!!!!! ooo.Vector ooo.SVG ??
 //aufräumen!!!

@@ -173,55 +173,19 @@ Game.method('leave', function (player)
 	}
 });
 
-Game.method('start', function ()
+//Player
+function addChar (tile_i, data)
 {
-	console.log('START %d', this.id);
-	delete this.timeout;
-	this.started = true;//move to other container instead!!!!!!!!!!!!!!
-	var seat = 0;
-
-	for (var name in this.players)
-	{
-		var player = this.players[name];
-		var realm = {time: 0, chars: {}};
-		realm.player = player;
-		player.realm = realm;
-
-		if (seat == 0)
-		{
-			var argv = [132, [9, [3, 5, 1, 10, 0], [[8, [], []]]]];
-		}
-		else
-		{
-			var argv = [135, [9, [5, 5, 1, 10, 0], []]];
-		}
-
-		var home = argv[0];
-		var char = {};
-		char.info = this.world.spawn(argv[1], [home]);
-		char.realm = realm;
-		this.chars[char.info.id] = char;
-		realm.chars[char.info.id] = {home: home};
-		seat++;
-	}
-
-	this.tick();
-});
-
-//buildaction passiert nur einmal und kostet resourcen
-//ressourcengewinnung passiert täglich
-//abwechselnd tag und nacht
-//nachwächter action: leuchten (erhöht vision)
-//passiv chars (anonyme soldaten/stats) kaserne->X soldaten
-//group: TRAPS (react to steps/path)
-
-///(some) cards that transfer/create items are permanent/repeat (for x turns!!!)!!!!!!so klappt das auch mit dem stehlen!!!
-////////all cards????
-
-//bewegungs- und kartenkosten differenzieren? damit man anhand der karte besser einschätzen kann wieviel nach aktion noch übrig bleibt
+	var char = {};
+	char.info = this.game.world.spawn(data, [tile_i]);
+	char.realm = this.realm;
+	this.game.chars[char.info.id] = char;
+	this.realm.chars[char.info.id] = {home: tile_i};
+	//knowledge,home,tasks,jobs
+}
 
 //Player
-function addAction (char_id, tile_i, argv)
+function addAction (char_id, tile_i, data)
 {
 	//COMPLETE VALIDATION OF ACTION (PATH,CAPABILTIY,COST...)
 	var char = this.realm.chars[char_id];
@@ -231,7 +195,7 @@ function addAction (char_id, tile_i, argv)
 		throw 'no char';
 	}
 
-	var steps = argv[0];
+	var steps = data[0];
 	var tile = this.game.world.index[char.home];
 	var path = {};
 	var cost = 0;
@@ -251,16 +215,57 @@ function addAction (char_id, tile_i, argv)
 	//validate BEFORE here
 	if (false)//action is job
 	{
-		char.jobs[tile_i] = argv;
+		char.jobs[tile_i] = data;
 	}
 
 	var action = {};
 	action.path = path;
 	action.cost = cost;
-	action.argv = argv[1];
+	action.argv = data[1];
 	//console.log('addA', JSON.stringify(action));
 	ooc.add(action, this.game.actions, tile_i, char_id);
 }
+
+Game.method('start', function ()
+{
+	console.log('START %d', this.id);
+	delete this.timeout;
+	this.started = true;//move to other container instead!!!!!!!!!!!!!!
+	var seat = 0;
+
+	for (var name in this.players)
+	{
+		var player = this.players[name];
+		var realm = {time: 0, chars: {}};
+		//realm.player = player;
+		player.realm = realm;
+
+		if (seat == 0)
+		{
+			var argv = [132, [9, [3, 5, 1, 10, 0], [[8, [], []]]]];
+		}
+		else
+		{
+			var argv = [135, [9, [5, 5, 1, 10, 0], []]];
+		}
+
+		addChar.apply(player, argv);
+		seat++;
+	}
+
+	this.tick();
+});
+
+//abwechselnd tag und nacht
+//nachwächter action: leuchten (erhöht vision)
+//passiv chars (anonyme soldaten/stats) kaserne->X soldaten
+//group: TRAPS (react to steps/path)
+///(some) cards that transfer/create items are permanent/repeat (for x turns!!!)!!!!!!so klappt das auch mit dem stehlen!!!
+////////all cards????
+//bewegungs- und kartenkosten differenzieren? damit man anhand der karte besser einschätzen kann wieviel nach aktion noch übrig bleibt
+
+////KARTEN EFFEKTE ALS CLOSURES!!!
+////GENAU EINE CLOSURE PER INFO!!!
 
 Game.method('tock', function (player, actions)
 {
