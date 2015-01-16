@@ -1,9 +1,12 @@
 var fs = require('fs');
 var ooo = require('./ooo.js');
 var ooc = require('../client/source/ooc.js');
-var INFO = require('../client/source/info.js');
+var jup = require('../client/source/info.js');
 var START_DELAY = 0;
 var DENY_DELAY = 1;
+var ELEMS = ['Fire', 'Ice', 'Stone'];
+
+//remove all recursive functions!!!!!!!
 
 var World = ooo.TileMap.extend(function (size)
 {
@@ -21,9 +24,9 @@ World.method('spawn', function (data, parents, decay)
 {
 	var info = {};
 	info.id = ooc.fill(info, this.knowledge);//array mit gelöschten ids!!! (kein object mehr)
-	info.type = INFO[data[0]];
+	info.type = jup.info[data[0]];
 	info.argv = data[1] || [];
-	info.state = info.type.state.slice();
+	info.state = ooc.clone(info.type.state);
 	info.parents = {};
 	info.children = {};
 
@@ -51,6 +54,23 @@ World.method('spawn', function (data, parents, decay)
 	}
 
 	return info;
+});
+
+World.method('birth', function (realm, tile, data)
+{
+	var char = {};
+	char.realm = realm;
+	char.home = tile;
+	char.info = this.spawn(data, [tile.i]);
+	char.elems = char.info.state[5];
+	char.temp = {route: {}, range: char.info.state[2]};
+	char.temp.route[tile.i] = tile;
+	char.route = char.temp.route;
+	char.info.state[2] = char.temp.range;
+	var knowledge = {};
+	realm.data[char.info.id] = [tile.i, knowledge];
+	initKnowledge(knowledge, char.info);
+	this.game.chars[char.info.id] = char;
 });
 
 World.method('move', function (info, parents)
@@ -100,6 +120,7 @@ var Game = ooc.Class.extend(function (rules)
 	ooc.Class.call(this);
 	this.rules = rules;
 	this.world = new World(rules[1]);
+	this.world.game = this;
 	this.time = 0;
 	this.tocks = 0;
 	this.open = true;
@@ -107,7 +128,7 @@ var Game = ooc.Class.extend(function (rules)
 	this.size = 0;
 	this.players = {};
 	this.chars = {};
-	this.actions = {};
+	this.pools = {};
 });
 
 Game.method('broadcast', function (type, data)//, store=true/false
@@ -173,57 +194,91 @@ Game.method('leave', function (player)
 	}
 });
 
-//Player
-function addChar (tile_i, data)
+function routeof (info)
 {
-	var char = {};
-	char.info = this.game.world.spawn(data, [tile_i]);
-	char.realm = this.realm;
-	this.game.chars[char.info.id] = char;
-	this.realm.chars[char.info.id] = {home: tile_i};
-	//knowledge,home,tasks,jobs
+	var route = {};
+	var infos = [info];
+
+	do
+	{
+		info = infos.pop();
+
+		if (ooc.size(info.parents))
+		{
+			for (var info_id in info.parents)
+			{
+				infos.push(info.parents[info_id]);
+			}
+		}
+		else
+		{
+			route[info.id] = info;
+		}
+	}
+	while (infos.length)
+
+	return route;
 }
 
 //Player
-function addAction (char_id, tile_i, data)
+function addElems (char_id, tile_i, steps, elems)
 {
 	//COMPLETE VALIDATION OF ACTION (PATH,CAPABILTIY,COST...)
-	var char = this.realm.chars[char_id];
-
-	if (!char)
+	//if range falls under jobscost loose gap health and fill up to range
+	if (!(char_id in this.realm.data))
 	{
-		throw 'no char';
+		throw 'missing char';
 	}
 
-	var steps = data[0];
-	var tile = this.game.world.index[char.home];
-	var path = {};
-	var cost = 0;
+	var char = this.game.chars[char_id];
+	var tile = char.home;
 
 	for (var i = 0; i < steps.length; i++)
 	{
 		tile = tile.steps[steps[i]];
-		path[tile.i] = tile;
-		cost += tile.data.info.type.state[2];
+
+		if (!(tile.i in char.temp.route))
+		{
+			char.temp.route[tile.i] = tile;
+			char.temp.range -= tile.data.info.state[2];
+		}
 	}
+
+	//for in targets?
+	//var route = routeof(info);
 
 	if (tile.i != tile_i)
 	{
 		throw 'target mismatch';
 	}
 
-	//validate BEFORE here
-	if (false)//action is job
+	if (char.temp.range < 0)
 	{
-		char.jobs[tile_i] = data;
+		throw 'range overrun';
 	}
 
-	var action = {};
-	action.path = path;
-	action.cost = cost;
-	action.argv = data[1];
-	//console.log('addA', JSON.stringify(action));
-	ooc.add(action, this.game.actions, tile_i, char_id);
+	for (var type in elems)
+	{
+		var have = (type in char.elems) ? char.elems[type] : 0;
+
+		if (have < elems[type])
+		{
+			throw 'not enough';
+		}
+	}
+
+	//var info = this.game.world.knowledge[info_id];
+	//validate BEFORE here
+	for (var type in elems)
+	{
+		var amount = elems[type];
+		ooc.inc(amount, this.game.pools, tile_i, 'elems', char.info.id, type);//info_id, 
+		char.elems[type] -= amount;
+		console.log('Char %d invests %d of %s at %d.', char.info.id, amount, ELEMS[type], tile_i);
+	}
+
+	ooc.add(0, this.game.pools, tile_i, 'time');//info_id, 
+	console.log('Char %d now has %s.', char.info.id, JSON.stringify(char.elems));
 }
 
 Game.method('start', function ()
@@ -231,26 +286,21 @@ Game.method('start', function ()
 	console.log('START %d', this.id);
 	delete this.timeout;
 	this.started = true;//move to other container instead!!!!!!!!!!!!!!
-	var seat = 0;
 
 	for (var name in this.players)
 	{
 		var player = this.players[name];
-		var realm = {time: 0, chars: {}};
-		//realm.player = player;
-		player.realm = realm;
+		player.realm = {time: 0, data: {}, map: {}, player: player};
 
-		if (seat == 0)
+		if (name == 'a')
 		{
-			var argv = [132, [9, [3, 5, 1, 10, 0], [[8, [], []]]]];
+			this.world.birth(player.realm, this.world.index[132], [9, [3, 5, 1, 10, 0], [[8, [], []]]]);
+			this.world.birth(player.realm, this.world.index[202], [9, [3, 5, 1, 10, 0], [[7, [], []]]]);
 		}
 		else
 		{
-			var argv = [135, [9, [5, 5, 1, 10, 0], []]];
+			this.world.birth(player.realm, this.world.index[135], [9, [5, 5, 1, 10, 0], [[7, [], []]]]);
 		}
-
-		addChar.apply(player, argv);
-		seat++;
 	}
 
 	this.tick();
@@ -271,18 +321,25 @@ Game.method('tock', function (player, actions)
 {
 	console.log('TOCK %d %d %s %s', this.id, player.realm.time, player.name, JSON.stringify(actions));
 
+	for (var char_id in player.realm.data)
+	{
+		var char = player.game.chars[char_id];
+		char.temp = {route: {}, range: char.info.state[2]};
+		char.temp.route[char.home.i] = char.home;
+	}
+
 	for (var i = 0; i < actions.length; i++)
 	{
-		addAction.apply(player, actions[i]);
+		addElems.apply(player, actions[i]);
 	}
 
 	player.realm.time++;
 	this.tocks++;
-	var left = this.size - this.tocks;
+	var tocks_left = this.size - this.tocks;
 
-	if (left)
+	if (tocks_left)
 	{
-		this.broadcast('wait', [left]);
+		this.broadcast('wait', [tocks_left]);
 	}
 	else
 	{
@@ -290,8 +347,32 @@ Game.method('tock', function (player, actions)
 	}
 });
 
-function examine (knowledge, info, insight)
+function initKnowledge (knowledge, info)
 {
+	knowledge[info.id] = [info.type.id, 0, info.state];
+
+	for (var child_id in info.children)
+	{
+		var child = info.children[child_id];
+		ooc.push(child_id, knowledge, info.id, 3);
+		initKnowledge(knowledge, child);
+	}
+}
+
+function gatherKnowledge (knowledge, info, insight)
+{
+	if (info.id in knowledge)
+	{
+		if (insight > knowledge[info.id][1])
+		{
+			knowledge[info.id][1] = insight;
+		}
+	}
+	else
+	{
+		knowledge[info.id] = [info.type.id, insight];
+	}
+
 	insight -= info.state[1];
 
 	if (insight < 0)
@@ -310,33 +391,8 @@ function examine (knowledge, info, insight)
 			continue;
 		}
 
-		var known = knowledge[child_id];
-
-		if (known)
-		{
-			if (insight > known[1])
-			{
-				known[1] = insight;
-			}
-		}
-		else
-		{
-			knowledge[child_id] = [child.type.id, insight];
-		}
-
 		ooc.push(child_id, knowledge, info.id, 3);
-		examine(knowledge, child, insight);
-	}
-}
-
-function mergePaths (char, action)
-{
-	for (var tile_i in action.path)
-	{
-		if (!char.path[tile_i])
-		{
-			char.path[tile_i] = action.path[tile_i];
-		}
+		gatherKnowledge(knowledge, child, insight);
 	}
 }
 
@@ -344,7 +400,7 @@ Game.method('tick', function ()
 {
 	console.log('TICK %d %d', this.id, this.time);
 
-	//remove deprecated info
+	/*/remove deprecated info
 	var obsolete = this.world.decay.shift();
 
 	if (obsolete)
@@ -354,70 +410,129 @@ Game.method('tick', function ()
 			var info = obsolete[i];
 			this.world.erase(info);
 		}
+	}*/
+
+	//update chars
+	for (var char_id in this.chars)
+	{
+		var char = this.chars[char_id];
+		char.route = char.temp.route;
+		char.info.state[2] = char.temp.range;
+		delete char.temp;
+		this.world.move(char.info, Object.keys(char.route));
+		var knowledge = {};
+		char.realm.data[char_id] = [char.home.i, knowledge];
+		initKnowledge(knowledge, char.info);
 	}
 
-	//reset realms & chars
+	//trigger events
+	for (var tile_i in this.pools)
+	{
+		var pool = this.pools[tile_i];
+
+		if (pool.time)
+		{
+			var combo = {};
+
+			//sum up elements
+			for (var char_id in pool.elems)
+			{
+				for (var type in pool.elems[char_id])
+				{
+					ooc.inc(pool.elems[char_id][type], combo, type);
+				}
+			}
+
+			//subtract complements
+			for (var type in combo)
+			{
+				if (type & 1)//ungerade
+				{
+					var comp = type - 1;
+				}
+				else
+				{
+					var comp = type + 1;
+				}
+
+				var a = combo[type];
+				var b = combo[comp] ? combo[comp] : 0;
+
+				if (a > b)
+				{
+					combo[type] -= b;
+					delete combo[comp];
+				}
+				else if (b > a)
+				{
+					combo[comp] -= a;
+					delete combo[type];
+				}
+				else
+				{
+					delete combo[type];
+					delete combo[comp];
+				}
+			}
+
+			var tile = this.world.index[tile_i];
+			var event_id = jup.eventId(combo);
+			var event = jup.events[event_id];
+
+			if (event && event.tile_effect)
+			{
+				console.log('TILE EVENT %s', JSON.stringify(combo));
+				event.tile_effect.call(this, tile, 12);
+			}
+
+			for (var char_id in pool.elems)
+			{
+				var char = this.chars[char_id];
+
+				if (event && event.char_effect)
+				{
+					console.log('CHAR EVENT %s', JSON.stringify(combo));
+					event.char_effect.call(this, tile, char);
+				}
+
+				for (var type in pool.elems[char_id])
+				{
+					var amount = pool.elems[char_id][type];
+					char.elems[type] += amount;
+				}
+			}
+
+			delete this.pools[tile_i];
+		}
+		else
+		{
+			pool.time++;
+		}
+	}
+
+	//update realms
 	for (var name in this.players)
 	{
 		var player = this.players[name];
 		var realm = player.realm;
 
-		for (var char_id in realm.chars)
+		for (var char_id in realm.data)
 		{
 			var char = this.chars[char_id];
-			char.path = {};
-			char.path[char.home] = this.world.index[char.home];
-			//realm.knowledge[char_id] = [char.home.i, null, []];
-		}
-	}
-
-	//mark path & subtract cost
-	for (var tile_i in this.actions)
-	{
-		for (var char_id in this.actions[tile_i])
-		{
-			var action = this.actions[tile_i][char_id];
-			var char = this.chars[char_id];
-			mergePaths(char, action);
-			char.info.state[2] -= action.cost;
-			//console.log(char_id, JSON.stringify(char.info.state));
-			//char.items mergeadd {123: 1, 42: -2};!!!!!!!!!!!!!!!
-		}
-	}
-
-	//3. diff
-	//4. mult
-	//5. special
-
-	//update realminfo based on charpath and remaining ap
-	for (var name in this.players)
-	{
-		var player = this.players[name];
-		var realm = player.realm;
-
-		for (var char_id in realm.chars)
-		{
-			var char = this.chars[char_id];
-			this.world.move(char.info, Object.keys(char.path));
-
-			var range = char.info.state[2];
-			var insight = char.info.state[3];
-			var area = this.world.findArea(ooc.values(char.path), range, function (data) { return data.info.state[2] });
-			var knowledge = {};
+			var area = this.world.findArea(ooc.values(char.route), char.info.state[2], function (data) { return data.info.state[2] });
+			var knowledge = realm.data[char_id][1];
 
 			for (var tile_i in area)
 			{
 				var info = this.world.knowledge[tile_i];
-				knowledge[tile_i] = [info.type.id, insight];
-				examine(knowledge, info, insight);
+				realm.map[tile_i] = info.type.id;
+				gatherKnowledge(knowledge, info, char.info.state[3]);
 			}
-
-			realm.knowledge[char_id] = knowledge;
 		}
 
 		if (player.client)
 		{
-			player.client.send('tick', [realm.knowledge, realm.tasks]).expect('tock');
+			player.client.send('tick', [realm.data, realm.map]).expect('tock');
 		}
 	}
 
@@ -496,7 +611,7 @@ Client.on('message:login', function (name, pass)
 		player.shout('back', [name]);
 		var realm = player.realm;
 		var move = (realm.time < game.time) ? 1 : 0;
-		this.send('continue', [game.rules, game.names(), game.time, realm.chars, move]);
+		this.send('continue', [game.rules, game.names(), game.time, realm.data, realm.map, move]);
 
 		if (move)
 		{

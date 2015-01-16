@@ -39,6 +39,36 @@ if (typeof module == 'object')
 		return hash;
 	}
 
+	ooc.inc = function (value, object)
+	{
+		var pointer = object;
+		var loops = arguments.length - 1;
+		var key = null;
+
+		for (var i = 2; i < loops; i++)
+		{
+			key = arguments[i];
+
+			if (!pointer[key])
+			{
+				pointer[key] = {};
+			}
+
+			pointer = pointer[key];
+		}
+		
+		key = arguments[i];
+
+		if (pointer[key])
+		{
+			pointer[key] += value;
+		}
+		else
+		{
+			pointer[key] = value;
+		}
+	}
+
 	ooc.push = function (value, object)
 	{
 		var pointer = object;
@@ -135,11 +165,18 @@ if (typeof module == 'object')
 
 	ooc.clone = function (object)
 	{
-		var clone = {};
+		var clone = Array.isArray(object) ? [] : {};
 
 		for (var key in object)
 		{
-			clone[key] = object[key];
+			if (typeof object[key] == 'object')
+			{
+				clone[key] = ooc.clone(object[key]);
+			}
+			else
+			{
+				clone[key] = object[key];
+			}
 		}
 
 		return clone;

@@ -1,3 +1,19 @@
+		/*this.chartabs = new oui.Tabbed({left: 0, right: 0, top: 0, bottom: 64}, 'buttons', {left: 0, right: 0, top: 0, height: 64}, OUI_REVERSED | OUI_BOTTOM);
+		this.chartabs.open(5, new Inventory('items', {left: 0, right: 0, top: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM));
+		this.chartabs.open(6, new CharSheet('#333', {left: 0, right: 0, top: 64, bottom: 0}));
+		this.chartabs.open(7, new PickAction('#333', {left: 0, right: 0, top: 64, bottom: 0}));
+
+		this.tiletabs = new oui.Tabbed({left: 0, right: 0, top: 0, bottom: 64}, 'buttons', {left: 0, right: 0, top: 0, height: 64}, OUI_REVERSED | OUI_BOTTOM);
+		this.tiletabs.open(5, new ItemPool('items', {left: 0, right: 0, top: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM));
+		this.tiletabs.open(6, new SpawnSlots('chars', {left: 0, right: 0, top: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM));
+
+		this.mainmenu = new oui.Tabbed({width: 320, right: 0, top: 0, bottom: 0}, 'options', {left: 0, right: 0, height: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM | OUI_VERTICAL);
+		this.mainmenu.show(new ooo.Box('#555'));
+		this.mainmenu.open(1, this.chartabs);
+		this.mainmenu.open(2, this.tiletabs);
+		this.show(this.mainmenu, 1);*/
+		//process_tick.call(this, info);
+		//this.trigger('put:action', [[]]);//fill with repeated actions
 
 //fabricate claims!!!
 //history group->type!->id->time
