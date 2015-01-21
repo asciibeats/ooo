@@ -7,6 +7,21 @@ var DENY_DELAY = 1;
 var ELEMS = ['Fire', 'Ice', 'Stone'];
 
 //remove all recursive functions!!!!!!!
+//abwechselnd tag und nacht
+//nachwächter action: leuchten (erhöht vision/range)
+//group: TRAPS (react to steps/path)
+
+function initKnowledge (knowledge, info)
+{
+	knowledge[info.id] = [info.type.id, 0, info.state];
+
+	for (var child_id in info.children)
+	{
+		var child = info.children[child_id];
+		ooc.push(child_id, knowledge, info.id, 3);
+		initKnowledge(knowledge, child);
+	}
+}
 
 var World = ooo.TileMap.extend(function (size)
 {
@@ -62,11 +77,9 @@ World.method('birth', function (realm, tile, data)
 	char.realm = realm;
 	char.home = tile;
 	char.info = this.spawn(data, [tile.i]);
-	char.elems = char.info.state[5];
-	char.temp = {route: {}, range: char.info.state[2]};
-	char.temp.route[tile.i] = tile;
-	char.route = char.temp.route;
-	char.info.state[2] = char.temp.range;
+	char.pools = {};
+	char.effort = {route: {}, range: 0, power: {}};
+	char.effort.route[tile.i] = true;
 	var knowledge = {};
 	realm.data[char.info.id] = [tile.i, knowledge];
 	initKnowledge(knowledge, char.info);
@@ -112,6 +125,80 @@ World.method('erase', function (info)
 		var parent = info.parents[i];
 		delete info.parents[i];
 		delete parent.children[info.id];
+	}
+});
+
+function gatherKnowledge (knowledge, info, insight)
+{
+	if (info.id in knowledge)
+	{
+		if (insight > knowledge[info.id][1])
+		{
+			knowledge[info.id][1] = insight;
+		}
+	}
+	else
+	{
+		knowledge[info.id] = [info.type.id, insight];
+	}
+
+	insight -= info.state[1];
+
+	if (insight < 0)
+	{
+		return;
+	}
+
+	knowledge[info.id][2] = info.state;
+
+	for (var child_id in info.children)
+	{
+		var child = info.children[child_id];
+
+		if (insight < child.state[0])
+		{
+			continue;
+		}
+
+		ooc.push(child_id, knowledge, info.id, 3);
+		gatherKnowledge(knowledge, child, insight);
+	}
+}
+
+function determineEffort (effort, pools, full)
+{
+	for (var signature in pools)
+	{
+		var pool = pools[signature];
+
+		for (var tile_i in pool.route)
+		{
+			if (tile_i in effort.route)
+			{
+				continue;
+			}
+
+			var tile = pool.route[tile_i];
+			effort.route[tile_i] = true;
+			effort.range += tile.data.info.state[2];
+		}
+
+		if (full)
+		{
+			jup.mergePower(effort.power, pool.power);
+		}
+	}
+}
+
+var mergePool = ooc.modify(function (object, key, value)
+{
+	if (key in object)
+	{
+		jup.mergePower(object[key].power, value.power);
+	}
+	else
+	{
+		object[key] = value;
 	}
 });
 
@@ -194,93 +281,6 @@ Game.method('leave', function (player)
 	}
 });
 
-function routeof (info)
-{
-	var route = {};
-	var infos = [info];
-
-	do
-	{
-		info = infos.pop();
-
-		if (ooc.size(info.parents))
-		{
-			for (var info_id in info.parents)
-			{
-				infos.push(info.parents[info_id]);
-			}
-		}
-		else
-		{
-			route[info.id] = info;
-		}
-	}
-	while (infos.length)
-
-	return route;
-}
-
-//Player
-function addElems (char_id, tile_i, steps, elems)
-{
-	//COMPLETE VALIDATION OF ACTION (PATH,CAPABILTIY,COST...)
-	//if range falls under jobscost loose gap health and fill up to range
-	if (!(char_id in this.realm.data))
-	{
-		throw 'missing char';
-	}
-
-	var char = this.game.chars[char_id];
-	var tile = char.home;
-
-	for (var i = 0; i < steps.length; i++)
-	{
-		tile = tile.steps[steps[i]];
-
-		if (!(tile.i in char.temp.route))
-		{
-			char.temp.route[tile.i] = tile;
-			char.temp.range -= tile.data.info.state[2];
-		}
-	}
-
-	//for in targets?
-	//var route = routeof(info);
-
-	if (tile.i != tile_i)
-	{
-		throw 'target mismatch';
-	}
-
-	if (char.temp.range < 0)
-	{
-		throw 'range overrun';
-	}
-
-	for (var type in elems)
-	{
-		var have = (type in char.elems) ? char.elems[type] : 0;
-
-		if (have < elems[type])
-		{
-			throw 'not enough';
-		}
-	}
-
-	//var info = this.game.world.knowledge[info_id];
-	//validate BEFORE here
-	for (var type in elems)
-	{
-		var amount = elems[type];
-		ooc.inc(amount, this.game.pools, tile_i, 'elems', char.info.id, type);//info_id, 
-		char.elems[type] -= amount;
-		console.log('Char %d invests %d of %s at %d.', char.info.id, amount, ELEMS[type], tile_i);
-	}
-
-	ooc.add(0, this.game.pools, tile_i, 'time');//info_id, 
-	console.log('Char %d now has %s.', char.info.id, JSON.stringify(char.elems));
-}
-
 Game.method('start', function ()
 {
 	console.log('START %d', this.id);
@@ -294,107 +294,118 @@ Game.method('start', function ()
 
 		if (name == 'a')
 		{
-			this.world.birth(player.realm, this.world.index[132], [9, [3, 5, 1, 10, 0], [[8, [], []]]]);
-			this.world.birth(player.realm, this.world.index[202], [9, [3, 5, 1, 10, 0], [[7, [], []]]]);
+			this.world.birth(player.realm, this.world.index[132], [9]);
 		}
 		else
 		{
-			this.world.birth(player.realm, this.world.index[135], [9, [5, 5, 1, 10, 0], [[7, [], []]]]);
+			this.world.birth(player.realm, this.world.index[202], [9]);
 		}
 	}
 
 	this.tick();
 });
 
-//abwechselnd tag und nacht
-//nachwächter action: leuchten (erhöht vision)
-//passiv chars (anonyme soldaten/stats) kaserne->X soldaten
-//group: TRAPS (react to steps/path)
-///(some) cards that transfer/create items are permanent/repeat (for x turns!!!)!!!!!!so klappt das auch mit dem stehlen!!!
-////////all cards????
-//bewegungs- und kartenkosten differenzieren? damit man anhand der karte besser einschätzen kann wieviel nach aktion noch übrig bleibt
-
-////KARTEN EFFEKTE ALS CLOSURES!!!
-////GENAU EINE CLOSURE PER INFO!!!
-
 Game.method('tock', function (player, actions)
 {
 	console.log('TOCK %d %d %s %s', this.id, player.realm.time, player.name, JSON.stringify(actions));
+	var pools = {};
+	var efforts = {};
 
-	for (var char_id in player.realm.data)
-	{
-		var char = player.game.chars[char_id];
-		char.temp = {route: {}, range: char.info.state[2]};
-		char.temp.route[char.home.i] = char.home;
-	}
-
+	//gather new investments
 	for (var i = 0; i < actions.length; i++)
 	{
-		addElems.apply(player, actions[i]);
+		var action = actions[i];
+		var char_id = action[0];
+
+		if (!(char_id in player.realm.data))
+		{
+			throw 'missing char';
+		}
+
+		var char = this.chars[char_id];
+		var steps = action[2];
+		var tile = char.home;
+		var bubu = {target: action[1], power: action[3], route: {}};
+
+		for (var j = 0; j < steps.length; j++)
+		{
+			tile = tile.steps[steps[j]];
+			bubu.route[tile.i] = tile;
+		}
+
+		if (tile.i != bubu.target)
+		{
+			throw 'target mismatch';
+		}
+
+		//merge actions with same path
+		var signature = steps.join('/');
+		mergePool(bubu, pools, char_id, signature);
+	}
+
+	//merge investments and determine cost/range
+	for (var char_id in player.realm.data)
+	{
+		var char = this.chars[char_id];
+		var effort = ooc.clone(char.effort);
+		determineEffort(effort, pools[char_id], true);
+
+		if (effort.range > char.info.state[2])
+		{
+			throw 'exceeding range';
+		}
+
+		for (var type in effort.power)
+		{
+			var amount = char.info.state[5][type];
+
+			if (!amount || (amount < effort.power[type]))
+			{
+				throw 'exceeding power';
+			}
+		}
+
+		efforts[char_id] = effort;
+	}
+
+	//update pools (complete!! input validation before here!!!!!!!!)
+	for (var char_id in pools)
+	{
+		var char = this.chars[char_id];
+
+		for (var signature in pools[char_id])
+		{
+			var pool = pools[char_id][signature];
+			mergePool(pool, char.pools, signature);
+			ooc.put(char.pools[signature].power, this.pools, pool.target, 'power', char_id, signature);
+			ooc.put(0, this.pools, pool.target, 'time');
+		}
+	}
+
+	//update all chars
+	for (var char_id in efforts)
+	{
+		var effort = efforts[char_id];
+		var char = this.chars[char_id];
+		this.world.move(char.info, ooc.intkeys(effort.route));
+		char.info.state[2] -= effort.range;
+		jup.cancelPower(char.info.state[5], effort.power);
+		char.effort = effort;
 	}
 
 	player.realm.time++;
 	this.tocks++;
-	var tocks_left = this.size - this.tocks;
+	var wait = this.size - this.tocks;
 
-	if (tocks_left)
+	if (wait)
 	{
-		this.broadcast('wait', [tocks_left]);
+		this.broadcast('wait', [wait]);
 	}
 	else
 	{
 		this.tick();
 	}
 });
-
-function initKnowledge (knowledge, info)
-{
-	knowledge[info.id] = [info.type.id, 0, info.state];
-
-	for (var child_id in info.children)
-	{
-		var child = info.children[child_id];
-		ooc.push(child_id, knowledge, info.id, 3);
-		initKnowledge(knowledge, child);
-	}
-}
-
-function gatherKnowledge (knowledge, info, insight)
-{
-	if (info.id in knowledge)
-	{
-		if (insight > knowledge[info.id][1])
-		{
-			knowledge[info.id][1] = insight;
-		}
-	}
-	else
-	{
-		knowledge[info.id] = [info.type.id, insight];
-	}
-
-	insight -= info.state[1];
-
-	if (insight < 0)
-	{
-		return;
-	}
-
-	knowledge[info.id][2] = info.state;
-
-	for (var child_id in info.children)
-	{
-		var child = info.children[child_id];
-
-		if (insight < child.state[0])
-		{
-			continue;
-		}
-
-		ooc.push(child_id, knowledge, info.id, 3);
-		gatherKnowledge(knowledge, child, insight);
-	}
-}
 
 Game.method('tick', function ()
 {
@@ -412,14 +423,18 @@ Game.method('tick', function ()
 		}
 	}*/
 
-	//update chars
+	//consume items & init knowledge
 	for (var char_id in this.chars)
 	{
 		var char = this.chars[char_id];
-		char.route = char.temp.route;
-		char.info.state[2] = char.temp.range;
-		delete char.temp;
-		this.world.move(char.info, Object.keys(char.route));
+
+		for (var info_id in char.info.children)
+		{
+			var info = char.info.children[info_id];
+			info.type.effect.call(char);
+			this.world.erase(info);
+		}
+
 		var knowledge = {};
 		char.realm.data[char_id] = [char.home.i, knowledge];
 		initKnowledge(knowledge, char.info);
@@ -429,76 +444,74 @@ Game.method('tick', function ()
 	for (var tile_i in this.pools)
 	{
 		var pool = this.pools[tile_i];
+		var power = {};
 
-		if (pool.time)
+		//sum up powers
+		for (var char_id in pool.power)
 		{
-			var combo = {};
-
-			//sum up elements
-			for (var char_id in pool.elems)
+			for (var signature in pool.power[char_id])
 			{
-				for (var type in pool.elems[char_id])
-				{
-					ooc.inc(pool.elems[char_id][type], combo, type);
-				}
+				jup.mergePower(power, pool.power[char_id][signature]);
+			}
+		}
+
+		//cancel out complements
+		for (var type in power)
+		{
+			if (type & 1)//ungerade
+			{
+				var comp = type - 1;
+			}
+			else
+			{
+				var comp = type + 1;
 			}
 
-			//subtract complements
-			for (var type in combo)
+			var a = power[type];
+			var b = power[comp] ? power[comp] : 0;
+
+			if (a > b)
 			{
-				if (type & 1)//ungerade
-				{
-					var comp = type - 1;
-				}
-				else
-				{
-					var comp = type + 1;
-				}
-
-				var a = combo[type];
-				var b = combo[comp] ? combo[comp] : 0;
-
-				if (a > b)
-				{
-					combo[type] -= b;
-					delete combo[comp];
-				}
-				else if (b > a)
-				{
-					combo[comp] -= a;
-					delete combo[type];
-				}
-				else
-				{
-					delete combo[type];
-					delete combo[comp];
-				}
+				power[type] -= b;
+				delete power[comp];
 			}
+			else if (b > a)
+			{
+				power[comp] -= a;
+				delete power[type];
+			}
+			else
+			{
+				delete power[type];
+				delete power[comp];
+			}
+		}
 
+		var event = jup.matchEvent(power);
+
+		//apply effects or increase timer
+		if (event && (pool.time == event.time))
+		{
 			var tile = this.world.index[tile_i];
-			var event_id = jup.eventId(combo);
-			var event = jup.events[event_id];
 
-			if (event && event.tile_effect)
+			if (event.tile_effect)
 			{
-				console.log('TILE EVENT %s', JSON.stringify(combo));
-				event.tile_effect.call(this, tile, 12);
+				event.tile_effect.call(this, tile);
 			}
 
-			for (var char_id in pool.elems)
+			for (var char_id in pool.power)
 			{
 				var char = this.chars[char_id];
 
-				if (event && event.char_effect)
+				if (event.char_effect)
 				{
-					console.log('CHAR EVENT %s', JSON.stringify(combo));
 					event.char_effect.call(this, tile, char);
 				}
 
-				for (var type in pool.elems[char_id])
+				for (var signature in pool.power[char_id])
 				{
-					var amount = pool.elems[char_id][type];
-					char.elems[type] += amount;
+					jup.mergePower(char.info.state[5], pool.power[char_id][signature]);
+					delete char.pools[signature];
 				}
 			}
 
@@ -519,7 +532,7 @@ Game.method('tick', function ()
 		for (var char_id in realm.data)
 		{
 			var char = this.chars[char_id];
-			var area = this.world.findArea(ooc.values(char.route), char.info.state[2], function (data) { return data.info.state[2] });
+			var area = this.world.findArea(ooc.intkeys(char.effort.route), char.info.state[2], function (data) { return data.info.state[2] });
 			var knowledge = realm.data[char_id][1];
 
 			for (var tile_i in area)
@@ -528,6 +541,13 @@ Game.method('tick', function ()
 				realm.map[tile_i] = info.type.id;
 				gatherKnowledge(knowledge, info, char.info.state[3]);
 			}
+			
+			var effort = {route: {}, range: 0, power: {}};
+			effort.route[char.home.i] = true;
+			determineEffort(effort, char.pools);
+			effort.range = 0;//pay only once for path
+			realm.data[char_id][2] = [ooc.intkeys(effort.route), effort.range];
+			char.effort = effort;
 		}
 
 		if (player.client)
@@ -610,10 +630,10 @@ Client.on('message:login', function (name, pass)
 		console.log('BACK %d %s', game.id, name);
 		player.shout('back', [name]);
 		var realm = player.realm;
-		var move = (realm.time < game.time) ? 1 : 0;
-		this.send('continue', [game.rules, game.names(), game.time, realm.data, realm.map, move]);
+		var wait = (realm.time < game.time) ? 0 : this.size - this.tocks;
+		this.send('continue', [game.rules, game.names(), game.time, realm.data, realm.map, wait]);
 
-		if (move)
+		if (!wait)
 		{
 			this.expect('tock');
 		}

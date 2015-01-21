@@ -39,92 +39,62 @@ if (typeof module == 'object')
 		return hash;
 	}
 
-	ooc.inc = function (value, object)
+	ooc.modify = function (func)
 	{
-		var pointer = object;
-		var loops = arguments.length - 1;
-		var key = null;
-
-		for (var i = 2; i < loops; i++)
+		return function (value, object)
 		{
-			key = arguments[i];
+			var pointer = object;
+			var loops = arguments.length - 1;
+			var key = null;
 
-			if (!pointer[key])
+			for (var i = 2; i < loops; i++)
 			{
-				pointer[key] = {};
+				key = arguments[i];
+
+				if (!(key in pointer))
+				{
+					pointer[key] = {};
+				}
+
+				pointer = pointer[key];
 			}
 
-			pointer = pointer[key];
+			return func(pointer, arguments[i], value);
 		}
-		
-		key = arguments[i];
+	}
 
-		if (pointer[key])
+	ooc.put = ooc.modify(function (object, key, value)
+	{
+		object[key] = value;
+	});
+
+	ooc.add = ooc.modify(function (object, key, value)
+	{
+		if (key in object)
 		{
-			pointer[key] += value;
+			object[key] += value;
 		}
 		else
 		{
-			pointer[key] = value;
+			object[key] = value;
 		}
-	}
+	});
 
-	ooc.push = function (value, object)
+	ooc.push = ooc.modify(function (object, key, value)
 	{
-		var pointer = object;
-		var loops = arguments.length - 1;
-		var key = null;
-
-		for (var i = 2; i < loops; i++)
+		if (key in object)
 		{
-			key = arguments[i];
-
-			if (!pointer[key])
-			{
-				pointer[key] = {};
-			}
-
-			pointer = pointer[key];
-		}
-		
-		key = arguments[i];
-
-		if (pointer[key])
-		{
-			var index = pointer[key].length;
-			pointer[key].push(value);
+			object[key].push(value);
 		}
 		else
 		{
-			var index = 0;
-			pointer[key] = [value];
+			object[key] = [value];
 		}
 
-		return index;
-	}
+		return object[key].length - 1;
+	});
 
-	ooc.add = function (value, object)
-	{
-		var pointer = object;
-		var loops = arguments.length - 1;
-		var key = null;
-
-		for (var i = 2; i < loops; i++)
-		{
-			key = arguments[i];
-
-			if (!pointer[key])
-			{
-				pointer[key] = {};
-			}
-
-			pointer = pointer[key];
-		}
-		
-		pointer[arguments[i]] = value;
-	}
-
-	ooc.remove = function (object)
+	ooc.del = function (object)
 	{
 		var pointers = [object];
 		var loops = arguments.length - 1;
@@ -209,7 +179,7 @@ if (typeof module == 'object')
 		return array;
 	}
 
-	//array für löcher (nicht immer wieder iterieren müssen!!)
+	//array für löcher (nicht immer wieder iterieren müssen!!) array in closure!!!:)
 	ooc.fill = function (value, object)
 	{
 		var keys = Object.keys(object);

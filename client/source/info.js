@@ -1,7 +1,6 @@
 'use strict';
 var jup = {};
 jup.info = {};
-jup.events = {};
 /*var jup.POWERS = 
 ['Attack/Strength/Destruction/Death (ROT)', 'Defense/Diplomacy/Healing/Life (BLAU)',
  'Sneak/Sly/Shadow/Illusion/Lying (GRAU)', 'Watch/Perception/Sense/Intelligence (WEISS)',
@@ -14,29 +13,64 @@ if (typeof module == 'object')
 }
 
 /*var GROUPS = [];
-GROUPS[0] = 'Terrain';
+GROUPS[0] = 'Tile';
 GROUPS[1] = 'Spawns';
-GROUPS[2] = 'Characters';
+GROUPS[2] = 'Chars';
 GROUPS[3] = 'Items';
 GROUPS[4] = 'Events';*/
 
 (function ()
 {
-	jup.eventId = function (combo)
+	var events = {};
+
+	jup.matchEvent = function (power)
 	{
-		var id = 0;
+		return events[eventId(power)];
+	}
 
-		for (var type = 0; type < 8; type++)
+	jup.cancelPower = function (keep, add)
+	{
+		for (var key in add)
 		{
-			if (type in combo)
+			var value = add[key];
+
+			if (key in keep)
 			{
-				id |= combo[type];
+				if (keep[key] > value)
+				{
+					keep[key] -= value;
+				}
+				else if (keep[key] == value)
+				{
+					delete keep[key];
+				}
+				else
+				{
+					throw 'asdfasdf';
+				}
 			}
-
-			id <<= 4;
+			else
+			{
+				throw 'asdf';
+			}
 		}
+	}
 
-		return id;
+	jup.mergePower = function (keep, add)
+	{
+		for (var key in add)
+		{
+			var value = add[key];
+
+			if (key in keep)
+			{
+				keep[key] += value;
+			}
+			else
+			{
+				keep[key] = value;
+			}
+		}
 	}
 
 	var Info = ooc.Class.extend(function (group, title, param, state)
@@ -47,40 +81,53 @@ GROUPS[4] = 'Events';*/
 		this.state = state;
 	});
 
-	var Terrain = Info.extend(function (title, state)
+	var Tile = Info.extend(function (title, state)
 	{
 		Info.call(this, 0, title, ['obscurity', 'obfuscation', 'obstruction'], state);
 	});
 
-	var Character = Info.extend(function (title, state)
+	var Char = Info.extend(function (title, state)
 	{
-		Info.call(this, 2, title, ['obscurity', 'obfuscation', 'range', 'insight', 'health', 'elems'], state);
+		Info.call(this, 2, title, ['obscurity', 'obfuscation', 'range', 'insight', 'health', 'power'], state);
 	});
 
-	var Item = Info.extend(function (title, state)
+	var Item = Info.extend(function (title, state, effect)
 	{
 		Info.call(this, 3, title, ['obscurity', 'obfuscation'], state);
+		this.effect = effect;
 	});
 
-	var Event = ooc.Class.extend(function (title, tile_effect, char_effect)
+	var Event = ooc.Class.extend(function (title, time, tile_effect, char_effect)
 	{
 		ooc.Class.call(this);
 		this.title = title;
+		this.time = time;
 		this.tile_effect = tile_effect;
 		this.char_effect = char_effect;
 	});
 
-	function reginf (id, info)
+	function regInf (id, info)
 	{
 		info.id = id;
 		jup.info[id] = info;
 	}
 
-	function regevt (combo, event)
+	function eventId (power)
 	{
-		event.combo = combo;
-		var id = jup.eventId(combo);
-		jup.events[id] = event;
+		var id = [];
+
+		for (var type in power)
+		{
+			id.push(type + ':' + power[type]);
+		}
+
+		return id.join('/');
+	}
+
+	function regEvt (power, event)
+	{
+		event.power = power;
+		events[eventId(power)] = event;
 	}
 
 	//TILE EFFECTS
@@ -112,13 +159,15 @@ GROUPS[4] = 'Events';*/
 		}
 	}
 
-	reginf(1, new Terrain('Plains', [0, 0, 1]));
-	reginf(2, new Terrain('Forest', [0, 4, 3]));
-	reginf(3, new Terrain('Campfire', [0, 0, 1]));
-	reginf(9, new Character('Hero', [1, 1, 10, 5, 20, {0: 2, 1: 1, 2: 4}]));
-	reginf(8, new Item('Apple', [1, 1]));
-	reginf(7, new Item('Ring', [1, 1]));
+	regInf(1, new Tile('Plains', [0, 0, 1]));
+	regInf(2, new Tile('Forest', [0, 4, 3]));
+	regInf(3, new Tile('Campfire', [0, 0, 1]));
+	regInf(9, new Char('Hero', [1, 1, 10, 5, 20, {0: 2, 1: 1, 2: 4}]));
+	regInf(8, new Item('Apple', [1, 1], function () { this.info.state[2] += 4 }));
+	regInf(7, new Item('Ring', [1, 1], function () { this.info.state[3] += 3 }));
 
-	regevt({0: 1}, new Event('Gatherer', null, gain([8])));
-	regevt({1: 1}, new Event('Explore', build(3), birth([9])));
+	//regEvt({0: 1}, new Event('Gatherer', 0, null, gain([8])));
+	regEvt({0: 1}, new Event('Gatherer', 0, null, null));
+	//regEvt({1: 1}, new Event('Explore', 1, build(3), birth([9])));
+	regEvt({1: 1}, new Event('Explore', 1, null, null));
 })();

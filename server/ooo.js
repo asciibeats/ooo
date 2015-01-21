@@ -78,6 +78,7 @@ ooo.TileMap.method('findArea', function (open, range, costs)
 
 	for (var i = 0; i < open.length; i++)
 	{
+		open[i] = this.index[open[i]];
 		open[i].g = 0;
 	}
 

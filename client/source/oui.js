@@ -784,16 +784,22 @@ var oui = {};
 		return (min_x + min_y);
 	});
 
-	oui.TileMap.method('findArea', function (origin, range, calcCost)
+	oui.TileMap.method('findArea', function (open, range, calcCost)
 	{
 		if (!calcCost)
 		{
 			calcCost = this.calcCost;
 		}
 
+		//var g = {};
+
+		for (var i = 0; i < open.length; i++)
+		{
+			open[i] = this.index[open[i]];
+			open[i].g = 0;
+		}
+
 		var done = [];
-		var open = [origin];
-		origin.g = 0;
 
 		do
 		{
@@ -811,7 +817,7 @@ var oui = {};
 
 				var next_c = calcCost(next.data);
 
-				if (next_c == undefined)
+				if (next_c == null)
 				{
 					continue;
 				}

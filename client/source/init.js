@@ -9,8 +9,9 @@
 	var TILES = [0, 3, 5, 4, 3, 2, 1, 3, 0, 3, 9, 10, 11];
 	var MAPTILES = [0, 12, 10, 11, 3, 2, 1, 3, 0, 3, 9, 10, 11];
 	var ITEMS = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0];
-	var WAIT = 'WAIT FOR OTHER PLAYERS';
-	var MOVE = 'MAKE A MOVE';
+	var MARKS = ['#942e39', '#651144', '#aaa', '#2f1d71'];//actions, paths, route, others
+	var WAIT = 'PLEASE WAIT FOR %d OTHER PLAYERS';
+	var MOVE = 'PLEASE MAKE A MOVE';
 
 	var Login = oui.Form.extend(function (color, font, layout, align, baseline)
 	{
@@ -25,6 +26,54 @@
 		this.root.auth_token = data;
 		this.root.send('login', data);
 	});
+
+	//World
+	function refreshTiles (char, realm)
+	{
+		for (var i = 0; i < this.index.length; i++)
+		{
+			if (i in realm.tiles)
+			{
+				var tile = realm.tiles[i];
+				var data = {};
+				data.groups = tile.groups;
+				data.info = tile.info;
+				data.type = MAPTILES[tile.info.type.id];
+
+				if (i in char.actions)
+				{
+					data.mark = 0;
+				}
+				else if (i in char.route)
+				{
+					data.mark = 1;
+				}
+				else if ((2 in tile.groups) && !((ooc.size(tile.groups[2]) == 1) && (char.info.id in tile.groups[2])))
+				{
+					data.mark = 3;
+				}
+			}
+			else if (i in realm.map)
+			{
+				var data = {type: MAPTILES[realm.map[i]]};
+			}
+			else
+			{
+				var data = {type: 0};
+			}
+
+			this.index[i].data = data;
+		}
+
+		var area = this.findArea(ooc.intkeys(char.route), char.info.state[2], function (data) { return (data.info ? data.info.state[2] : null) });
+
+		for (var tile_i in area)
+		{
+			var tile = this.index[tile_i];
+			var info = realm.tiles[tile_i].info;
+			tile.data.type = TILES[info.type.id];
+		}
+	}
 
 	var World = oui.TileMap.extend(function (size, asset)
 	{
@@ -41,49 +90,24 @@
 	{
 		context.drawImage(this.image, this.image.tile_x[data.type], this.image.tile_y[data.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 
-		if (data.mask && data.mask[this.tile_mask])
+		if (data.mark != undefined)
 		{
 			context.globalAlpha = 0.4;
-			context.fillStyle = '#fa0';
+			context.fillStyle = MARKS[data.mark];
 			context.fillRect(0, 0, 64, 64);
 		}
 	});
 
-	World.on('update:data', function (groups, tiles, chars, homes, map)
+	World.on('update:data', function (chars, realm)
 	{
 		this.data_chars = chars;
-		this.data_tiles = tiles;
-		this.data_map = map;
+		this.data_realm = realm;
 	});
 
-	World.on('focus:char', function (char, home)
+	World.on('focus:char', function (char)
 	{
 		this.focus_char = char;
-		this.focus_home = home;
-
-		for (var i = 0; i < this.index.length; i++)
-		{
-			var tile = this.index[i];
-			var info = this.data_chars[char.id][0][i];
-
-			if (info)
-			{
-				tile.data.type = TILES[info.type.id];
-				tile.data.info = info;
-				tile.data.mask = [];
-				tile.data.mask[0] = this.data_tiles[i][2] ? 1 : 0;
-			}
-			else
-			{
-				var type = (i in this.data_map) ? MAPTILES[this.data_map[i]] : 0;
-				tile.data = {type: type};
-			}
-		}
-	});
-
-	World.on('focus:tile', function (tile)
-	{
-		this.focus_tile = tile;
+		refreshTiles.call(this, char, this.data_realm);
 	});
 
 	World.on('pick:tile', function (tile, button)
@@ -93,13 +117,61 @@
 			return;
 		}
 
-		var path = this.findPath(this.focus_home, tile, function (data) { return (data.info ? data.info.state[2] : null) });
-		var action = JSON.parse(prompt('Action?:', JSON.stringify([this.focus_char.id, tile.i, path.steps, {0: 1}])));
+		var char = this.focus_char;
+
+		if (tile.i in char.actions)
+		{
+			var action = char.actions[tile.i];
+			jup.mergePower(char.info.state[5], action[3]);
+			var tileb = char.home;
+			var steps = action[2];
+
+			for (var i = 0; i < steps.length; i++)
+			{
+				tileb = tileb.steps[steps[i]];
+				char.route[tileb.i] -= 1;
+
+				if (char.route[tileb.i] == 0)
+				{
+					delete char.route[tileb.i];
+					char.info.state[2] += tileb.data.info.state[2];
+				}
+			}
+
+			action = JSON.parse(prompt('Action?:', JSON.stringify(char.actions[tile.i])));
+			delete char.actions[tile.i];
+		}
+		else
+		{
+			var path = this.findPath(this.focus_char.home, tile, function (data) { return (data.info ? data.info.state[2] : null) });
+			var action = JSON.parse(prompt('Action?:', JSON.stringify([this.focus_char.info.id, tile.i, path.steps, {0: 1}])));
+		}
 
 		if (action)
 		{
-			this.root.trigger('put:action', [action]);
+			char.actions[action[1]] = action;
+			jup.cancelPower(char.info.state[5], action[3]);
+			var tileb = char.home;
+			var steps = action[2];
+
+			for (var i = 0; i < steps.length; i++)
+			{
+				tileb = tileb.steps[steps[i]];
+
+				if (char.route[tileb.i] != undefined)
+				{
+					char.route[tileb.i] += 1;
+				}
+				else
+				{
+					char.route[tileb.i] = 1;
+					char.info.state[2] -= tileb.data.info.state[2];
+				}
+			}
 		}
+
+		refreshTiles.call(this, char, this.data_realm);
+		this.root.trigger('refresh:stats');
 	});
 
 	var CharMenu = oui.SingleMenu.extend(function (asset, layout, style)
@@ -121,23 +193,23 @@
 		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 	});
 
-	CharMenu.on('update:data', function (groups, tiles, chars, homes, map)
+	CharMenu.on('update:data', function (chars, realm)
 	{
 		this.data = [];
 
-		for (var char_id in homes)
+		for (var char_id in chars)
 		{
-			this.data.push([groups[2][char_id], homes[char_id]]);
+			this.data.push(chars[char_id]);
 		}
 	});
 
-	CharMenu.on('focus:char', function (char, home)
+	CharMenu.on('focus:char', function (char)
 	{
 		this.pick = {};
 
 		for (var i = 0; i < this.data.length; i++)
 		{
-			if (this.data[i][0].id == char.id)
+			if (this.data[i].info.id == char.info.id)
 			{
 				this.pick[i] = true;
 				break;
@@ -147,7 +219,7 @@
 
 	CharMenu.on('pick:item', function (data, index)
 	{
-		this.root.trigger('focus:char', data);
+		this.root.trigger('focus:char', [data]);
 	});
 
 	var Inventory = oui.SingleMenu.extend(function (asset, layout, style)
@@ -161,13 +233,13 @@
 		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 	});
 
-	Inventory.on('focus:char', function (char, home)
+	Inventory.on('focus:char', function (char)
 	{
 		this.data = [];
 
-		for (var info_id in char.children)
+		for (var info_id in char.info.children)
 		{
-			var info = char.children[info_id];
+			var info = char.info.children[info_id];
 			this.data.push(info.type);
 		}
 	});
@@ -177,67 +249,34 @@
 		console.log(data.title);
 	});
 
-	///////////////////////////TURN_MENU
-	var TurnOptions = oui.Menu.extend(function ()
+	var TurnMenu = oui.Menu.extend(function (layout)
 	{
-		oui.Menu.call(this, 'buttons', {left: 0, width: 128, top: 0, bottom: 0});
+		oui.Menu.call(this, 'buttons', layout);
 		this.reset([7,1]);
 	});
 
-	TurnOptions.on('pick:item', function (data, index)
+	TurnMenu.on('focus:char', function (char)
+	{
+		this.focus_char = char;
+	});
+
+	TurnMenu.on('pick:item', function (data, index)
 	{
 		if (index == 0)
 		{
-			var actions = this.parent.actionlist.data;
+			var actions = [];
+
+			for (var tile_i in this.focus_char.actions)
+			{
+				actions.push(this.focus_char.actions[tile_i]);
+			}
+
 			this.root.send('tock', [actions]);
-			console.log(WAIT);
-		}
-
-		this.parent.actionlist.data = [];
-	});
-
-	var ActionList = oui.Menu.extend(function ()
-	{
-		oui.Menu.call(this, 'chars', {left: 128, right: 0, top: 0, bottom: 0});
-	});
-
-	ActionList.method('drawButton', function (time, context, data, pick)
-	{
-		var type = 1;
-		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
-	});
-
-	ActionList.on('put:action', function (data)
-	{
-		this.data.push(data);
-	});
-
-	ActionList.on('update:actions', function (data)
-	{
-		this.data = data;
-	});
-
-	ActionList.on('pick:item', function (data, index)
-	{
-		var action = JSON.parse(prompt('Action?:', JSON.stringify(data)));
-
-		if (action)
-		{
-			this.data[index] = action;
 		}
 		else
 		{
-			this.data.splice(index, 1);
+			//delete char.actions
 		}
-	});
-
-	var TurnMenu = ooo.Scene.extend(function (layout)
-	{
-		ooo.Scene.call(this, layout);
-		this.options = new TurnOptions();
-		this.actionlist = new ActionList();
-		this.show(this.options, 1);
-		this.show(this.actionlist, 1);
 	});
 
 	var TextBox = ooo.Cell.extend(function (layout, color, font, align, baseline)//switch to oui.Button.extend
@@ -259,10 +298,207 @@
 		context.fillText(this.string, 0, 0);
 	});
 
-	TextBox.on('focus:char', function (char, home)
+	TextBox.on('refresh:stats', function ()
 	{
-		this.string = JSON.stringify(ooc.map(char.type.param, char.state));
+		var char = this.focus_char;
+		this.string = JSON.stringify(ooc.map(char.info.type.param, char.info.state));
 	});
+
+	TextBox.on('focus:char', function (char)
+	{
+		this.focus_char = char;
+		this.string = JSON.stringify(ooc.map(char.info.type.param, char.info.state));
+	});
+
+	//Game
+	function initGame (rules, names)
+	{
+		this.rules = rules;
+		this.players = {};
+
+		for (var i = 0; i < names.length; i++)
+		{
+			this.players[names[i]] = true;
+		}
+
+		this.world = new World(rules[1], 'steps');
+	}
+
+	//Game
+	function startGame (time)
+	{
+		//this.update = false;
+		//this.once = true;
+		this.time = time;
+		this.started = true;
+		this.show(this.world);
+
+		this.charmenu = new CharMenu('chars', {left: 0, right: 0, height: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM);
+		this.show(this.charmenu, 1);
+
+		this.inventory = new Inventory('items', {left: 0, right: 0, height: 64, bottom: 64}, OUI_REVERSED | OUI_BOTTOM);
+		this.show(this.inventory, 1);
+
+		//this.notemenu = new oui.Menu('steps', {width: 64, right: 0, top: 0, bottom: 128}, OUI_REVERSED | OUI_BOTTOM | OUI_VERTICAL).reset([1,1,1]);
+		//this.show(this.notemenu, 1);
+
+		this.turnmenu = new TurnMenu({left: 0, right: 0, top: 0, height: 64});
+		this.show(this.turnmenu, 1);
+
+		this.charstate = new TextBox({left: 10, right: 0, top: 74, height: 64}, '#fff', '12px sans-serif');
+		this.show(this.charstate, 1);
+	}
+
+	//Game
+	function countDown (delay)
+	{
+		console.log('starting in %d', delay);
+		delay--;
+
+		if (delay > 0)
+		{
+			var that = this;
+			this.timeout = setTimeout(function () { countDown.call(that, delay) }, 1000);
+		}
+		else
+		{
+			delete this.timeout;
+		}
+	}
+
+	function routeof (info)
+	{
+		var route = {};
+		var open = [];
+
+		do
+		{
+			if (ooc.size(info.parents))
+			{
+				for (var info_id in info.parents)
+				{
+					open.push(info.parents[info_id]);
+				}
+			}
+			else
+			{
+				route[info.id] = true;
+			}
+		}
+		while (info = open.pop())
+
+		return route;
+	}
+
+	//Game
+	function prepareTock (data, map)
+	{
+		var groups = {};
+		var chars = {};
+		var realm = {map: map, tiles: {}};
+		var parents = {};
+		var children = {};
+
+		for (var char_id in data)
+		{
+			var home = data[char_id][0];
+			var knowledge = data[char_id][1];
+			var effort = data[char_id][2];
+			var char = {};
+
+			for (var info_id in knowledge)
+			{
+				var argv = knowledge[info_id];
+				var info = {};
+				info.id = parseInt(info_id);
+				info.type = jup.info[argv[0]];
+				info.insight = argv[1];
+				info.parents = {};
+				info.children = {};
+
+				if (argv[2])
+				{
+					info.state = argv[2];
+				}
+
+				if (argv[3])
+				{
+					//link to children
+					for (var i = 0; i < argv[3].length; i++)
+					{
+						var child_id = argv[3][i];
+						var child = children[child_id];
+
+						if (child)
+						{
+							info.children[child_id] = child;
+							child.parents[info_id] = info;
+						}
+						else
+						{
+							ooc.put(info, parents, child_id, info_id);
+						}
+					}
+				}
+
+				//link to parents
+				if (info_id in parents)
+				{
+					for (var parent_id in parents[info_id])
+					{
+						var parent = parents[info_id][parent_id];
+						parent.children[info_id] = info;
+						info.parents[parent_id] = parent;
+					}
+				}
+				else
+				{
+					children[info_id] = info;
+				}
+
+				var group_id = info.type.group;
+				ooc.put(info, groups, group_id, info_id);
+				ooc.put(info, char, 'groups', group_id, info_id);
+				//ooo.add(info, data.by_type, group, info.type, id);//for inventory with multiple items stacked
+			}
+
+			char.home = this.world.index[home];
+			char.info = char.groups[2][char_id];
+			char.actions = {};
+			char.route = {};
+
+			for (var i = 0; i < effort[0].length; i++)
+			{
+				char.route[effort[0][i]] = 1;
+			}
+
+			char.info.state[2] -= effort[1];
+			chars[char_id] = char;
+		}
+
+		for (var group_id in groups)
+		{
+			for (var info_id in groups[group_id])
+			{
+				var info = groups[group_id][info_id];
+				var route = routeof(info);
+
+				for (var tile_i in route)
+				{
+					ooc.put(info, realm.tiles, tile_i, 'groups', group_id, info_id);
+				}
+			}
+		}
+
+		for (var tile_i in realm.tiles)
+		{
+			realm.tiles[tile_i].info = groups[0][tile_i];
+		}
+
+		this.trigger('update:data', [chars, realm]);
+		var char = chars[ooc.minkey(chars)];
+		this.trigger('focus:char', [char]);
+	}
 
 	var Game = ooo.Client.extend(function (hook, color)
 	{
@@ -300,45 +536,6 @@
 		this.show(this.forms.login);
 	});
 
-	//Game
-	function init_game (rules, names)
-	{
-		this.rules = rules;
-		this.players = {};
-
-		for (var i = 0; i < names.length; i++)
-		{
-			this.players[names[i]] = true;
-		}
-
-		this.world = new World(rules[1], 'steps');
-	}
-
-	//Game
-	function start_game (time)
-	{
-		//this.update = false;
-		//this.once = true;
-		this.time = time;
-		this.started = true;
-		this.show(this.world);
-
-		this.charmenu = new CharMenu('chars', {left: 0, right: 0, height: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM);
-		this.show(this.charmenu, 1);
-
-		this.inventory = new Inventory('items', {left: 0, right: 0, height: 64, bottom: 64}, OUI_REVERSED | OUI_BOTTOM);
-		this.show(this.inventory, 1);
-
-		this.notemenu = new oui.Menu('steps', {width: 64, right: 0, top: 0, bottom: 128}, OUI_REVERSED | OUI_BOTTOM | OUI_VERTICAL).reset([1,1,1]);
-		this.show(this.notemenu, 1);
-
-		this.turnmenu = new TurnMenu({left: 0, right: 0, top: 0, height: 64});
-		this.show(this.turnmenu, 1);
-
-		this.charstate = new TextBox({left: 10, right: 0, top: 74, height: 64}, '#fff', '12px sans-serif');
-		this.show(this.charstate, 1);
-	}
-
 	Game.on('message:grant', function (games)
 	{
 		this.forms.login.hide();
@@ -350,14 +547,14 @@
 			var rules = games[id][0];
 			var names = games[id][1];
 			names.push(this.auth_token[0]);
-			init_game.call(this, rules, names);
+			initGame.call(this, rules, names);
 			this.send('join', [id]);
 		}
 		else
 		{
 			var rules = JSON.parse(prompt('type rules:', '[1,32]'));
 			var names = [this.auth_token[0]];
-			init_game.call(this, rules, names);
+			initGame.call(this, rules, names);
 			this.send('host', [rules]);
 		}
 	});
@@ -380,152 +577,29 @@
 		}
 	});
 
-	//Game
-	function count_down (delay)
-	{
-		console.log('starting in %d', delay);
-		delay--;
-
-		if (delay > 0)
-		{
-			var that = this;
-			this.timeout = setTimeout(function () { count_down.call(that, delay) }, 1000);
-		}
-		else
-		{
-			delete this.timeout;
-		}
-	}
-
 	Game.on('message:ready', function (delay)
 	{
 		console.log('READY %d', delay);
-		count_down.call(this, delay);
+		countDown.call(this, delay);
 	});
 
-	function terrainof (info)
-	{
-		var tiles = [];
-
-		if (ooc.size(info.parents))
-		{
-			for (var id in info.parents)
-			{
-				tiles = tiles.concat(terrainof(info.parents[id]));
-			}
-		}
-		else
-		{
-			tiles.push(info);
-		}
-
-		return tiles;
-	}
-
-	//Game
-	function process_tick (data, map)
-	{
-		var groups = {};
-		var tiles = {};
-		var chars = {};
-		var homes = {};
-		var parents = {};
-		var children = {};
-
-		for (var char_id in data)
-		{
-			homes[char_id] = this.world.index[data[char_id][0]];
-			var knowledge = data[char_id][1];
-
-			for (var info_id in knowledge)
-			{
-				var argv = knowledge[info_id];
-				var info = {};
-				info.id = parseInt(info_id);
-				info.type = jup.info[argv[0]];
-				info.insight = argv[1];
-				info.parents = {};
-				info.children = {};
-
-				if (argv[2])
-				{
-					info.state = argv[2];
-				}
-
-				if (argv[3])
-				{
-					//link to children
-					for (var i = 0; i < argv[3].length; i++)
-					{
-						var child_id = argv[3][i];
-						var child = children[child_id];
-
-						if (child)
-						{
-							info.children[child_id] = child;
-							child.parents[info_id] = info;
-						}
-						else
-						{
-							ooc.add(info, parents, child_id, info_id);
-						}
-					}
-				}
-
-				//link to parents
-				if (info_id in parents)
-				{
-					for (var parent_id in parents[info_id])
-					{
-						var parent = parents[info_id][parent_id];
-						parent.children[info_id] = info;
-						info.parents[parent_id] = parent;
-					}
-				}
-				else
-				{
-					children[info_id] = info;
-				}
-
-				var group_id = info.type.group;
-				ooc.add(info, groups, group_id, info_id);
-				ooc.add(info, chars, char_id, group_id, info_id);
-				//ooo.add(info, data.by_type, group, info.type, id);//for inventory with multiple items stacked
-			}
-		}
-
-		for (var group_id in groups)
-		{
-			for (var info_id in groups[group_id])
-			{
-				var info = groups[group_id][info_id];
-				var terrain = terrainof(info);
-
-				for (var i = 0; i < terrain.length; i++)
-				{
-					ooc.add(info, tiles, terrain[i].id, group_id, info_id);
-				}
-			}
-		}
-
-		this.trigger('update:data', [groups, tiles, chars, homes, map]);
-		var char = groups[2][ooc.minkey(homes)];
-		var home = homes[char.id];
-		this.trigger('focus:char', [char, home]);
-		var tile = null;
-		this.trigger('focus:tile', [tile]);
-		this.trigger('update:actions', [[]]);
-	}
-
-	Game.on('message:continue', function (rules, names, time, data, map, move)
+	Game.on('message:continue', function (rules, names, time, data, map, wait)
 	{
 		console.log('CONTINUE', arguments);
 		this.forms.login.hide();
 		ooc.setLocal('auth_token', this.auth_token);
-		init_game.call(this, rules, names);
-		start_game.call(this, time, data);
-		process_tick.call(this, data, map);
-		console.log(move ? MOVE : WAIT);
+		initGame.call(this, rules, names);
+		startGame.call(this, time);
+		prepareTock.call(this, data, map);
+
+		if (wait)
+		{
+			console.log(WAIT, wait);
+		}
+		else
+		{
+			console.log(MOVE);
+		}
 	});
 
 	Game.on('message:tick', function (data, map)
@@ -534,14 +608,14 @@
 
 		if (!this.started)
 		{
-			start_game.call(this, 0);
+			startGame.call(this, 0);
 		}
 		else
 		{
 			this.time++;
 		}
 
-		process_tick.call(this, data, map);
+		prepareTock.call(this, data, map);
 		console.log(MOVE);
 	});
 
@@ -555,9 +629,9 @@
 		console.log('BACK %s', name);
 	});
 
-	Game.on('message:wait', function (left)
+	Game.on('message:wait', function (wait)
 	{
-		console.log('WAIT %d', left);
+		console.log(WAIT, wait);
 	});
 
 	window.addEventListener('load', function ()
