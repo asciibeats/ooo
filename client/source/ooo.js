@@ -1,6 +1,8 @@
 'use strict';
 var ooo = {};
 //////TODO
+//Textumbruch in ooo.Text()
+//cell auto resize; alles relativ zu mid??!!! (im moment bei layout.right relativ zu rel + width)
 ///ooc.Class für Actor benutzen!!!!
 ///tilemap rename tiles->coords index->tiles
 //system vars von user vars trennen!!! (passiert zu oft daß man wichtige classvars pberschreibet weil man nicht dran denkt daß die schon existiert (und ich habs geschrieben!!!))
@@ -268,7 +270,11 @@ var ooo = {};
 	{
 		if (this.layout.width != undefined)
 		{
-			if (this.layout.left != undefined)
+			if (this.layout.horizontal != undefined)
+			{
+				var rel_x = Math.round(width / 100 * this.layout.horizontal) - (this.layout.width >>> 1);
+			}
+			else if (this.layout.left != undefined)
 			{
 				var rel_x = this.layout.left;
 			}
@@ -308,7 +314,11 @@ var ooo = {};
 
 		if (this.layout.height != undefined)
 		{
-			if (this.layout.top != undefined)
+			if (this.layout.vertical != undefined)
+			{
+				var rel_y = Math.round(height / 100 * this.layout.vertical) - (this.layout.height >>> 1);
+			}
+			else if (this.layout.top != undefined)
 			{
 				var rel_y = this.layout.top;
 			}
@@ -373,6 +383,25 @@ var ooo = {};
 	{
 		context.fillStyle = this.color;
 		context.fillRect(0, 0, this.width, this.height);
+	});
+
+	ooo.Text = ooo.Cell.extend(function (layout, color, font, alignment, baseline)//switch to oui.Button.extend
+	{
+		ooo.Cell.call(this, layout);
+		this.color = color || '#f00';
+		this.font = font || '12px sans-serif';
+		this.alignment = alignment || 'start';
+		this.baseline = baseline || 'top';
+		this.string = "abc123";
+	});
+
+	ooo.Text.on('draw', function (time, context)
+	{
+		context.fillStyle = this.color;
+		context.font = this.font;
+		context.textAlign = this.alignment;
+		context.textBaseline = this.baseline;
+		context.fillText(this.string, 0, 0);
 	});
 
 	//Container for actors

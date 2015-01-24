@@ -1,4 +1,9 @@
-		/*this.chartabs = new oui.Tabbed({left: 0, right: 0, top: 0, bottom: 64}, 'buttons', {left: 0, right: 0, top: 0, height: 64}, OUI_REVERSED | OUI_BOTTOM);
+TODO
+-pathfinding macht fehler!!!
+-ui (power,stats,chars)
+-events
+
+/*this.chartabs = new oui.Tabbed({left: 0, right: 0, top: 0, bottom: 64}, 'buttons', {left: 0, right: 0, top: 0, height: 64}, OUI_REVERSED | OUI_BOTTOM);
 		this.chartabs.open(5, new Inventory('items', {left: 0, right: 0, top: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM));
 		this.chartabs.open(6, new CharSheet('#333', {left: 0, right: 0, top: 64, bottom: 0}));
 		this.chartabs.open(7, new PickAction('#333', {left: 0, right: 0, top: 64, bottom: 0}));

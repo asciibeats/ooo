@@ -1,57 +1,120 @@
 'use strict';
-//ein job pro charlevel!!
+//power menu drawButton funktion mit werten
+//button klasse (zwischen sumbmit und input; input mit label)
+//rules_prompt
+//browser_prompt
+//ein job pro charlevel!!??
 //ein job ist aktion die jede runde wiederholt wird
 //holzfäller (+x holz)
 //alle item spawner sind jobs??
+
 (function ()
 {
 	var HOST = 'http://' + window.location.hostname + ':11133';
 	var TILES = [0, 3, 5, 4, 3, 2, 1, 3, 0, 3, 9, 10, 11];
 	var MAPTILES = [0, 12, 10, 11, 3, 2, 1, 3, 0, 3, 9, 10, 11];
 	var ITEMS = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0];
-	var MARKS = ['#942e39', '#651144', '#aaa', '#2f1d71'];//actions, paths, route, others
+	var BORDER = 24;
+	var MARKS = ['#942e39', '#651144', '#aaa', '#2f1d71', '#fff', '#f44'];//actions, paths, route, others
 	var WAIT = 'PLEASE WAIT FOR %d OTHER PLAYERS';
 	var MOVE = 'PLEASE MAKE A MOVE';
 
-	var Login = oui.Form.extend(function (color, font, layout, align, baseline)
+	//WorldMap
+	function refreshArea (char, path)
 	{
-		oui.Form.call(this, color, font, layout, align, baseline);
-		this.show(new oui.Field('auth_token', {'top': 10, 'left': 10, 'right':10, 'height': 30}));
-		this.show(new oui.Field('auth_token', {'top': 50, 'left': 10, 'right':10, 'height': 30}));
-		this.show(new oui.Submit('login', '#a50', {'top': 90, 'left': 10, 'right':10, 'height': 30}));
+		if (path)
+		{
+			var steps = ooc.hash(path.tiles);
+			var open = ooc.intkeys(char.route).concat(path.tiles);
+			var range = char.info.state[2] - path.cost;
+			var target = path.tiles[path.tiles.length - 1];
+		}
+		else
+		{
+			var steps = {};
+			var open = ooc.intkeys(char.route);
+			var range = char.info.state[2];
+		}
+
+		this.range = this.findArea(open, range, function (data) { return (data.info ? data.info.state[2] : null) });
+
+		for (var i in this.realm.tiles)
+		{
+			var data = this.index[i].data;
+
+			if (i in this.range)
+			{
+				data.type = TILES[data.info.type.id];
+			}
+			else
+			{
+				data.type = MAPTILES[data.info.type.id];
+			}
+
+			if (i == target)
+			{
+				data.mark = 5;
+			}
+			else if (i in steps)
+			{
+				data.mark = 4;
+			}
+			else if (i in char.actions)
+			{
+				data.mark = 0;
+			}
+			else if (4 in data.groups)
+			{
+				data.mark = 2;
+			}
+			else if (i in char.route)
+			{
+				data.mark = 1;
+			}
+			else if ((2 in data.groups) && !((ooc.size(data.groups[2]) == 1) && (char.info.id in data.groups[2])))
+			{
+				data.mark = 3;
+			}
+			else
+			{
+				delete data.mark;
+			}
+		}
+	}
+
+	var WorldMap = oui.TileMap.extend(function (size, asset, layout)
+	{
+		oui.TileMap.call(this, size, asset, layout);
+		this.tile_mask = 0;
 	});
 
-	Login.bubble('form:submit', function (type, data)
+	WorldMap.method('Data', function (map, i, x, y)
 	{
-		this.root.auth_token = data;
-		this.root.send('login', data);
+		this.type = 0;
 	});
 
-	//World
-	function refreshTiles (char, realm)
+	WorldMap.method('drawTile', function (tile, data, time, context)
 	{
+		context.drawImage(this.image, this.image.tile_x[data.type], this.image.tile_y[data.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+
+		if (data.mark != undefined)
+		{
+			context.globalAlpha = 0.8;
+			context.fillStyle = MARKS[data.mark];
+			context.fillRect(0, 0, 64, 64);
+		}
+	});
+
+	WorldMap.on('update_data', function (chars, realm)
+	{
+		this.realm = realm;
+
 		for (var i = 0; i < this.index.length; i++)
 		{
 			if (i in realm.tiles)
 			{
-				var tile = realm.tiles[i];
-				var data = {};
-				data.groups = tile.groups;
-				data.info = tile.info;
-				data.type = MAPTILES[tile.info.type.id];
-
-				if (i in char.actions)
-				{
-					data.mark = 0;
-				}
-				else if (i in char.route)
-				{
-					data.mark = 1;
-				}
-				else if ((2 in tile.groups) && !((ooc.size(tile.groups[2]) == 1) && (char.info.id in tile.groups[2])))
-				{
-					data.mark = 3;
-				}
+				var data = realm.tiles[i];
+				data.type = TILES[data.info.type.id];
 			}
 			else if (i in realm.map)
 			{
@@ -64,77 +127,62 @@
 
 			this.index[i].data = data;
 		}
-
-		var area = this.findArea(ooc.intkeys(char.route), char.info.state[2], function (data) { return (data.info ? data.info.state[2] : null) });
-
-		for (var tile_i in area)
-		{
-			var tile = this.index[tile_i];
-			var info = realm.tiles[tile_i].info;
-			tile.data.type = TILES[info.type.id];
-		}
-	}
-
-	var World = oui.TileMap.extend(function (size, asset)
-	{
-		oui.TileMap.call(this, size, asset);
-		this.tile_mask = 0;
 	});
 
-	World.method('Data', function (map, i, x, y)
+	WorldMap.on('focus:char', function (char)
 	{
-		this.type = 0;
+		this.char = char;
+		var open = ooc.intkeys(char.route);
+		var range = char.info.state[2];
+		refreshArea.call(this, char);
 	});
 
-	World.method('drawTile', function (tile, data, time, context)
+	WorldMap.on('pick_tile', function (tile, button)
 	{
-		context.drawImage(this.image, this.image.tile_x[data.type], this.image.tile_y[data.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
-
-		if (data.mark != undefined)
-		{
-			context.globalAlpha = 0.4;
-			context.fillStyle = MARKS[data.mark];
-			context.fillRect(0, 0, 64, 64);
-		}
-	});
-
-	World.on('update:data', function (chars, realm)
-	{
-		this.data_chars = chars;
-		this.data_realm = realm;
-	});
-
-	World.on('focus:char', function (char)
-	{
-		this.focus_char = char;
-		refreshTiles.call(this, char, this.data_realm);
-	});
-
-	World.on('pick:tile', function (tile, button)
-	{
-		if (!tile.data.info)
+		if (!(tile.i in this.range))
 		{
 			return;
 		}
 
-		var char = this.focus_char;
+		if (this.path && (this.path.tiles[this.path.tiles.length - 1] == tile.i))
+		{
+			this.root.default_prompt.hide();
+			this.root.show(this.root.power_prompt);
+			this.root.trigger('prompt:power', [this.char, this.path]);
+			delete this.path;
+		}
+		else
+		{
+			var that = this;
+			this.path = this.findPath(this.char.home, tile, function (data) { return (data.info ? ((data.info.id in that.char.route) ? 0 : data.info.state[2]) : null) });
+			refreshArea.call(this, this.char, this.path);
+		}
+
+		return;
+		var action = [char.id, tile.i, path.steps, {}];
+		//this.root.trigger('prompt:power', [tile, char, info]);
+		this.root.trigger('prompt:power', [tile, char, info]);
+		return;
 
 		if (tile.i in char.actions)
 		{
 			var action = char.actions[tile.i];
-			jup.mergePower(char.info.state[5], action[3]);
+			char.info.state[5] = jup.mergePower(char.info.state[5], action[3]);
 			var tileb = char.home;
 			var steps = action[2];
 
 			for (var i = 0; i < steps.length; i++)
 			{
 				tileb = tileb.steps[steps[i]];
-				char.route[tileb.i] -= 1;
 
-				if (char.route[tileb.i] == 0)
+				if (char.route[tileb.i] == 1)
 				{
 					delete char.route[tileb.i];
 					char.info.state[2] += tileb.data.info.state[2];
+				}
+				else
+				{
+					char.route[tileb.i] -= 1;
 				}
 			}
 
@@ -143,14 +191,14 @@
 		}
 		else
 		{
-			var path = this.findPath(this.focus_char.home, tile, function (data) { return (data.info ? data.info.state[2] : null) });
+			var path = this.findPath(this.focus_char.home, tile, function (data) { return (data.info ? ((data.info.id in char.route) ? 0 : data.info.state[2]) : null) });//if in char.route cost=0!!!
 			var action = JSON.parse(prompt('Action?:', JSON.stringify([this.focus_char.info.id, tile.i, path.steps, {0: 1}])));
 		}
 
 		if (action)
 		{
 			char.actions[action[1]] = action;
-			jup.cancelPower(char.info.state[5], action[3]);
+			char.info.state[5] = jup.cancelPower(char.info.state[5], action[3]);
 			var tileb = char.home;
 			var steps = action[2];
 
@@ -174,6 +222,35 @@
 		this.root.trigger('refresh:stats');
 	});
 
+	WorldMap.on('add_action', function (action)
+	{
+		console.log(JSON.stringify(action));
+		var char = this.char;
+		char.actions[action[1]] = action;
+		char.info.state[5] = jup.cancelPower(char.info.state[5], action[3]);
+		var tile = char.home;
+		var steps = action[2];
+
+		for (var i = 0; i < steps.length; i++)
+		{
+			tile = tile.steps[steps[i]];
+
+			if (char.route[tile.i] != undefined)
+			{
+				char.route[tile.i] += 1;
+			}
+			else
+			{
+				char.route[tile.i] = 1;
+				char.info.state[2] -= tile.data.info.state[2];
+			}
+		}
+
+		refreshArea.call(this, this.char);
+		//this.root.trigger('refresh:stats');
+		console.log('ZZZZZZZZZZZZZZZZZZZZZ');
+	});
+
 	var CharMenu = oui.SingleMenu.extend(function (asset, layout, style)
 	{
 		oui.SingleMenu.call(this, asset, layout, style);
@@ -193,7 +270,7 @@
 		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 	});
 
-	CharMenu.on('update:data', function (chars, realm)
+	CharMenu.on('update_data', function (chars, realm)
 	{
 		this.data = [];
 
@@ -279,23 +356,9 @@
 		}
 	});
 
-	var TextBox = ooo.Cell.extend(function (layout, color, font, align, baseline)//switch to oui.Button.extend
+	var TextBox = ooo.Text.extend(function (layout, color, font, alignment, baseline)
 	{
-		ooo.Cell.call(this, layout);
-		this.color = color || '#f00';
-		this.font = font || '24px sans-serif';
-		this.align = align || 'start';
-		this.baseline = baseline || 'top';
-		this.string = "abc123";
-	});
-
-	TextBox.on('draw', function (time, context)
-	{
-		context.fillStyle = this.color;
-		context.font = this.font;
-		context.textAlign = this.align;
-		context.textBaseline = this.baseline;
-		context.fillText(this.string, 0, 0);
+		ooo.Text.call(this, layout, color, font, alignment, baseline);
 	});
 
 	TextBox.on('refresh:stats', function ()
@@ -310,6 +373,161 @@
 		this.string = JSON.stringify(ooc.map(char.info.type.param, char.info.state));
 	});
 
+	var DefaultPrompt = ooo.Scene.extend(function (map_size, layout)
+	{
+		ooo.Scene.call(this, layout);
+		this.world_map = new WorldMap(map_size, 'steps');
+		this.show(this.world_map, -1);
+
+		this.show(new ooo.Box('#4d3932', {bottom: BORDER, top: BORDER, width: 148, right: BORDER}));
+		this.char_menu = new CharMenu('chars', {bottom: BORDER+10, top: BORDER+10, width: 64, right: BORDER+10}, OUI_VERTICAL | OUI_BOTTOM);
+		this.show(this.char_menu, 1);
+		this.inventory = new Inventory('items', {bottom: BORDER+10, top: BORDER+10, width: 64, right: BORDER+74}, OUI_VERTICAL | OUI_BOTTOM);
+		this.show(this.inventory, 1);
+
+		//this.notemenu = new oui.Menu('steps', {width: 64, right: BORDER, top: BORDER, bottom: 128}, OUI_REVERSED | OUI_BOTTOM | OUI_VERTICAL).reset([1,1,1]);
+		//this.show(this.notemenu, 1);
+
+		//this.turnmenu = new TurnMenu({left: BORDER, right: BORDER, top: BORDER, height: 64});
+		//this.show(this.turnmenu, 1);
+
+		this.charstate = new TextBox({left: BORDER, right: BORDER, top: BORDER, height: 64}, '#fff', '12px sans-serif');
+		this.show(this.charstate, 1);
+	});
+
+	var PowerMenu = oui.Menu.extend(function (asset, layout, style)
+	{
+		oui.Menu.call(this, asset, layout, style);
+	});
+
+	PowerMenu.method('drawButton', function (time, context, data, pick)
+	{
+		context.drawImage(this.image, this.image.tile_x[data], this.image.tile_y[data], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		context.fillStyle = '#555';
+		context.font = '32px sans-serif';
+		context.textAlign = 'center';
+		context.textBaseline = 'middle';
+		context.fillText((data in this.parent.power) ? this.parent.power[data] : 0, 32, 32);
+	});
+
+	PowerMenu.on('pick:item', function (type)
+	{
+		if (type in this.parent.power)
+		{
+			this.parent.power[type]++;
+		}
+		else
+		{
+			this.parent.power[type] = 1;
+		}
+
+		//jup.mergePower(this.parent.char_power, this.parent.diff_power);
+		this.parent.power = jup.mergePairs(this.parent.power);
+		var temp_power = jup.mergePower(this.parent.pool_power, this.parent.power);
+		temp_power = jup.mergePairs(temp_power);
+
+		var event = jup.matchEvent(temp_power);
+		this.parent.eventtext.string = (event ? event.title : '???') + ' (' + this.parent.time + ') ' + JSON.stringify(temp_power);
+	});
+
+	var PowerSubmit = oui.Menu.extend(function (asset, layout, style)
+	{
+		oui.Menu.call(this, asset, layout, style);
+		this.reset([7, 0, 1]);
+	});
+
+	PowerSubmit.on('pick:item', function (data, index)
+	{
+		if ((index == 0) && ooc.size(this.parent.power))
+		{
+			var action = [this.parent.char.info.id, this.parent.tile.i, this.parent.steps, this.parent.power];
+			this.parent.hide();
+			this.root.show(this.root.default_prompt);
+			this.root.trigger('add_action', [action]);
+		}
+		else if (index == 1)
+		{
+		}
+		else
+		{
+			this.root.show(this.root.default_prompt);
+			this.parent.hide();
+		}
+	});
+
+	var PowerPrompt = ooo.Scene.extend(function (layout)
+	{
+		ooo.Scene.call(this, layout);
+		this.show(new ooo.Box('#777'));
+		this.show(new ooo.Box('#666', {bottom: BORDER, height: 276, width: 148, right: BORDER}));
+
+		this.power_menu = new PowerMenu('powers', {bottom: BORDER+10, height: 256, width: 128, right: BORDER+10}, OUI_VERTICAL).reset([0, 2, 4, 6, 1, 3, 5, 7]);
+		this.show(this.power_menu);
+
+		this.eventinfo = new ooo.Box('#666', {left: BORDER, width: 212, height: 256, bottom: BORDER});
+		this.show(this.eventinfo);
+
+		this.eventtext = new TextBox({left: BORDER+10, width: 256, height: 246, bottom: BORDER+0}, '#000', '18px sans-serif');
+		this.show(this.eventtext, 1);
+
+		this.power_submit = new PowerSubmit('buttons', {left: BORDER+10, width: 192, height: 64, bottom: BORDER+10});
+		this.show(this.power_submit, 1);
+	});
+
+	PowerPrompt.on('prompt:power', function (char, path)
+	{
+		var tile_i = path.tiles[path.tiles.length - 1];
+		var tile = this.root.default_prompt.world_map.index[tile_i];
+		var pools = tile.data.groups[4];
+		var info = pools ? pools[ooc.minkey(pools)] : null;
+
+		if (info)
+		{
+			var pools = info.state[2];
+			this.pool_power = jup.poolPower(pools);
+			this.char_power = jup.charPower(pools[char.info.id]);
+			this.time = info.state[3];
+		}
+		else
+		{
+			this.pool_power = {};
+			this.char_power = {};
+			this.time = 0;
+		}
+
+		this.char = char;
+		this.tile = tile;
+		this.steps = path.steps;
+		this.power = {};
+
+		var event = jup.matchEvent(this.pool_power);
+		this.eventtext.string = (event ? event.title : '???') + ' (' + this.time + ') ' + JSON.stringify(this.pool_power);
+	});
+
+	var LoginForm = oui.Form.extend(function (color, font, layout, align, baseline)
+	{
+		oui.Form.call(this, color, font, layout, align, baseline);
+		this.show(new oui.Field('auth_token', {top: 10, left: 10, right:10, height: 30}));
+		this.show(new oui.Field('auth_token', {top: 50, left: 10, right:10, height: 30}));
+		this.show(new oui.Submit('login', '#a50', {top: 90, left: 10, right: 10, height: 30}));
+	});
+
+	LoginForm.bubble('form:submit', function (type, data)
+	{
+		this.root.auth_token = data;
+		this.root.send('login', data);
+		this.root.login_prompt.hide();
+		this.root.show(this.root.logo_prompt);//change for load_screen
+	});
+
+	var LoginPrompt = ooo.Scene.extend(function (layout)
+	{
+		ooo.Scene.call(this, layout);
+		this.show(new ooo.Box('#444'), -1);
+		this.form = new LoginForm('#a50', '30px sans-serif', {horizontal: 50, width: 150, vertical: 50, height: 130});
+		this.show(this.form);
+	});
+
 	//Game
 	function initGame (rules, names)
 	{
@@ -321,7 +539,8 @@
 			this.players[names[i]] = true;
 		}
 
-		this.world = new World(rules[1], 'steps');
+		this.default_prompt = new DefaultPrompt(rules[1]);
+		this.power_prompt = new PowerPrompt();
 	}
 
 	//Game
@@ -331,22 +550,7 @@
 		//this.once = true;
 		this.time = time;
 		this.started = true;
-		this.show(this.world);
-
-		this.charmenu = new CharMenu('chars', {left: 0, right: 0, height: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM);
-		this.show(this.charmenu, 1);
-
-		this.inventory = new Inventory('items', {left: 0, right: 0, height: 64, bottom: 64}, OUI_REVERSED | OUI_BOTTOM);
-		this.show(this.inventory, 1);
-
-		//this.notemenu = new oui.Menu('steps', {width: 64, right: 0, top: 0, bottom: 128}, OUI_REVERSED | OUI_BOTTOM | OUI_VERTICAL).reset([1,1,1]);
-		//this.show(this.notemenu, 1);
-
-		this.turnmenu = new TurnMenu({left: 0, right: 0, top: 0, height: 64});
-		this.show(this.turnmenu, 1);
-
-		this.charstate = new TextBox({left: 10, right: 0, top: 74, height: 64}, '#fff', '12px sans-serif');
-		this.show(this.charstate, 1);
+		this.show(this.default_prompt);
 	}
 
 	//Game
@@ -373,16 +577,16 @@
 
 		do
 		{
-			if (ooc.size(info.parents))
+			if (info.type.group == 0)
+			{
+				route[info.id] = true;
+			}
+			else
 			{
 				for (var info_id in info.parents)
 				{
 					open.push(info.parents[info_id]);
 				}
-			}
-			else
-			{
-				route[info.id] = true;
 			}
 		}
 		while (info = open.pop())
@@ -394,6 +598,7 @@
 	function prepareTock (data, map)
 	{
 		var groups = {};
+		var types = {};
 		var chars = {};
 		var realm = {map: map, tiles: {}};
 		var parents = {};
@@ -401,9 +606,7 @@
 
 		for (var char_id in data)
 		{
-			var home = data[char_id][0];
-			var knowledge = data[char_id][1];
-			var effort = data[char_id][2];
+			var knowledge = data[char_id];
 			var char = {};
 
 			for (var info_id in knowledge)
@@ -412,21 +615,21 @@
 				var info = {};
 				info.id = parseInt(info_id);
 				info.type = jup.info[argv[0]];
-				info.insight = argv[1];
+				//info.insight = argv[1];
 				info.parents = {};
 				info.children = {};
 
-				if (argv[2])
+				if (argv[1])
 				{
-					info.state = argv[2];
+					info.state = argv[1];
 				}
 
-				if (argv[3])
+				if (argv[2])
 				{
 					//link to children
-					for (var i = 0; i < argv[3].length; i++)
+					for (var i = 0; i < argv[2].length; i++)
 					{
-						var child_id = argv[3][i];
+						var child_id = argv[2][i];
 						var child = children[child_id];
 
 						if (child)
@@ -458,21 +661,26 @@
 
 				var group_id = info.type.group;
 				ooc.put(info, groups, group_id, info_id);
+				ooc.put(info, types, group_id, info.type.id, info_id);
 				ooc.put(info, char, 'groups', group_id, info_id);
-				//ooo.add(info, data.by_type, group, info.type, id);//for inventory with multiple items stacked
+				ooc.put(info, char, 'types', group_id, info.type.id, info_id);
 			}
 
-			char.home = this.world.index[home];
+			var home = ooc.minKeyValue(char.types[1][33]).state[0];
+			char.home = this.default_prompt.world_map.index[home];
 			char.info = char.groups[2][char_id];
 			char.actions = {};
+
+			var task = ooc.minKeyValue(char.types[1][23]);
+			task = ooc.map(task.type.param, task.state);
 			char.route = {};
 
-			for (var i = 0; i < effort[0].length; i++)
+			for (var i = 0; i < task.route.length; i++)
 			{
-				char.route[effort[0][i]] = 1;
+				char.route[task.route[i]] = 1;
 			}
 
-			char.info.state[2] -= effort[1];
+			char.info.state[2] -= task.range;
 			chars[char_id] = char;
 		}
 
@@ -495,8 +703,8 @@
 			realm.tiles[tile_i].info = groups[0][tile_i];
 		}
 
-		this.trigger('update:data', [chars, realm]);
-		var char = chars[ooc.minkey(chars)];
+		this.trigger('update_data', [chars, realm]);
+		var char = ooc.minKeyValue(chars);
 		this.trigger('focus:char', [char]);
 	}
 
@@ -505,9 +713,10 @@
 		ooo.Client.call(this, hook, color);
 		this.players = {};
 		this.started = false;
-		this.forms = {};
-		this.forms.login = new Login('#5a0', '30px sans-serif', {'width': 200, 'height': 130}).center(100, 65).rotate(-10);
-		//this.show(new ooo.Box('#a0a'));
+		this.logo_prompt = new ooo.Box('#222');
+		//get time for min logo show
+		this.login_prompt = new LoginPrompt();
+		this.show(this.logo_prompt);
 	});
 
 	Game.on('socket:open', function ()
@@ -521,7 +730,8 @@
 		}
 		else
 		{
-			this.show(this.forms.login);
+			this.logo_prompt.hide();
+			this.show(this.login_prompt);
 		}
 	});
 
@@ -532,13 +742,13 @@
 
 	Game.on('message:deny', function ()
 	{
-		this.forms.login.reset();
-		this.show(this.forms.login);
+		this.login_prompt.form.reset();
+		this.show(this.login_prompt);
 	});
 
 	Game.on('message:grant', function (games)
 	{
-		this.forms.login.hide();
+		this.login_prompt.hide();
 		ooc.setLocal('auth_token', this.auth_token);
 
 		if (ooc.size(games) > 0)
@@ -586,7 +796,7 @@
 	Game.on('message:continue', function (rules, names, time, data, map, wait)
 	{
 		console.log('CONTINUE', arguments);
-		this.forms.login.hide();
+		this.login_prompt.hide();
 		ooc.setLocal('auth_token', this.auth_token);
 		initGame.call(this, rules, names);
 		startGame.call(this, time);
@@ -636,6 +846,7 @@
 
 	window.addEventListener('load', function ()
 	{
+		//delete localStorage['auth_token'];
 		var hook = document.getElementById('hook');
 		var jupiter = new Game(hook, '#444');
 		jupiter.load('steps', 'assets/steps.png', 64, 64);
@@ -644,6 +855,7 @@
 		jupiter.load('path', 'assets/path.png', 64, 64);
 		jupiter.load('options', 'assets/options.png', 64, 64);
 		jupiter.load('buttons', 'assets/buttons.png', 64, 64);
+		jupiter.load('powers', 'assets/powers.png', 64, 64);
 		jupiter.open(HOST);
 	});
 })();

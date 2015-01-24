@@ -3,10 +3,11 @@ var OUI_BOTTOM = 1;
 var OUI_REVERSED = 2;
 var OUI_VERTICAL = 4;
 var oui = {};
+//reset blink on input field tab jump
 
 (function ()
 {
-	oui.Button = ooo.Cell.extend(function (button_w, button_h, source, styles, layout)
+	/*oui.Button = ooo.Cell.extend(function (button_w, button_h, source, styles, layout)
 	{
 		ooo.Cell.call(this, layout);
 		this.button_w = button_w;
@@ -41,11 +42,11 @@ var oui = {};
 	oui.Button.on('draw', function (time, context)
 	{
 		context.drawImage(this.image, this.tile_x, this.tile_y, this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-	});
+	});*/
 
-	oui.Form = ooo.Stage.extend(function (color, font, layout, align, baseline)
+	oui.Form = ooo.Scene.extend(function (color, font, layout, align, baseline)
 	{
-		ooo.Stage.call(this, layout);
+		ooo.Scene.call(this, layout);
 		this.color = color || '#f00';
 		this.font = font || '24px sans-serif';
 		this.align = align || 'start';
@@ -160,6 +161,16 @@ var oui = {};
 		this.color = color;
 	});
 
+	oui.Submit.on('draw', function (time, context)
+	{
+		context.fillStyle = this.color;
+		context.fillRect(0, 0, this.width, this.height);
+		context.fillStyle = '#555';
+		context.textAlign = 'center';
+		context.textBaseline = 'middle';
+		context.fillText(this.type, this.width >>> 1, this.height >>> 1);
+	});
+
 	oui.Submit.on('input:click', function (button, down_x, down_y)
 	{
 		oui.Input.prototype.events.on['input:click'].call(this, button, down_x, down_y);
@@ -174,16 +185,6 @@ var oui = {};
 			this.parent.trigger('form:submit', [this.type, []]);
 			return false;
 		}
-	});
-
-	oui.Submit.on('draw', function (time, context)
-	{
-		context.fillStyle = this.color;
-		context.fillRect(0, 0, this.width, this.height);
-		context.fillStyle = '#555';
-		context.textAlign = 'center';
-		context.textBaseline = 'middle';
-		context.fillText(this.type, this.width >>> 1, this.height >>> 1);
 	});
 
 	oui.Field = oui.Input.extend(function (type, layout)//alphabet
@@ -711,7 +712,7 @@ var oui = {};
 	{
 		var tile_x = Math.floor(((this.drop_x + down_x) % this.patch_w) / this.image.tile_w);
 		var tile_y = Math.floor(((this.drop_y + down_y) % this.patch_h) / this.image.tile_h);
-		this.trigger('pick:tile', [this.tiles[tile_y][tile_x], button, tile_x, tile_y]);
+		this.trigger('pick_tile', [this.tiles[tile_y][tile_x], button, tile_x, tile_y]);
 		return false;
 	});
 

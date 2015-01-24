@@ -20,23 +20,23 @@ if (typeof module == 'object')
 
 	ooc.hash = function (array)
 	{
-		var hash = {};
+		var object = {};
 
 		for (var i = 0; i < array.length; i++)
 		{
 			var key = array[i];
 
-			if (key in hash)
+			if (key in object)
 			{
-				hash[key]++;
+				object[key]++;
 			}
 			else
 			{
-				hash[key] = 1;
+				object[key] = 1;
 			}
 		}
 
-		return hash;
+		return object;
 	}
 
 	ooc.modify = function (func)
@@ -127,7 +127,7 @@ if (typeof module == 'object')
 
 		for (var i = 0; i < keys.length; i++)
 		{
-			object[keys[i]] = values[i];
+			object[keys[i]] = ooc.clone(values[i]);
 		}
 
 		return object;
@@ -135,6 +135,11 @@ if (typeof module == 'object')
 
 	ooc.clone = function (object)
 	{
+		if (typeof object != 'object')
+		{
+			return object;
+		}
+
 		var clone = Array.isArray(object) ? [] : {};
 
 		for (var key in object)
@@ -204,6 +209,11 @@ if (typeof module == 'object')
 	ooc.minkey = function (object)
 	{
 		return Math.min.apply(null, ooc.intkeys(object));
+	}
+
+	ooc.minKeyValue = function (object)
+	{
+		return object[Math.min.apply(null, ooc.intkeys(object))];
 	}
 
 	ooc.intkeys = function (object)
