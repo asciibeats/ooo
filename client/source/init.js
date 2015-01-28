@@ -169,7 +169,7 @@
 	{
 		var tile = this.getTileAt(drop_x, drop_y);
 
-		if (!card.type.target(tile.data.info))
+		if (!card.type.condition(tile.data.info))
 		{
 			throw 'target is incompatible with card';
 		}
@@ -458,29 +458,63 @@
 		}
 	});
 
-	var ActionMenu = ooo.Scene.extend(function (layout)
+	var ReadyButton = ooo.Box.extend(function (color, layout)
 	{
-		ooo.Scene.call(this, layout);
+		ooo.Box.call(this, color, layout);
 	});
 
-	ActionMenu.on('update_actions', function (actions)
+	ReadyButton.on('mouse_click', function (button, down_x, down_y)
 	{
-		console.log('update_actions', actions);
-		var rel_x = 0;
+		var actions = this.root.data.actions;
+		var data = {};
 
 		for (var tile_i in actions)
 		{
 			for (var i = 0; i < actions[tile_i].length; i++)
 			{
 				var action = actions[tile_i][i];
-				this.show(action.card);
-				action.card.hide();
-				this.show(action.card);
-				console.log(rel_x, i * 40, 64, 64);
-				action.card.place(rel_x, i * 40);//.resize(64, 64);
+				var info_id = action.char.info.id;
+				var steps = action.paths[info_id].steps;
+				var card_id = action.card.type.id;
+				ooc.push([steps, card_id, tile_i], data, info_id, tile_i);
 			}
+		}
 
-			rel_x += 48;
+		this.root.send('tock', [data]);
+	});
+
+	var ActionMenu = ooo.Scene.extend(function (layout)
+	{
+		ooo.Scene.call(this, layout);
+		this.ready_button = new ReadyButton('#faa', {left: 0, width: 50, top: 0, height: 50});
+	});
+
+	ActionMenu.on('update_actions', function (actions)
+	{
+		this.hideChildren();
+
+		if (actions)
+		{
+			console.log('update_actions', actions);
+			/*var rel_x = 0;
+
+			for (var tile_i in actions)
+			{
+				for (var i = 0; i < actions[tile_i].length; i++)
+				{
+					var action = actions[tile_i][i];
+					action.card.place(rel_x, i * 40);//.resize(64, 64);
+					this.show(action.card);
+					console.log(rel_x, i * 40, 64, 64);
+				}
+
+				rel_x += 48;
+			}*/
+
+			this.show(this.ready_button);
+		}
+		else
+		{
 		}
 	});
 
@@ -559,10 +593,10 @@
 		ooo.Scene.call(this, layout);
 	});
 
-	HandMenu.on('mouse_over', function ()
+	/*HandMenu.on('mouse_over', function ()
 	{
 		console.log('asdfasdf');
-	});
+	});*/
 
 	HandMenu.on('update_hand', function (hand)
 	{
@@ -578,7 +612,7 @@
 			{
 				var card = hand[card_id];
 				card.place(-98, rel_y);
-				this.show(card, z_index--);
+				this.show(card);//, z_index--
 				rel_y += 30;
 			}
 		}
@@ -738,15 +772,6 @@
 	////jobs sind immer durch tile augmentations (gebäude) gekennzeichnet????
 	////aber nicht alle gebäude sind jobs
 
-	///jede karte hat ein oder mehr schild(schaden schlucken),schwert(schafen verursachen),taler(+gold),hand(+diplomatie),maske(+itemklauen),magie etc (upleveln / blitze king of tokyo) die bei kollisionen einen pool bilden und bei auflösung abgerechnet werden
-	////kollisionen können auch ganz bewusst herbeigeführt werden->angriff etc
-
-	///schwert (deal damage/do nothing)
-	///shield (absorb damage/do nothing)
-	///smoke (???/escape undetected if not smaller)
-	/////nachts +x smoke??
-	///hands (both get sum if both play hands)
-
 	////HOWTO Synergys forcieren zwischen chars
 
 	//Game
@@ -754,9 +779,6 @@
 	{
 		var parents = {};
 		var children = {};
-		/*var by_id = {};
-		var by_char = {};
-		var by_type = {};*/
 		var by_group = {};
 		var by_tile = {};
 		var by_char = {};
@@ -848,31 +870,13 @@
 			char.knowledge = by_char[info_id];
 			var tile_i = char.knowledge.group_types[1][33][0].state[0];
 			char.home = this.play_prompt.world_map.index[tile_i];
-			//char.tasks = {};
-			//char.items = {};
-			/*var task = ooc.minKeyValue(char.types[1][23]);
-			task = ooc.map(task.type.param, task.state);
-			char.route = {};
-
-			for (var i = 0; i < task.route.length; i++)
-			{
-				char.route[task.route[i]] = 1;
-			}
-
-			char.info.state[2] -= task.range;*/
+			var task = char.knowledge.group_types[1][23][0];
+			char.task = ooc.map(task.type.param, task.state);
+			//console.log(char.knowledge.group_types[3][6][0].type.title);
 			chars[info_id] = char;
 		}
 
 		this.put(chars, 'chars');
-
-		//var realm = {map: map, tiles: {}};
-
-		/*for (var tile_i in realm.tiles)
-		{
-			realm.tiles[tile_i].info = groups[0][tile_i];
-		}*/
-
-		//this.trigger('update_data', [chars, knowledge, groups, types, tiles, terrain]);
 
 		//no realm stats!!! only char stats!!! (das heisst alles ist angreifbar/vergänglich)
 

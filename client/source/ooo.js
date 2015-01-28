@@ -617,11 +617,29 @@ var ooo = {};
 		}
 	}
 
+	function hitActor2 (down_x, down_y)
+	{
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
+		{
+			return false;
+		}
+		else
+		{
+			return [down_x, down_y];
+		}
+	}
+
 	//layers komplett abschaffen? -> array also reihenfolge nicht undefined -> insert before after push, unshift//array id damit auch abschaffen
 	//Actor
 	ooo.Scene.prepare('mouse_down', hitActor);
 	ooo.Scene.prepare('mouse_click', hitActor);
-	ooo.Scene.prepare('mouse_over', hitActor);
+	ooo.Scene.prepare('mouse_over', hitActor2);
 
 	//Scene with own canvas
 	ooo.Stage = ooo.Scene.extend(function (layout)
@@ -867,7 +885,7 @@ var ooo = {};
 
 	ooo.Root.on('show', function (root, parent)
 	{
-		//var down = false;
+		var down = false;
 		var drag = false;
 		var down_x = 0;
 		var down_y = 0;
@@ -881,9 +899,8 @@ var ooo = {};
 		{
 			down_x = event.clientX;
 			down_y = event.clientY;
-			//down = true;
+			down = true;
 			that.trigger('mouse_down', [event.button, down_x, down_y], true);
-			that.canvas.addEventListener('mousemove', on_mousemove);
 			//event.preventDefault();
 			//event.stopPropagation();
 		}
@@ -893,22 +910,43 @@ var ooo = {};
 			var over_x = event.clientX;
 			var over_y = event.clientY;
 			that.trigger('mouse_over', [over_x, over_y], true);
-			drag_x = over_x - down_x;
-			drag_y = over_y - down_y;
 
-			if (drag)
+			if (down)
 			{
-				that.trigger('mouse_drag', [drag_x, drag_y], true);
-			}
-			else if ((Math.abs(drag_x) > 3) || (Math.abs(drag_y) > 3))
-			{
-				drag = true;
-				that.trigger('mouse_drag', [drag_x, drag_y], true);
+				drag_x = over_x - down_x;
+				drag_y = over_y - down_y;
+
+				if (drag)
+				{
+					that.trigger('mouse_drag', [drag_x, drag_y], true);
+				}
+				else if ((Math.abs(drag_x) > 3) || (Math.abs(drag_y) > 3))
+				{
+					drag = true;
+					that.trigger('mouse_drag', [drag_x, drag_y], true);
+				}
 			}
 		}
 
-		function on_mouseover (event)
+		function on_mouseup (event)
 		{
+			down = false;
+
+			if (drag)
+			{
+				that.trigger('mouse_drop', [event.clientX, event.clientY], true);
+				drag_x = 0;
+				drag_y = 0;
+				drag = false;
+			}
+			else
+			{
+				that.trigger('mouse_click', [event.button, down_x, down_y], true);
+			}
+
+			//that.canvas.removeEventListener('mousemove', on_mousemove);
+			//event.preventDefault();
+			//event.stopPropagation();
 		}
 
 		function on_mouseout (event)
@@ -955,6 +993,7 @@ var ooo = {};
 			that.trigger('draw', argv);
 		}
 
+		this.canvas.addEventListener('mousemove', on_mousemove);
 		this.canvas.addEventListener('mousedown', on_mousedown);
 		this.canvas.addEventListener('mouseup', on_mouseup);
 		this.canvas.addEventListener('mouseout', on_mouseout);

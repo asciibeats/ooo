@@ -149,6 +149,18 @@ if (typeof module == 'object')
 		return object;
 	}
 
+	ooc.index = function (keys, object)
+	{
+		var array = [];
+
+		for (var i = 0; i < keys.length; i++)
+		{
+			array[i] = object[keys[i]];
+		}
+
+		return array;
+	}
+
 	ooc.clone = function (object)
 	{
 		if (typeof object != 'object')
@@ -283,18 +295,6 @@ if (typeof module == 'object')
 				keep[key] = value;
 			}
 		}
-	}
-
-	ooc.values = function (object)
-	{
-		var array = [];
-
-		for (var key in object)
-		{
-			array.push(object[key]);
-		}
-
-		return array;
 	}
 
 	ooc.setLocal = function (name, object)

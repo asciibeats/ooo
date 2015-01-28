@@ -25,6 +25,57 @@ GROUPS[4] = 'Events';*/
 	jup.cards = {};
 	//var events = {};
 
+	jup.addCost = function (a, b)
+	{
+		var cost = ooc.clone(a);
+
+		for (var type in b)
+		{
+			if (type in cost)
+			{
+				cost[type] += b[type];
+			}
+			else
+			{
+				cost[type] = b[type];
+			}
+		}
+
+		return cost;
+	}
+
+	jup.subtractCost = function (a, b)
+	{
+		var cost = ooc.clone(a);
+
+		for (var type in b)
+		{
+			if (type in cost)
+			{
+				var amount = b[type];
+
+				if (cost[type] > amount)
+				{
+					cost[type] -= amount;
+				}
+				else if (cost[type] == amount)
+				{
+					delete cost[type];
+				}
+				else
+				{
+					throw 'asdfasdf cancel pow';
+				}
+			}
+			else
+			{
+				throw 'asdf cancel pow';
+			}
+		}
+
+		return cost;
+	}
+
 	jup.matchCost = function (card, char)
 	{
 		for (var type in card)
@@ -58,57 +109,6 @@ GROUPS[4] = 'Events';*/
 	/*jup.matchEvent = function (power)
 	{
 		return events[eventId(power)];
-	}
-
-	jup.mergePower = function (a, b)
-	{
-		var power = ooc.clone(a);
-
-		for (var type in b)
-		{
-			if (type in power)
-			{
-				power[type] += b[type];
-			}
-			else
-			{
-				power[type] = b[type];
-			}
-		}
-
-		return power;
-	}
-
-	jup.cancelPower = function (a, b)
-	{
-		var power = ooc.clone(a);
-
-		for (var type in b)
-		{
-			if (type in power)
-			{
-				var amount = b[type];
-
-				if (power[type] > amount)
-				{
-					power[type] -= amount;
-				}
-				else if (power[type] == amount)
-				{
-					delete power[type];
-				}
-				else
-				{
-					throw 'asdfasdf cancel pow';
-				}
-			}
-			else
-			{
-				throw 'asdf cancel pow';
-			}
-		}
-
-		return power;
 	}
 
 	jup.mergePairs = function (power)
@@ -215,14 +215,14 @@ GROUPS[4] = 'Events';*/
 		this.char_effect = char_effect;
 	});*/
 
-	var Card = ooc.Class.extend(function (title, description, cost, gain, target, effect)
+	var Card = ooc.Class.extend(function (title, description, cost, gain, condition, effect)
 	{
 		ooc.Class.call(this);
 		this.title = title;
 		this.description = description;
 		this.cost = cost;//char needs to play
 		this.gain = gain;//gain when blocked (burned?)
-		this.target = target;//function (info1)
+		this.condition = condition;//function (info1)
 		this.effect = effect;//function (info2)
 	});
 
@@ -332,7 +332,7 @@ GROUPS[4] = 'Events';*/
 	regInfo(7, new Item('Ring', [1, 1]));
 	regInfo(66, new Pool('Pool', [0, 0, {}, 0]));
 	regInfo(42, new Lock('Mind', [0, 'xxx']));
-	regInfo(23, new Data('Task', ['route', 'range', 'power'], [[], 0, {}]));
+	regInfo(23, new Data('Task', ['route', 'range', 'cost'], [[], 0, {}]));
 	regInfo(33, new Data('Home', ['tile'], [0]));
 	regInfo(73, new Data('Word', ['string'], ['rosebud']));//Codeword
 
@@ -344,6 +344,7 @@ GROUPS[4] = 'Events';*/
 	regEvt({4: 1}, new Event('Living of the Land', '###', false, 1, null, birth([9, [1, 1, 8, 5, 25, {5: 4}]])));
 	regEvt({5: 1}, new Event('Plant Crops', '###', false, 0, spawn([4]), gain([5])));*/
 
+	//conditions
 	function in_group (id)
 	{
 		return function (info)
@@ -360,8 +361,33 @@ GROUPS[4] = 'Events';*/
 		}
 	}
 
+	//effects
+	function update(i, value)
+	{
+		return function (world, realm, char, info)
+		{
+			info.state[i] = value;
+		}
+	}
+
+	function spawn(data)
+	{
+		return function (world, realm, char, info)
+		{
+			world.spawn(data, [info.id]);
+		}
+	}
+
+	function gain(data)
+	{
+		return function (world, realm, char, info)
+		{
+			world.spawn(data, [char.info.id]);
+		}
+	}
+
 	regCard(0, new Card('Wanderlust', '###', {0: 1}, {0: 1}, in_group(0), null));
-	regCard(1, new Card('Jack Lumber', '###', {0: 1}, {0: 1}, is_type(2), null));
+	regCard(1, new Card('Jack Lumber', '###', {0: 1}, {0: 1}, is_type(2), gain([6])));
 
 	//CARDTYPES
 	////Traps: on tile, trigger on passing char(s)

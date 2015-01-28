@@ -86,50 +86,12 @@ function gatherKnowledge (knowledge, info, insight, keys)
 	while (next = open.pop())
 }
 
-function determineTask (task, pools, full)
-{
-	var route_hash = ooc.hash(task.route);
-
-	for (var signature in pools)
-	{
-		var pool = pools[signature];
-
-		for (var tile_i in pool.route)
-		{
-			if (tile_i in route_hash)
-			{
-				continue;
-			}
-
-			var tile = pool.route[tile_i];
-			task.route.push(tile_i);
-			task.range += tile.data.info.state[2];
-		}
-
-		if (full)
-		{
-			task.power = jup.mergePower(task.power, pool.power);
-		}
-	}
-}
-
-var mergePool = ooc.modify(function (object, key, value)
-{
-	if (key in object)
-	{
-		object[key].power = jup.mergePower(object[key].power, value.power);
-	}
-	else
-	{
-		object[key] = value;
-	}
-});
-
 var World = ooo.TileMap.extend(function ()
 {
 	this.knowledge = {};
 	//this.decay = [];
 	ooo.TileMap.call(this);
+	this.realms = [];
 });
 
 World.method('Data', function (map, i, x, y)
@@ -238,18 +200,6 @@ World.method('unspawn', function (info)
 	}
 });
 
-World.method('birth', function (home, data)
-{
-	var char = {};
-	char.info = this.spawn(data, [home]);
-	char.mind = this.spawn([42], [char.info.id]);
-	char.home = this.spawn([33, [home]], [char.mind.id]);
-	char.task = this.spawn([23, [[home], 0, {}]], [char.mind.id]);
-	char.inventory = {};
-	char.pools = {};
-	return char;
-});
-
 World.method('charsAt', function (tile_i)
 {
 	var chars = [];
@@ -268,22 +218,55 @@ World.method('charsAt', function (tile_i)
 	return chars;
 });
 
+World.method('rootsOf', function (info, group)
+{
+	var roots = {};
+	var open = [];
+
+	do
+	{
+		if (info.type.group == group)
+		{
+			roots[info.id] = true;
+		}
+		else
+		{
+			for (var info_id in info.parents)
+			{
+				open.push(info.parents[info_id]);
+			}
+		}
+	}
+	while (info = open.pop())
+
+	return roots;
+});
+
+World.method('birth', function (data, home, seat)
+{
+	var char = {};
+	char.info = this.spawn(data, [home]);
+	char.mind = this.spawn([42], [char.info.id]);
+	char.home = this.spawn([33, [home]], [char.mind.id]);
+	char.task = this.spawn([23, [[home], 0, {}]], [char.mind.id]);
+	//char.inventory = {};
+	//char.pools = {};
+	var realm = this.realms[seat];
+	realm.chars[char.info.id] = char;
+	initKnowledge(realm.knowledge, char.info, {});
+	//return char;
+});
+
 var Realm = ooc.Class.extend(function (stats)
 {
 	this.stats = stats;
 	this.time = 0;
-	//this.deck = [[], [], [], []];
+	this.deck = [];
 	this.hand = [];
-	this.chars = {};//[]
+	this.chars = {};
 	this.knowledge = {};
 	this.terrain = {};
 	this.briefing = {};
-});
-
-Realm.method('join', function (char)
-{
-	this.chars[char.info.id] = char;
-	initKnowledge(this.knowledge, char.info, {});
 });
 
 var Game = ooc.Class.extend(function (mode, rules)
@@ -293,20 +276,18 @@ var Game = ooc.Class.extend(function (mode, rules)
 	this.rules = rules;
 	this.stats = {};//load from database fetchModStats(name);
 	this.core = mod;
-	this.world = new World();
-	//this.world.game = this;
 	this.size = 0;
 	this.time = 0;
 	this.tocks = 0;
 	this.open = true;
 	this.started = false;
 	this.players = {};
-	this.seats = [];
-	this.realms = [];
+	//this.seats = [];
+	this.world = new World();
+	this.actions = {};
 
-	this.chars = {};
-	this.traps = {};
-	this.pools = {};
+	//this.chars = {};
+	//this.traps = {};
 });
 
 Game.method('broadcast', function (type, data)//, store=true/false
@@ -390,9 +371,9 @@ Game.method('start', function ()
 	{
 		var player = this.players[name];
 		player.seat = seat;
-		this.seats[seat] = player;
+		//this.seats[seat] = player;
 		var stats = {};//load from database fetchModePlayerStats(name, mode);
-		this.realms[seat] = new Realm(stats);//seat: seat, 
+		this.world.realms[seat] = new Realm(stats);//seat: seat, 
 		seat++;
 	}
 
@@ -436,7 +417,7 @@ Game.method('tick', function ()
 	}*/
 
 	//trigger traps
-	for (var tile_i in this.traps)
+	/*for (var tile_i in this.traps)
 	{
 		var tile = this.world.index[tile_i];
 		var chars = this.world.charsAt(tile_i);
@@ -455,10 +436,10 @@ Game.method('tick', function ()
 				trap.time++;
 			}
 		}
-	}
+	}*/
 
 	//trigger events
-	for (var tile_i in this.pools)
+	/*for (var tile_i in this.pools)
 	{
 		var pool = this.pools[tile_i];
 		var power = jup.poolPower(pool.info.state[2]);
@@ -516,11 +497,47 @@ Game.method('tick', function ()
 		{
 			pool.info.state[3]++;
 		}
+	}*/
+	for (var tile_i in this.actions)
+	{
+		//var tile = this.world.index[tile_i];
+
+		if (ooc.size(this.actions[tile_i]) > 1)
+		{
+			console.log('Kollision!!');
+			//gather gains and merge/match (one shield absorbs one sword)
+			////create rule_solve_function
+
+			///jede karte hat ein oder mehr schild(schaden schlucken),schwert(schafen verursachen),taler(+gold),hand(+diplomatie),maske(+itemklauen),magie etc (upleveln / blitze king of tokyo) die bei kollisionen einen pool bilden und bei auflösung abgerechnet werden
+			////kollisionen können auch ganz bewusst herbeigeführt werden->angriff etc
+
+			///schwert (deal damage/do nothing)
+			///shield (absorb damage/do nothing)
+			///smoke (???/escape undetected if not smaller)
+			/////nachts +x smoke??
+			///hands (both get sum if both play hands)
+		}
+		else
+		{
+			for (var info_id in this.actions[tile_i])
+			{
+				for (var i = 0; i < this.actions[tile_i][info_id].length; i++)
+				{
+					var action = this.actions[tile_i][info_id][i];
+
+					if (action.card.effect != null)
+					{
+						console.log('EFFECT "%s"', action.card.title);
+						action.card.effect(this.world, action.realm, action.char, action.info);//oder erstmal sammeln und später updaten???
+					}
+				}
+			}
+		}
 	}
 
 	try
 	{
-		var over = this.core.update(this.stats, this.rules, this.world, this.realms, this.time);
+		var over = this.core.update(this.stats, this.rules, this.world, this.time);
 	}
 	catch (e)
 	{
@@ -537,21 +554,24 @@ Game.method('tick', function ()
 	}
 
 	//update realms
-	for (var seat = 0; seat < this.realms.length; seat++)
+	//for (var seat = 0; seat < this.world.realms.length; seat++)
+	for (var name in this.players)
 	{
-		var realm = this.realms[seat];
-		var player = this.seats[seat];
+		var player = this.players[name];
+		var realm = this.world.realms[player.seat];
 		realm.knowledge = {};
 
-		for (var char_id in realm.chars)
+		for (var info_id in realm.chars)
 		{
-			var char = realm.chars[char_id];
-			var area = this.world.findArea(char.task.state[0], char.info.state[2], function (data) { return data.info.state[2] });
-			var task = ooc.map(char.task.type.param, char.task.type.state);
-			task.route.push(char.home.state[0]);
-			determineTask(task, char.pools);
-			task.range = 0;//pay only once for path!? (event exec verzögerungen sollten aber in extra kosten resultieren!!!
-			char.task.state = ooc.values(task);
+			var char = realm.chars[info_id];
+			var area = this.world.findArea(ooc.clone(char.task.state[0]), char.info.state[2], function (data) { return data.info.state[2] });
+
+			//var task = ooc.map(char.task.type.param, char.task.state);
+			//abgeschlossene aktionen abziehen!!!!(oder noch bestehende aktionen addieren??)
+			//determineTask(task, char.pools);
+			//task.range = 0;//pay only once for path!? (event exec verzögerungen sollten aber in extra kosten resultieren!!!
+			//char.task.state = ooc.index(char.task.type.param, task);
+
 			this.world.relink2(char.mind, [char.home.id, char.task.id]);
 
 			for (var tile_i in area)
@@ -562,8 +582,7 @@ Game.method('tick', function ()
 			}
 
 			initKnowledge(realm.knowledge, char.info, {});
-			gatherKnowledge(realm.knowledge, char.mind, char.info.state[3], {'c': true});
-			//mergeKnowledge(realm.knowledge, char.knowledge);
+			gatherKnowledge(realm.knowledge, char.mind, char.info.state[3], {'xxx': true});
 		}
 
 		if (player.client)
@@ -588,17 +607,17 @@ Game.method('tick', function ()
 Game.method('draw', function (player, type)
 {
 	console.log('DRAW %d %s %d', this.id, player.name, type);
+	var realm = this.world.realms[player.seat];
 
 	try
 	{
-		var card_id = this.core.draw(this.stats, this.rules, this.world, this.realms, this.time, player.seat, type);
+		var card_id = this.core.draw(this.stats, this.rules, this.world, realm, this.time, type);
 	}
 	catch (e)
 	{
 		console.log('MOD DRAW EXCEPTION');
 	}
 
-	var realm = this.realms[player.seat];
 	realm.briefing.draw--;
 	realm.hand.push(card_id);
 
@@ -619,105 +638,104 @@ Game.method('draw', function (player, type)
 
 Game.method('tock', function (player, actions)
 {
-	console.log('TOCK %d %d %s %s', this.id, player.realm.time, player.name, JSON.stringify(actions));
-	var pools = {};
+	var realm = this.world.realms[player.seat];
+	console.log('TOCK %d %d %s %s', this.id, realm.time, player.name, JSON.stringify(actions));
 	var tasks = {};
 
-	//gather new investments
-	for (var i = 0; i < actions.length; i++)
+	//validate
+	for (var info_id in actions)
 	{
-		var action = actions[i];
-		var char_id = action[0];
-
-		if (!(char_id in player.realm.knowledge))
+		if (!(info_id in realm.chars))
 		{
 			throw 'missing char';
 		}
 
-		var char = this.chars[char_id];
-		var steps = action[2];
-		var tile = this.world.index[char.home.state[0]];
-		var pool = {target: action[1], power: action[3], route: {}};
-
-		for (var j = 0; j < steps.length; j++)
-		{
-			tile = tile.steps[steps[j]];
-			pool.route[tile.i] = tile;
-		}
-
-		if (tile.i != pool.target)
-		{
-			throw 'target mismatch';
-		}
-
-		//merge actions with same path
-		var signature = steps.join('/');
-		mergePool(pool, pools, char_id, signature);
-	}
-
-	//determine effort of char turns
-	for (var char_id in player.realm.knowledge)
-	{
-		var char = this.chars[char_id];
+		var char = realm.chars[info_id];
+		var home = this.world.index[char.home.state[0]];
 		var task = ooc.map(char.task.type.param, char.task.state);
-		determineTask(task, pools[char_id], true);
+		task.route = ooc.hash(task.route);
+		tasks[info_id] = task;
+
+		for (var tile_i in actions[info_id])
+		{
+			for (var i = 0; i < actions[info_id][tile_i].length; i++)
+			{
+				var action = actions[info_id][tile_i][i];
+				var tile = home;
+				var steps = action[0];
+
+				for (var j = 0; j < steps.length; j++)
+				{
+					tile = tile.steps[steps[j]];
+
+					if (tile.i in task.route)
+					{
+						continue;
+					}
+
+					task.route[tile.i] = true;
+					task.range += tile.data.info.state[2];
+				}
+
+				if (tile.i != tile_i)
+				{
+					throw 'target mismatch';
+				}
+
+				var card_id = action[1];
+				var card = jup.cards[card_id];
+
+				if (!card.condition(tile.data.info))
+				{
+					throw 'card misplace';
+				}
+
+				var info = this.world.knowledge[action[2]];
+				var roots = this.world.rootsOf(info, 0);
+
+				if (!(tile_i in roots))
+				{
+					throw 'no info here';
+				}
+
+				task.cost = jup.addCost(task.cost, card.cost);
+				actions[info_id][tile_i][i] = {realm: realm, char: char, card: card, info: info};
+			}
+		}
 
 		if (task.range > char.info.state[2])
 		{
 			throw 'exceeding range';
 		}
 
-		for (var type in task.power)
+		if (!jup.matchCost(task.cost, char.info.state[5]))
 		{
-			var amount = char.info.state[5][type];
-
-			if (!amount || (amount < task.power[type]))
-			{
-				throw 'exceeding power';
-			}
-		}
-
-		tasks[char_id] = task;
-	}
-
-	//update pools (complete!! input validation before here!!!!!!!!)
-	for (var char_id in pools)
-	{
-		var char = this.chars[char_id];
-
-		for (var signature in pools[char_id])
-		{
-			var pool = pools[char_id][signature];
-			mergePool(pool, char.pools, signature);
-
-			if (pool.target in this.pools)
-			{
-				var event = this.pools[pool.target];
-				event.info.state[3] = 0;//time
-			}
-			else
-			{
-				var event = {};
-				event.info = this.world.spawn([66], [pool.target]);
-				this.pools[pool.target] = event;
-			}
-			
-			ooc.put(char.pools[signature].power, event.info.state[2], char_id, signature);
+			throw 'exceeding power';
 		}
 	}
 
-	//update all chars
-	for (var char_id in tasks)
+	//update
+	for (var info_id in actions)
 	{
-		var task = tasks[char_id];
-		var char = this.chars[char_id];
+		var char = realm.chars[info_id];
+		var task = tasks[info_id];
+		task.route = ooc.intkeys(task.route);
 		this.world.relink(char.info, task.route);
 		char.info.state[2] -= task.range;
-		char.info.state[5] = jup.cancelPower(char.info.state[5], task.power);
-		char.task.state = ooc.values(task);
+		char.info.state[5] = jup.subtractCost(char.info.state[5], task.cost);
+		char.task.state = ooc.index(char.task.type.param, task);
+
+		for (var tile_i in actions[info_id])
+		{
+			for (var i = 0; i < actions[info_id][tile_i].length; i++)
+			{
+				var action = actions[info_id][tile_i][i];
+				ooc.push(action, this.actions, tile_i, info_id);
+			}
+		}
 	}
 
-	player.realm.time++;
+	realm.time++;
 	this.tocks++;
 	var wait = this.size - this.tocks;
 
@@ -800,7 +818,7 @@ Client.on('message:login', function (name, pass)
 		var game = player.game;
 		console.log('BACK %d %s', game.id, name);
 		player.shout('back', [name]);
-		var realm = game.realms[player.seat];
+		var realm = game.world.realms[player.seat];
 		var wait = (realm.time < game.time) ? 0 : this.size - this.tocks;
 		this.send('continue', [game.mode, game.rules, game.names(), game.time, realm.hand, ooc.intkeys(realm.chars), realm.knowledge, realm.terrain, realm.briefing, wait]);
 
@@ -864,9 +882,9 @@ Client.on('message:draw', function (type)
 	this.player.game.draw(this.player, type);
 });
 
-Client.on('message:tock', function (turn)
+Client.on('message:tock', function (actions)
 {
-	this.player.game.tock(this.player, turn);
+	this.player.game.tock(this.player, actions);
 });
 
 var Player = ooc.Class.extend(function (name, pass)
@@ -925,12 +943,12 @@ var Server = ooo.Server.extend(function (Client, port, state)
 		var game = new Game(state.games[i].size);
 		game.id = ooc.fill(game, this.games);
 
-		for (var name in state.games[i].realms)
+		for (var name in state.games[i].world.realms)
 		{
-			var realm = state.games[i].realms[name];
+			var realm = state.games[i].world.realms[name];
 			var player = this.players[name];
 			var seat = game.realms.length;
-			game.realms[seat] = realm;
+			game.world.realms[seat] = realm;
 			game.players[name] = player;
 			game.seats[name] = seat;
 			game.open = false;
