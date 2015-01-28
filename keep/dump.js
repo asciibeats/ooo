@@ -1,8 +1,138 @@
 TODO
--pathfinding macht fehler!!!
+-pathfinding macht fehler!!! (benutzt nicht unbedingt nullkosten wege -> führt zu suboptimaler lösung)
 -ui (power,stats,chars)
 -events
 
+
+	var PowerMenu = oui.Menu.extend(function (asset, layout, style)
+	{
+		oui.Menu.call(this, asset, layout, style);
+	});
+
+	PowerMenu.method('drawButton', function (time, context, data, pick)
+	{
+		context.drawImage(this.image, this.image.tile_x[data], this.image.tile_y[data], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		context.fillStyle = '#555';
+		context.font = '32px sans-serif';
+		context.textAlign = 'center';
+		context.textBaseline = 'middle';
+		context.fillText((data in this.parent.power) ? this.parent.power[data] : 0, 32, 32);
+	});
+
+	PowerMenu.on('pick:item', function (type)
+	{
+		if (type in this.parent.power)
+		{
+			this.parent.power[type]++;
+		}
+		else
+		{
+			this.parent.power[type] = 1;
+		}
+
+		//jup.mergePower(this.parent.char_power, this.parent.diff_power);
+		this.parent.power = jup.mergePairs(this.parent.power);
+		var temp_power = jup.mergePower(this.parent.pool_power, this.parent.power);
+		temp_power = jup.mergePairs(temp_power);
+
+		var event = jup.matchEvent(temp_power);
+		this.parent.eventtext.string = (event ? event.title : '???') + ' (' + this.parent.time + ') ' + JSON.stringify(temp_power);
+	});
+
+	var PowerSubmit = oui.Menu.extend(function (asset, layout, style)
+	{
+		oui.Menu.call(this, asset, layout, style);
+		this.reset([7, 0, 1]);
+	});
+
+	PowerSubmit.on('pick:item', function (data, index)
+	{
+		if ((index == 0) && ooc.size(this.parent.power))
+		{
+			var action = [this.parent.char.info.id, this.parent.tile.i, this.parent.steps, this.parent.power];
+			console.log(JSON.stringify(action));
+			var char = this.parent.char;
+			char.actions[action[1]] = action;
+			char.info.state[5] = jup.cancelPower(char.info.state[5], action[3]);
+			var tile = char.home;
+			var steps = action[2];
+
+			for (var i = 0; i < steps.length; i++)
+			{
+				tile = tile.steps[steps[i]];
+
+				if (char.route[tile.i] != undefined)
+				{
+					char.route[tile.i] += 1;
+				}
+				else
+				{
+					char.route[tile.i] = 1;
+					char.info.state[2] -= tile.data.info.state[2];
+				}
+			}
+
+			this.parent.hide();
+			this.root.show(this.root.play_prompt);
+			this.root.send('tock', [[action]]);
+			//this.root.trigger('refresh:stats');
+		}
+		else if (index == 1)
+		{
+		}
+		else
+		{
+			this.parent.hide();
+			this.root.show(this.root.play_prompt);
+		}
+	});
+
+	var PowerPrompt = ooo.Scene.extend(function (layout)
+	{
+		ooo.Scene.call(this, layout);
+		this.show(new ooo.Box('#777'));
+		this.show(new ooo.Box('#666', {bottom: BORDER, height: 276, width: 148, right: BORDER}));
+
+		this.power_menu = new PowerMenu('powers', {bottom: BORDER+10, height: 256, width: 128, right: BORDER+10}, OUI_VERTICAL).reset([0, 2, 4, 6, 1, 3, 5, 7]);
+		this.show(this.power_menu);
+
+		this.eventinfo = new ooo.Box('#666', {left: BORDER, width: 212, height: 256, bottom: BORDER});
+		this.show(this.eventinfo);
+
+		this.eventtext = new TextBox({left: BORDER+10, width: 256, height: 246, bottom: BORDER+0}, '#000', '18px sans-serif');
+		this.show(this.eventtext, 1);
+
+		this.power_submit = new PowerSubmit('buttons', {left: BORDER+10, width: 192, height: 64, bottom: BORDER+10});
+		this.show(this.power_submit, 1);
+	});
+
+	PowerPrompt.on('prompt:power', function (char, tile, steps)
+	{
+		var pools = tile.data.groups[4];
+		var info = pools ? pools[ooc.minkey(pools)] : null;
+
+		if (info)
+		{
+			var pools = info.state[2];
+			this.pool_power = jup.poolPower(pools);
+			this.char_power = jup.charPower(pools[char.info.id]);
+			this.time = info.state[3];
+		}
+		else
+		{
+			this.pool_power = {};
+			this.char_power = {};
+			this.time = 0;
+		}
+
+		this.char = char;
+		this.tile = tile;
+		this.steps = steps;
+		this.power = {};
+
+		var event = jup.matchEvent(this.pool_power);
+		this.eventtext.string = (event ? event.title : '???') + ' (' + this.time + ') ' + JSON.stringify(this.pool_power);
+	});
 /*this.chartabs = new oui.Tabbed({left: 0, right: 0, top: 0, bottom: 64}, 'buttons', {left: 0, right: 0, top: 0, height: 64}, OUI_REVERSED | OUI_BOTTOM);
 		this.chartabs.open(5, new Inventory('items', {left: 0, right: 0, top: 64, bottom: 0}, OUI_REVERSED | OUI_BOTTOM));
 		this.chartabs.open(6, new CharSheet('#333', {left: 0, right: 0, top: 64, bottom: 0}));

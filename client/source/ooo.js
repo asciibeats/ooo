@@ -1,6 +1,9 @@
 'use strict';
 var ooo = {};
 //////TODO
+//trigger update_xy_asd in scene.show()
+//functionality for STAGE: transition between multiple children stages (one inner mask + other outer mask -> mask expand/shrink)
+//IGNORE/LISTEN einzelne events!!!!
 //Textumbruch in ooo.Text()
 //cell auto resize; alles relativ zu mid??!!! (im moment bei layout.right relativ zu rel + width)
 ///ooc.Class für Actor benutzen!!!!
@@ -49,7 +52,7 @@ var ooo = {};
 		this.height = 0;
 		this.alpha = 1;
 		this.angle = 0;
-		this.ignore = {};
+		this.ignores = {};
 	}
 
 	ooo.Actor.on = addEvent('on');
@@ -182,15 +185,23 @@ var ooo = {};
 		return this;
 	});
 
-	ooo.Actor.method('mask', function (type)
+	ooo.Actor.method('ignore', function ()
 	{
-		this.ignore[type] = true;
+		for (var i in arguments)
+		{
+			this.ignores[arguments[i]] = true;
+		}
+
 		return this;
 	});
 
-	ooo.Actor.method('unmask', function (type)
+	ooo.Actor.method('listen', function ()
 	{
-		delete this.ignore[type];
+		for (var i in arguments)
+		{
+			delete this.ignores[arguments[i]];
+		}
+
 		return this;
 	});
 
@@ -205,19 +216,25 @@ var ooo = {};
 			}
 			catch (e)
 			{
-				console.log('EXCEPTION %s', type);
+				console.log('EVENT EXCEPTION %s', type);
 				console.log(e.toString());
-				console.log(e.stack);
+
+				if (e.stack)
+				{
+					console.log(e.stack);
+				}
 			}
 		}
 	}
 
 	ooo.Actor.method('trigger', function (type, argv)
 	{
-		if (!this.ignore[type])
+		if (type in this.ignores)
 		{
-			return triggerActor.call(this, this, 'on', type, argv);
+			return;
 		}
+		
+		return triggerActor.call(this, this, 'on', type, argv);
 	});
 
 	ooo.Actor.method('hide', function ()
@@ -244,19 +261,24 @@ var ooo = {};
 	});
 
 	//Actor with image
-	ooo.Sprite = ooo.Actor.extend(function (image, width, height, img_x, img_y)
+	ooo.Sprite = ooo.Actor.extend(function (asset, index)
 	{
 		ooo.Actor.call(this);
-		this.image = image;
-		this.width = width || image.width;
-		this.height = height || image.height;
-		this.img_x = img_x || 0;
-		this.img_y = img_y || 0;
+		this.asset = asset;
+		this.index = index;
+	});
+
+	ooo.Sprite.on('show', function (root, parent)
+	{
+		ooo.Actor.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.asset];
+		this.resize(this.image.tile_w, this.image.tile_h);
 	});
 
 	ooo.Sprite.on('draw', function (time, context)
 	{
-		context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
+		//context.drawImage(this.image, this.image.tile_x[this.index], this.image.tile_y[this.index], this.image.tile_w, this.image.tile_h, 0, 0, this.width, this.height);
+		context.drawImage(this.image, this.image.tile_x[this.index], this.image.tile_y[this.index], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 	});
 
 	//Automatically size-adjusting Actor
@@ -445,12 +467,27 @@ var ooo = {};
 		context.restore();
 	});
 
-	/*ooo.Scene.method('hideChildren', function ()
+	ooo.Scene.method('hideChildren', function ()
 	{
+		for (var i = 0; i < this.layers.length; i++)
+		{
+			var lid = this.layers[i];
+			var layer = this.children[lid];
+
+			for (var id in layer)
+			{
+				var child = layer[id];
+				delete child.id;
+				delete child.layer;
+				delete child.parent;
+				delete child.root;
+			}
+		}
+
 		this.children = [];
 		this.layers = [];
 		return this;
-	});*/
+	});
 
 	ooo.Scene.method('show', function (actor, layer)
 	{
@@ -480,7 +517,9 @@ var ooo = {};
 		{
 			actor.trigger('show', [this.root, this]);
 			actor.trigger('resize', [this.width, this.height]);
-			//actor.trigger('update', [this.root.data, []]);
+
+			//iterate through data and:
+			//actor.trigger('update_xy', [this.root.data]);
 		}
 
 		return this;
@@ -516,7 +555,7 @@ var ooo = {};
 
 	ooo.Scene.method('trigger', function (type, argv, bubble)
 	{
-		if (this.ignore[type])
+		if (type in this.ignores)
 		{
 			return;
 		}
@@ -559,8 +598,8 @@ var ooo = {};
 		triggerActor.call(this, this, 'bubble', type, argv);
 	});
 
-	//layers komplett abschaffen? -> array also reihenfolge nicht undefined -> insert before after push, unshift//array id damit auch abschaffen
-	ooo.Scene.prepare('input:click', function (button, down_x, down_y)
+	//Actor
+	function hitActor (button, down_x, down_y)
 	{
 		var shift_x = down_x - this.rel_x - this.mid_x;
 		var shift_y = down_y - this.rel_y - this.mid_y;
@@ -572,9 +611,17 @@ var ooo = {};
 		{
 			return false;
 		}
+		else
+		{
+			return [button, down_x, down_y];
+		}
+	}
 
-		return [button, down_x, down_y];
-	});
+	//layers komplett abschaffen? -> array also reihenfolge nicht undefined -> insert before after push, unshift//array id damit auch abschaffen
+	//Actor
+	ooo.Scene.prepare('mouse_down', hitActor);
+	ooo.Scene.prepare('mouse_click', hitActor);
+	ooo.Scene.prepare('mouse_over', hitActor);
 
 	//Scene with own canvas
 	ooo.Stage = ooo.Scene.extend(function (layout)
@@ -635,6 +682,36 @@ var ooo = {};
 		this.context.restore();
 	});
 
+	function triggerPutPush (argv)
+	{
+		var value = this.data;
+		var type = 'update';
+
+		do
+		{
+			var key = argv.shift()
+			value = value[key];
+			type += '_' + key;
+			this.trigger(type, [value]);
+		}
+		while (argv.length > 0)
+	}
+
+	function triggerDeletePop (argv)
+	{
+		var value = this.data;
+		var type = 'update';
+
+		do
+		{
+			var key = argv.shift();
+			value = value[key];
+			type += '_' + key;
+			this.trigger(type, [value]);
+		}
+		while (value != undefined)
+	}
+
 	//root actor to be embedded into html
 	ooo.Root = ooo.Stage.extend(function (hook, color)
 	{
@@ -655,23 +732,42 @@ var ooo = {};
 		this.data = {};
 	});
 
-	/*ooo.Root.method('triggerUpdate', function (type, argv)
+	ooo.Root.method('put', function (value)
 	{
-		//var type = 'update:' + Array.prototype.slice.call(arguments, 1).join('_');
-		//Array.prototype.splice.call(arguments, 1, 0, this.data);
-		//ooo.add.apply(null, arguments);
-		this.data[type] = argv;
-		this.trigger(type, argv);
-	});*/
+		var argv = Array.prototype.slice.call(arguments);
+		argv.splice(1, 0, this.data);
+		ooc.put.apply(null, argv);
+		argv.splice(0, 2);
+		triggerPutPush.call(this, argv);
+	});
 
-	/*ooo.Root.method('deletez', function ()
+	ooo.Root.method('delete', function ()
 	{
-		var type = 'delete:' + Array.prototype.slice.call(arguments).join('_');
-		Array.prototype.unshift.call(arguments, this.data);
-		ooo.remove.apply(null, arguments);
-		this.trigger(type);
-		//console.log('delete', type, this.data);
-	});*/
+		var argv = Array.prototype.slice.call(arguments);
+		argv.unshift(this.data);
+		ooc.delete.apply(null, argv);
+		argv.shift();
+		triggerDeletePop.call(this, argv);
+	});
+
+	ooo.Root.method('push', function (value)
+	{
+		var argv = Array.prototype.slice.call(arguments);
+		argv.splice(1, 0, this.data);
+		ooc.push.apply(null, argv);
+		argv.splice(0, 2);
+		triggerPutPush.call(this, argv);
+	});
+
+	ooo.Root.method('pop', function ()
+	{
+		var argv = Array.prototype.slice.call(arguments);
+		argv.unshift(this.data);
+		var value = ooc.pop.apply(null, argv);
+		argv.shift();
+		triggerDeletePop.call(this, argv);
+		return value;
+	});
 
 	ooo.Root.method('load', function (name, source, width, height)
 	{
@@ -771,6 +867,7 @@ var ooo = {};
 
 	ooo.Root.on('show', function (root, parent)
 	{
+		//var down = false;
 		var drag = false;
 		var down_x = 0;
 		var down_y = 0;
@@ -784,6 +881,8 @@ var ooo = {};
 		{
 			down_x = event.clientX;
 			down_y = event.clientY;
+			//down = true;
+			that.trigger('mouse_down', [event.button, down_x, down_y], true);
 			that.canvas.addEventListener('mousemove', on_mousemove);
 			//event.preventDefault();
 			//event.stopPropagation();
@@ -791,42 +890,34 @@ var ooo = {};
 
 		function on_mousemove (event)
 		{
-			drag_x = event.clientX - down_x;
-			drag_y = event.clientY - down_y;
+			var over_x = event.clientX;
+			var over_y = event.clientY;
+			that.trigger('mouse_over', [over_x, over_y], true);
+			drag_x = over_x - down_x;
+			drag_y = over_y - down_y;
 
 			if (drag)
 			{
-				that.trigger('input:drag', [drag_x, drag_y], true);
+				that.trigger('mouse_drag', [drag_x, drag_y], true);
 			}
 			else if ((Math.abs(drag_x) > 3) || (Math.abs(drag_y) > 3))
 			{
-				that.trigger('input:drag', [drag_x, drag_y], true);
 				drag = true;
+				that.trigger('mouse_drag', [drag_x, drag_y], true);
 			}
 		}
 
-		function on_mouseup (event)
+		function on_mouseover (event)
 		{
-			if (drag)
-			{
-				that.trigger('input:drop', [event.clientX, event.clientY], true);
-				drag_x = 0;
-				drag_y = 0;
-				drag = false;
-			}
-			else
-			{
-				that.trigger('input:click', [event.button, down_x, down_y], true);
-			}
-
-			that.canvas.removeEventListener('mousemove', on_mousemove);
-			//event.preventDefault();
-			//event.stopPropagation();
 		}
 
 		function on_mouseout (event)
 		{
-			//console.log('out', JSON.stringify(that));
+			/*if (down)
+			{
+				on_mouseup(event);
+				//console.log('out', JSON.stringify(that));
+			}*/
 		}
 
 		function on_keydown (event)

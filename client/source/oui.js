@@ -4,45 +4,12 @@ var OUI_REVERSED = 2;
 var OUI_VERTICAL = 4;
 var oui = {};
 //reset blink on input field tab jump
+//optimize findPath to use multiple origins
 
 (function ()
 {
-	/*oui.Button = ooo.Cell.extend(function (button_w, button_h, source, styles, layout)
-	{
-		ooo.Cell.call(this, layout);
-		this.button_w = button_w;
-		this.button_h = button_h;
-		this.source = source;
-		this.styles = styles;
-	});
-
-	oui.Button.method('style', function (name)
-	{
-		var cols = Math.floor(this.image.width / this.button_w);
-		var rows = Math.floor(this.image.height / this.button_h);
-
-		this.tile_x = (this.styles[name] % cols) * this.button_w;
-		this.tile_y = Math.floor(this.styles[name] / rows) * this.button_h;
-	});
-
-	oui.Button.on('show', function (root, parent)
-	{
-		ooo.Cell.prototype.events.on.show.call(this, root, parent);
-		this.image = root.images[this.source];
-		this.tiles = [];
-
-		var cols = Math.floor(this.image.width / this.button_w);
-		var rows = Math.floor(this.image.height / this.button_h);
-		var name = Object.keys(this.styles)[0];
-
-		this.tile_x = (this.styles[name] % cols) * this.button_w;
-		this.tile_y = Math.floor(this.styles[name] / rows) * this.button_h;
-	});
-
-	oui.Button.on('draw', function (time, context)
-	{
-		context.drawImage(this.image, this.tile_x, this.tile_y, this.button_w, this.button_h, 0, 0, this.button_w, this.button_h);
-	});*/
+	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+	var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
 
 	oui.Form = ooo.Scene.extend(function (color, font, layout, align, baseline)
 	{
@@ -57,6 +24,7 @@ var oui = {};
 	{
 		ooo.Scene.prototype.show.call(this, actor, layer);
 
+		//focus on first input added
 		if (!this.focus && (actor instanceof oui.Input))
 		{
 			this.focus = actor;
@@ -115,8 +83,6 @@ var oui = {};
 
 	oui.Form.on('draw', function (time, context)
 	{
-		context.fillStyle = '#555';
-		context.fillRect(0, 0, this.width, this.height);
 		context.fillStyle = this.color;
 		context.font = this.font;
 		context.textAlign = this.align;
@@ -147,33 +113,46 @@ var oui = {};
 		this.focus = !this.focus;
 	});
 
-	oui.Input.on('input:click', function (button, down_x, down_y)
+	oui.Input.on('mouse_click', function (button, down_x, down_y)
 	{
 		this.parent.focus.toggle();
 		this.parent.focus = this;
 		this.toggle();
 	});
 
-	oui.Submit = oui.Input.extend(function (type, color, layout)
+	oui.Button = oui.Input.extend(function (asset, index, layout)
 	{
 		oui.Input.call(this, layout);
-		this.type = type;
-		this.color = color;
+		this.asset = asset;
+		this.index = index;
 	});
 
-	oui.Submit.on('draw', function (time, context)
+	oui.Button.on('show', function (root, parent)
 	{
-		context.fillStyle = this.color;
-		context.fillRect(0, 0, this.width, this.height);
-		context.fillStyle = '#555';
-		context.textAlign = 'center';
-		context.textBaseline = 'middle';
-		context.fillText(this.type, this.width >>> 1, this.height >>> 1);
+		oui.Input.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.asset];
 	});
 
-	oui.Submit.on('input:click', function (button, down_x, down_y)
+	oui.Button.on('draw', function (time, context)
 	{
-		oui.Input.prototype.events.on['input:click'].call(this, button, down_x, down_y);
+		if (this.focus)
+		{
+			context.drawImage(this.image, this.image.tile_x[this.index], this.image.tile_y[this.index], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		}
+		else
+		{
+			context.drawImage(this.image, this.image.tile_x[this.index], this.image.tile_y[this.index], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		}
+	});
+
+	oui.Submit = oui.Button.extend(function (asset, type, layout)
+	{
+		oui.Button.call(this, asset, type, layout);
+	});
+
+	oui.Submit.on('mouse_click', function (button, down_x, down_y)
+	{
+		oui.Button.prototype.events.on['mouse_click'].call(this, button, down_x, down_y);
 		this.parent.trigger('form:submit', [this.type, []]);
 		return false;
 	});
@@ -287,9 +266,9 @@ var oui = {};
 		data.push(this.number);
 	});
 
-	oui.Count.on('input:click', function (button, down_x, down_y)
+	oui.Count.on('mouse_click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on['input:click'].call(this, down_x, down_y);
+		oui.Input.prototype.events.on['mouse_click'].call(this, down_x, down_y);
 
 		if (down_x < (this.width >>> 1))
 		{
@@ -339,9 +318,9 @@ var oui = {};
 		data.push(this.pick);
 	});
 
-	oui.Option.on('input:click', function (button, down_x, down_y)
+	oui.Option.on('mouse_click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on['input:click'].call(this, down_x, down_y);
+		oui.Input.prototype.events.on['mouse_click'].call(this, down_x, down_y);
 		down_x < (this.width >>> 1) ? this.pick-- : this.pick++;
 		this.pick = ooc.wrap(this.pick, this.options.length);
 	});
@@ -369,9 +348,9 @@ var oui = {};
 		data.push(this.state);
 	});
 
-	oui.Switch.on('input:click', function (button, down_x, down_y)
+	oui.Switch.on('mouse_click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on['input:click'].call(this, down_x, down_y);
+		oui.Input.prototype.events.on['mouse_click'].call(this, down_x, down_y);
 		this.state = this.state ? 0 : 1;
 	});
 
@@ -519,7 +498,7 @@ var oui = {};
 		context.restore();
 	});
 
-	oui.Menu.on('input:click', function (button, down_x, down_y)
+	oui.Menu.on('mouse_click', function (button, down_x, down_y)
 	{
 		if (this.style & OUI_BOTTOM)
 		{
@@ -602,10 +581,10 @@ var oui = {};
 	TabMenu.on('pick:item', function (data, index)
 	{
 		this.parent.front.mask('draw');
-		this.parent.front.mask('input:click');
+		this.parent.front.mask('mouse_click');
 		this.parent.front = this.parent.tabs[index];
 		this.parent.front.unmask('draw');
-		this.parent.front.unmask('input:click');
+		this.parent.front.unmask('mouse_click');
 	});
 
 	oui.Tabbed = ooo.Scene.extend(function (layout, asset, menu_layout, style)
@@ -626,16 +605,13 @@ var oui = {};
 		else
 		{
 			actor.mask('draw');
-			actor.mask('input:click');
+			actor.mask('mouse_click');
 		}
 
 		this.menu.data.push(type);
 		this.tabs.push(actor);
 		this.show(actor);
 	});
-
-	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-	var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
 
 	oui.TileMap = ooo.Cell.extend(function (size, asset, layout)
 	{
@@ -683,67 +659,6 @@ var oui = {};
 
 				this.tiles[y][x].steps = steps;
 			}
-		}
-	});
-
-	oui.TileMap.on('show', function (root, parent)
-	{
-		ooo.Cell.prototype.events.on.show.call(this, root, parent);
-		this.image = root.images[this.asset];
-		this.patch_w = this.size * this.image.tile_w;
-		this.patch_h = this.size * this.image.tile_h;
-	});
-
-	oui.TileMap.on('input:drag', function (drag_x, drag_y)
-	{
-		this.drag_x = drag_x;
-		this.drag_y = drag_y;
-	});
-
-	oui.TileMap.on('input:drop', function (drop_x, drop_y)
-	{
-		this.drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
-		this.drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
-		this.drag_x = 0;
-		this.drag_y = 0;
-	});
-
-	oui.TileMap.on('input:click', function (button, down_x, down_y)
-	{
-		var tile_x = Math.floor(((this.drop_x + down_x) % this.patch_w) / this.image.tile_w);
-		var tile_y = Math.floor(((this.drop_y + down_y) % this.patch_h) / this.image.tile_h);
-		this.trigger('pick_tile', [this.tiles[tile_y][tile_x], button, tile_x, tile_y]);
-		return false;
-	});
-
-	oui.TileMap.on('draw', function (time, context)
-	{
-		var drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
-		var drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
-		var start_x = Math.floor(drop_x / this.image.tile_w);
-		var start_y = Math.floor(drop_y / this.image.tile_h);
-		var end_x = start_x + Math.ceil(this.width / this.image.tile_w);
-		var end_y = start_y + Math.ceil(this.height / this.image.tile_h);
-
-		context.translate(-(drop_x % this.image.tile_w), -(drop_y % this.image.tile_h));
-
-		for (var y = start_y; y <= end_y; y++)
-		{
-			var tile_y = y % this.size;
-			context.save();
-
-			for (var x = start_x; x <= end_x; x++)
-			{
-				var tile_x = x % this.size;
-				var tile = this.tiles[tile_y][tile_x];
-				context.save();
-				this.drawTile(tile, tile.data, time, context);
-				context.restore();
-				context.translate(this.image.tile_w, 0);
-			}
-
-			context.restore();
-			context.translate(0, this.image.tile_h);
 		}
 	});
 
@@ -816,7 +731,7 @@ var oui = {};
 					continue;
 				}
 
-				var next_c = calcCost(next.data);
+				var next_c = calcCost.call(this, next.data);
 
 				if (next_c == null)
 				{
@@ -861,6 +776,11 @@ var oui = {};
 
 	oui.TileMap.method('findPath', function (origin, target, calcCost)
 	{
+		if (origin.i == target.i)
+		{
+			return {tiles: [], steps: [], cost: 0};
+		}
+
 		if (!calcCost)
 		{
 			calcCost = this.calcCost;
@@ -870,7 +790,7 @@ var oui = {};
 		var crumbs = [];
 		var open = [origin];
 		origin.g = 0;
-		origin.f = this.calcDistance(origin, target);
+		origin.f = this.calcDistance.call(this, origin, target);
 
 		do
 		{
@@ -886,7 +806,7 @@ var oui = {};
 					continue;
 				}
 
-				var next_c = calcCost(next.data);
+				var next_c = calcCost.call(this, next.data);
 
 				if (next_c == null)
 				{
@@ -925,7 +845,7 @@ var oui = {};
 				if (tile == null)
 				{
 					next.g = next_g;
-					next.f = next_g + this.calcDistance(next, target);
+					next.f = next_g + this.calcDistance.call(this, next, target);
 					open.splice(ooc.sorted_index(open, next, 'f'), 0, next);
 					crumbs[next.i] = [i, current];
 					continue;
@@ -934,12 +854,79 @@ var oui = {};
 				if (next_g < tile.g)
 				{
 					tile.g = next_g;
-					tile.f = next_g + this.calcDistance(tile, target);
+					tile.f = next_g + this.calcDistance.call(this, tile, target);
 					crumbs[tile.i] = [i, current];
 				}
 			}
 		}
 		while (open.length)
+	});
+
+	oui.TileMap.method('getTileAt', function (down_x, down_y)
+	{
+		var tile_x = Math.floor(((this.drop_x + down_x) % this.patch_w) / this.image.tile_w);
+		var tile_y = Math.floor(((this.drop_y + down_y) % this.patch_h) / this.image.tile_h);
+		return this.tiles[tile_y][tile_x];
+	});
+
+	oui.TileMap.on('show', function (root, parent)
+	{
+		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.asset];
+		this.patch_w = this.size * this.image.tile_w;
+		this.patch_h = this.size * this.image.tile_h;
+	});
+
+	oui.TileMap.on('mouse_drag', function (drag_x, drag_y)
+	{
+		this.drag_x = drag_x;
+		this.drag_y = drag_y;
+	});
+
+	oui.TileMap.on('mouse_drop', function (drop_x, drop_y)
+	{
+		this.drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
+		this.drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
+		this.drag_x = 0;
+		this.drag_y = 0;
+	});
+
+	oui.TileMap.on('mouse_click', function (button, down_x, down_y)
+	{
+		var tile = this.getTileAt(down_x, down_y);
+		this.trigger('pick_tile', [tile, button]);
+		return false;
+	});
+
+	oui.TileMap.on('draw', function (time, context)
+	{
+		var drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
+		var drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
+		var start_x = Math.floor(drop_x / this.image.tile_w);
+		var start_y = Math.floor(drop_y / this.image.tile_h);
+		var end_x = start_x + Math.ceil(this.width / this.image.tile_w);
+		var end_y = start_y + Math.ceil(this.height / this.image.tile_h);
+
+		context.translate(-(drop_x % this.image.tile_w), -(drop_y % this.image.tile_h));
+
+		for (var y = start_y; y <= end_y; y++)
+		{
+			var tile_y = y % this.size;
+			context.save();
+
+			for (var x = start_x; x <= end_x; x++)
+			{
+				var tile_x = x % this.size;
+				var tile = this.tiles[tile_y][tile_x];
+				context.save();
+				this.drawTile(tile, tile.data, time, context);
+				context.restore();
+				context.translate(this.image.tile_w, 0);
+			}
+
+			context.restore();
+			context.translate(0, this.image.tile_h);
+		}
 	});
 
 	oui.HexMap = oui.TileMap.extend(function (size, tile_w, tile_h, type, layout)
@@ -1047,7 +1034,7 @@ var oui = {};
 		return (dist > quad ? quad : dist);
 	});
 
-	oui.HexMap.on('input:click', function (button, down_x, down_y)
+	oui.HexMap.on('mouse_click', function (button, down_x, down_y)
 	{
 		var raw_x = (this.drop_x + down_x) % this.patch_w;
 		var raw_y = (this.drop_y + down_y) % this.patch_h;

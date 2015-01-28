@@ -80,6 +80,23 @@ if (typeof module == 'object')
 		}
 	});
 
+	ooc.delete = function (object)
+	{
+		var objects = [object];
+
+		for (var i = 1; i < arguments.length; i++)
+		{
+			objects[i] = objects[i - 1][arguments[i]];
+		}
+
+		do
+		{
+			i--;
+			delete objects[i - 1][arguments[i]];
+		}
+		while (Object.keys(objects[i - 1]).length == 0)
+	}
+
 	ooc.push = ooc.modify(function (object, key, value)
 	{
 		if (key in object)
@@ -94,31 +111,30 @@ if (typeof module == 'object')
 		return object[key].length - 1;
 	});
 
-	ooc.del = function (object)
+	ooc.pop = function (object)
 	{
-		var pointers = [object];
-		var loops = arguments.length - 1;
+		var objects = [object];
 
-		for (var i = 1; i < loops; i++)
+		for (var i = 1; i < arguments.length; i++)
 		{
-			pointers[i] = pointers[i - 1][arguments[i]];
+			objects[i] = objects[i - 1][arguments[i]];
 		}
 
-		//besser lösen?
-		if (!pointers[i - 1])
+		i--;
+		var array = objects[i];
+		var value = array.pop();
+
+		if (array.length == 0)
 		{
-			return;
+			do
+			{
+				delete objects[i - 1][arguments[i]];
+				i--;
+			}
+			while ((i > 0) && (Object.keys(objects[i]).length == 0))
 		}
 
-		delete pointers[i - 1][arguments[i]];
-
-		for (i--; i > 0; i--)
-		{
-		    if (Object.keys(pointers[i]).length === 0)
-		    {
-		        delete pointers[i - 1][arguments[i]];
-		    }
-		}
+		return value;
 	}
 
 	ooc.map = function (keys, values)
@@ -298,16 +314,16 @@ if (typeof module == 'object')
 		}*/
 	}
 
-	ooc.sorted_index = function (open, tile, prop)
+	ooc.sorted_index = function (array, object, key)
 	{
 		var low = 0;
-		var high = open.length;
+		var high = array.length;
 
 		while (low < high)
 		{
 			var mid = (low + high) >>> 1;
 
-			if (tile[prop] > open[mid][prop])
+			if (object[key] > array[mid][key])
 			{
 				high = mid;
 			}

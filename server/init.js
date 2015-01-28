@@ -1,5 +1,6 @@
 var fs = require('fs');
 var ooo = require('./ooo.js');
+var mod = require('./mod0.js');
 var ooc = require('../client/source/ooc.js');
 var jup = require('../client/source/info.js');
 var START_DELAY = 0;
@@ -7,6 +8,7 @@ var DENY_DELAY = 1;
 var ELEMS = ['Fire', 'Ice', 'Stone'];
 var POOL_TIMEOUT = 4;
 
+//////EVENT TRIGGGER (protectio/laws)
 //remove all recursive functions!!!!!!!
 //abwechselnd tag und nacht
 //nachwächter action: leuchten (erhöht vision/range)
@@ -18,7 +20,6 @@ function initKnowledge (knowledge, info, keys)
 
 	do
 	{
-		//knowledge[info.id] = [info.type.id, 0, info.state];
 		knowledge[info.id] = [info.type.id, info.state];
 
 		for (var child_id in info.children)
@@ -45,16 +46,9 @@ function gatherKnowledge (knowledge, info, insight, keys)
 		info = next[0];
 		insight = next[1];
 
-		if (info.id in knowledge)
+		if (!(info.id in knowledge))
 		{
-			/*if (insight > knowledge[info.id][1])
-			{
-				knowledge[info.id][1] = insight;
-			}*/
-		}
-		else
-		{
-			knowledge[info.id] = [info.type.id];//, insight
+			knowledge[info.id] = [info.type.id];
 		}
 
 		if ((info.type.group != 5) && (info.type.group != 1))//temp!!!!gruppen überarbeiten/vereinfachen
@@ -67,7 +61,6 @@ function gatherKnowledge (knowledge, info, insight, keys)
 			}
 		}
 
-		//knowledge[info.id][2] = info.state;
 		knowledge[info.id][1] = info.state;
 
 		for (var child_id in info.children)
@@ -82,7 +75,6 @@ function gatherKnowledge (knowledge, info, insight, keys)
 				}
 			}
 
-			//ooc.push(child_id, knowledge, info.id, 3);
 			ooc.push(child_id, knowledge, info.id, 2);
 
 			if ((child.type.group != 5) || (child.state[1] in keys))
@@ -121,11 +113,23 @@ function determineTask (task, pools, full)
 	}
 }
 
-var World = ooo.TileMap.extend(function (size)
+var mergePool = ooc.modify(function (object, key, value)
+{
+	if (key in object)
+	{
+		object[key].power = jup.mergePower(object[key].power, value.power);
+	}
+	else
+	{
+		object[key] = value;
+	}
+});
+
+var World = ooo.TileMap.extend(function ()
 {
 	this.knowledge = {};
-	this.decay = [];
-	ooo.TileMap.call(this, size);
+	//this.decay = [];
+	ooo.TileMap.call(this);
 });
 
 World.method('Data', function (map, i, x, y)
@@ -179,7 +183,7 @@ World.method('spawn', function (data, parents)//, decay
 {
 	var info = {};
 	info.id = ooc.fill(info, this.knowledge);//array mit gelöschten ids!!! (kein object mehr)
-	info.type = jup.info[data[0]];
+	info.type = jup.infos[data[0]];
 	//info.argv = data[1] || [];
 	info.state = data[1] || ooc.clone(info.type.state);
 	info.parents = {};
@@ -234,46 +238,74 @@ World.method('unspawn', function (info)
 	}
 });
 
-World.method('birth', function (realm, home, data)
+World.method('birth', function (home, data)
 {
 	var char = {};
-	char.realm = realm;
 	char.info = this.spawn(data, [home]);
 	char.mind = this.spawn([42], [char.info.id]);
 	char.home = this.spawn([33, [home]], [char.mind.id]);
 	char.task = this.spawn([23, [[home], 0, {}]], [char.mind.id]);
+	char.inventory = {};
 	char.pools = {};
-	var knowledge = {};
-	initKnowledge(knowledge, char.info, {});
-	realm.knowledge[char.info.id] = knowledge;
-	this.game.chars[char.info.id] = char;
+	return char;
 });
 
-var mergePool = ooc.modify(function (object, key, value)
+World.method('charsAt', function (tile_i)
 {
-	if (key in object)
+	var chars = [];
+	var info = this.knowledge[tile_i];
+
+	for (var info_id in info.children)
 	{
-		object[key].power = jup.mergePower(object[key].power, value.power);
+		var child = info.children[info_id];
+
+		if (child.type.group == 2)
+		{
+			chars.push(child);
+		}
 	}
-	else
-	{
-		object[key] = value;
-	}
+
+	return chars;
 });
 
-var Game = ooc.Class.extend(function (rules)
+var Realm = ooc.Class.extend(function (stats)
+{
+	this.stats = stats;
+	this.time = 0;
+	//this.deck = [[], [], [], []];
+	this.hand = [];
+	this.chars = {};//[]
+	this.knowledge = {};
+	this.terrain = {};
+	this.briefing = {};
+});
+
+Realm.method('join', function (char)
+{
+	this.chars[char.info.id] = char;
+	initKnowledge(this.knowledge, char.info, {});
+});
+
+var Game = ooc.Class.extend(function (mode, rules)
 {
 	ooc.Class.call(this);
+	this.mode = mode;//get from somewhere getMode(name)
 	this.rules = rules;
-	this.world = new World(rules[1]);
-	this.world.game = this;
+	this.stats = {};//load from database fetchModStats(name);
+	this.core = mod;
+	this.world = new World();
+	//this.world.game = this;
+	this.size = 0;
 	this.time = 0;
 	this.tocks = 0;
 	this.open = true;
 	this.started = false;
-	this.size = 0;
 	this.players = {};
+	this.seats = [];
+	this.realms = [];
+
 	this.chars = {};
+	this.traps = {};
 	this.pools = {};
 });
 
@@ -303,16 +335,23 @@ Game.method('join', function (player)
 	player.game = this;
 	this.size++;
 
-	if (this.size < this.rules[0])
+	try
 	{
-		return;
+		var ready = this.core.ready(this.stats, this.rules, this.size);
+	}
+	catch (e)
+	{
+		console.log('MOD READY EXCEPTION');
 	}
 
-	console.log('READY %d %d', this.id, START_DELAY);
-	this.open = false;
-	this.broadcast('ready', [START_DELAY]);
-	var that = this;
-	this.timeout = setTimeout(function () { that.start() }, START_DELAY * 1000);
+	if (ready)
+	{
+		console.log('READY %d %d', this.id, START_DELAY);
+		this.open = false;
+		this.broadcast('ready', [START_DELAY]);
+		var that = this;
+		this.timeout = setTimeout(function () { that.start() }, START_DELAY * 1000);
+	}
 });
 
 Game.method('leave', function (player)
@@ -345,23 +384,237 @@ Game.method('start', function ()
 	console.log('START %d', this.id);
 	delete this.timeout;
 	this.started = true;//move to other container instead!!!!!!!!!!!!!!
+	var seat = 0;
 
 	for (var name in this.players)
 	{
 		var player = this.players[name];
-		player.realm = {time: 0, knowledge: {}, map: {}, player: player};
-
-		if (name == 'a')
-		{
-			this.world.birth(player.realm, 132, [9]);
-		}
-		else
-		{
-			this.world.birth(player.realm, 202, [9]);
-		}
+		player.seat = seat;
+		this.seats[seat] = player;
+		var stats = {};//load from database fetchModePlayerStats(name, mode);
+		this.realms[seat] = new Realm(stats);//seat: seat, 
+		seat++;
 	}
 
 	this.tick();
+});
+
+Game.method('tick', function ()
+{
+	console.log('TICK %d %d', this.id, this.time);
+
+	/*/remove deprecated info
+	var obsolete = this.world.decay.shift();
+
+	if (obsolete)
+	{
+		for (var i = 0; i < obsolete.length; i++)
+		{
+			var info = obsolete[i];
+			this.world.unspawn(info);
+		}
+	}*/
+
+	//consume items & init knowledge
+	/*for (var char_id in this.chars)
+	{
+		var char = this.chars[char_id];
+
+		for (var info_id in char.info.children)
+		{
+			var info = char.info.children[info_id];
+
+			if (info.type.group == 3)
+			{
+				info.type.effect.call(char);
+				this.world.unspawn(info);
+			}
+		}
+
+		char.realm.knowledge[char_id] = {};
+		initKnowledge(char.realm.knowledge[char_id], char.info, {});
+	}*/
+
+	//trigger traps
+	for (var tile_i in this.traps)
+	{
+		var tile = this.world.index[tile_i];
+		var chars = this.world.charsAt(tile_i);
+
+		for (var i = 0; i < this.traps[tile_i].length; i++)
+		{
+			//test trigger conditions
+			var trap = this.traps[tile_i][i];
+
+			if (trap.trigger(tile, chars))
+			{
+				trap.effect(tile, chars);
+			}
+			else
+			{
+				trap.time++;
+			}
+		}
+	}
+
+	//trigger events
+	for (var tile_i in this.pools)
+	{
+		var pool = this.pools[tile_i];
+		var power = jup.poolPower(pool.info.state[2]);
+		var event = jup.matchEvent(power);
+
+		//apply effects or increase timer
+		if (event && (pool.info.state[3] == event.time))
+		{
+			console.log('EVENT "%s" at (%d)', event.title, tile_i);
+			var tile = this.world.index[tile_i];
+
+			if (event.tile_effect)
+			{
+				event.tile_effect.call(this, tile);
+			}
+
+			for (var char_id in pool.info.state[2])
+			{
+				var char = this.chars[char_id];
+
+				if (event.char_effect)
+				{
+					event.char_effect.call(this, tile.i, char);
+				}
+
+				for (var signature in pool.info.state[2][char_id])
+				{
+					char.info.state[5] = jup.mergePower(char.info.state[5], pool.info.state[2][char_id][signature]);
+					delete char.pools[signature];
+				}
+			}
+
+			this.world.unspawn(pool.info);
+			delete this.pools[tile_i];
+		}
+		else if (pool.info.state[3] == POOL_TIMEOUT)
+		{
+			console.log('TIMEOUT at (%d)', tile_i);
+
+			for (var char_id in pool.info.state[2])
+			{
+				var char = this.chars[char_id];
+
+				for (var signature in pool.info.state[2][char_id])
+				{
+					char.info.state[5] = jup.mergePower(char.info.state[5], pool.info.state[2][char_id][signature]);
+					delete char.pools[signature];
+				}
+			}
+
+			this.world.unspawn(pool.info);
+			delete this.pools[tile_i];
+		}
+		else
+		{
+			pool.info.state[3]++;
+		}
+	}
+
+	try
+	{
+		var over = this.core.update(this.stats, this.rules, this.world, this.realms, this.time);
+	}
+	catch (e)
+	{
+		console.log('MOD TICK EXCEPTION');
+
+		if (e.stack)
+		{
+			console.log(e.stack);
+		}
+		else
+		{
+			console.log(e.toString());
+		}
+	}
+
+	//update realms
+	for (var seat = 0; seat < this.realms.length; seat++)
+	{
+		var realm = this.realms[seat];
+		var player = this.seats[seat];
+		realm.knowledge = {};
+
+		for (var char_id in realm.chars)
+		{
+			var char = realm.chars[char_id];
+			var area = this.world.findArea(char.task.state[0], char.info.state[2], function (data) { return data.info.state[2] });
+			var task = ooc.map(char.task.type.param, char.task.type.state);
+			task.route.push(char.home.state[0]);
+			determineTask(task, char.pools);
+			task.range = 0;//pay only once for path!? (event exec verzögerungen sollten aber in extra kosten resultieren!!!
+			char.task.state = ooc.values(task);
+			this.world.relink2(char.mind, [char.home.id, char.task.id]);
+
+			for (var tile_i in area)
+			{
+				var info = this.world.knowledge[tile_i];
+				this.world.link(info, char.mind);
+				realm.terrain[tile_i] = info.type.id;
+			}
+
+			initKnowledge(realm.knowledge, char.info, {});
+			gatherKnowledge(realm.knowledge, char.mind, char.info.state[3], {'c': true});
+			//mergeKnowledge(realm.knowledge, char.knowledge);
+		}
+
+		if (player.client)
+		{
+			player.client.send('tick', [realm.hand, ooc.intkeys(realm.chars), realm.knowledge, realm.terrain, realm.briefing]);
+
+			if (realm.briefing.draw > 0)
+			{
+				player.client.expect('draw');
+			}
+			else
+			{
+				player.client.expect('tock');
+			}
+		}
+	}
+
+	this.time++;
+	this.tocks = 0;
+});
+
+Game.method('draw', function (player, type)
+{
+	console.log('DRAW %d %s %d', this.id, player.name, type);
+
+	try
+	{
+		var card_id = this.core.draw(this.stats, this.rules, this.world, this.realms, this.time, player.seat, type);
+	}
+	catch (e)
+	{
+		console.log('MOD DRAW EXCEPTION');
+	}
+
+	var realm = this.realms[player.seat];
+	realm.briefing.draw--;
+	realm.hand.push(card_id);
+
+	if (player.client)
+	{
+		player.client.send('card', [card_id]);
+
+		if (realm.briefing.draw > 0)
+		{
+			player.client.expect('draw');
+		}
+		else
+		{
+			player.client.expect('tock');
+		}
+	}
 });
 
 Game.method('tock', function (player, actions)
@@ -376,14 +629,14 @@ Game.method('tock', function (player, actions)
 		var action = actions[i];
 		var char_id = action[0];
 
-		if (!(char_id in player.knowledge))
+		if (!(char_id in player.realm.knowledge))
 		{
 			throw 'missing char';
 		}
 
 		var char = this.chars[char_id];
 		var steps = action[2];
-		var tile = char.home;
+		var tile = this.world.index[char.home.state[0]];
 		var pool = {target: action[1], power: action[3], route: {}};
 
 		for (var j = 0; j < steps.length; j++)
@@ -478,143 +731,6 @@ Game.method('tock', function (player, actions)
 	}
 });
 
-Game.method('tick', function ()
-{
-	console.log('TICK %d %d', this.id, this.time);
-
-	/*/remove deprecated info
-	var obsolete = this.world.decay.shift();
-
-	if (obsolete)
-	{
-		for (var i = 0; i < obsolete.length; i++)
-		{
-			var info = obsolete[i];
-			this.world.unspawn(info);
-		}
-	}*/
-
-	//consume items & init knowledge
-	/*for (var char_id in this.chars)
-	{
-		var char = this.chars[char_id];
-
-		for (var info_id in char.info.children)
-		{
-			var info = char.info.children[info_id];
-
-			if (info.type.group == 3)
-			{
-				info.type.effect.call(char);
-				this.world.unspawn(info);
-			}
-		}
-
-		char.realm.knowledge[char_id] = {};
-		initKnowledge(char.realm.knowledge[char_id], char.info, {});
-	}*/
-
-	//trigger events
-	for (var tile_i in this.pools)
-	{
-		var pool = this.pools[tile_i];
-		var power = jup.poolPower(pool.info.state[2]);
-		var event = jup.matchEvent(power);
-
-		//apply effects or increase timer
-		if (event && (pool.info.state[3] == event.time))
-		{
-			console.log('EVENT "%s" at (%d)', event.title, tile_i);
-			var tile = this.world.index[tile_i];
-
-			if (event.tile_effect)
-			{
-				event.tile_effect.call(this, tile);
-			}
-
-			for (var char_id in pool.info.state[2])
-			{
-				var char = this.chars[char_id];
-
-				if (event.char_effect)
-				{
-					event.char_effect.call(this, tile, char);
-				}
-
-				for (var signature in pool.info.state[2][char_id])
-				{
-					char.info.state[5] = jup.mergePower(char.info.state[5], pool.info.state[2][char_id][signature]);
-					delete char.pools[signature];
-				}
-			}
-
-			this.world.unspawn(pool.info);
-			delete this.pools[tile_i];
-		}
-		else if (pool.info.state[3] == POOL_TIMEOUT)
-		{
-			console.log('TIMEOUT at (%d)', tile_i);
-
-			for (var char_id in pool.info.state[2])
-			{
-				var char = this.chars[char_id];
-
-				for (var signature in pool.info.state[2][char_id])
-				{
-					char.info.state[5] = jup.mergePower(char.info.state[5], pool.info.state[2][char_id][signature]);
-					delete char.pools[signature];
-				}
-			}
-
-			this.world.unspawn(pool.info);
-			delete this.pools[tile_i];
-		}
-		else
-		{
-			pool.info.state[3]++;
-		}
-	}
-
-	//update realms
-	for (var name in this.players)
-	{
-		var player = this.players[name];
-		var realm = player.realm;
-
-		for (var char_id in realm.knowledge)
-		{
-			var char = this.chars[char_id];
-			var area = this.world.findArea(char.task.state[0], char.info.state[2], function (data) { return data.info.state[2] });
-			var task = ooc.map(char.task.type.param, char.task.type.state);
-			task.route.push(char.home.state[0]);
-			determineTask(task, char.pools);
-			task.range = 0;//pay only once for path!? (event exec verzögerungen sollten aber in extra kosten resultieren!!!
-			char.task.state = ooc.values(task);
-			this.world.relink2(char.mind, [char.home.id, char.task.id]);
-
-			for (var tile_i in area)
-			{
-				var info = this.world.knowledge[tile_i];
-				this.world.link(info, char.mind);
-				realm.map[tile_i] = info.type.id;
-			}
-
-			var knowledge = {};
-			initKnowledge(knowledge, char.info, {});
-			gatherKnowledge(knowledge, char.mind, char.info.state[3], {'c': true});
-			realm.knowledge[char_id] = knowledge;
-		}
-
-		if (player.client)
-		{
-			player.client.send('tick', [realm.knowledge, realm.map]).expect('tock');
-		}
-	}
-
-	this.time++;
-	this.tocks = 0;
-});
-
 var Client = ooo.Client.extend(function (server, socket)
 {
 	ooo.Client.call(this, server, socket);
@@ -684,13 +800,20 @@ Client.on('message:login', function (name, pass)
 		var game = player.game;
 		console.log('BACK %d %s', game.id, name);
 		player.shout('back', [name]);
-		var realm = player.realm;
+		var realm = game.realms[player.seat];
 		var wait = (realm.time < game.time) ? 0 : this.size - this.tocks;
-		this.send('continue', [game.rules, game.names(), game.time, realm.knowledge, realm.map, wait]);
+		this.send('continue', [game.mode, game.rules, game.names(), game.time, realm.hand, ooc.intkeys(realm.chars), realm.knowledge, realm.terrain, realm.briefing, wait]);
 
 		if (!wait)
 		{
-			this.expect('tock');
+			if (realm.briefing.draw > 0)
+			{
+				player.client.expect('draw');
+			}
+			else
+			{
+				player.client.expect('tock');
+			}
 		}
 	}
 	else
@@ -701,26 +824,17 @@ Client.on('message:login', function (name, pass)
 		for (var id in this.server.games)
 		{
 			var game = this.server.games[id];
-			games[id] = [game.rules, game.names()];
+			games[id] = [game.mode, game.rules, game.names()];
 		}
 
 		this.send('grant', [games]).expect('host', 'join');
 	}
 });
 
-Client.on('message:host', function (rules)
+Client.on('message:host', function (mode, rules)
 {
 	console.log('HOST %s %s', this.player.name, JSON.stringify(rules));
-	var game = new Game(rules);
-	var forest = [133, 134, 135, 102, 166];
-
-	for (var i = 0; i < forest.length; i++)
-	{
-		var tile = game.world.index[forest[i]];
-		game.world.unspawn(tile.data.info);
-		tile.data.info = game.world.spawn([2]);
-	}
-
+	var game = new Game(mode, rules);
 	game.id = ooc.fill(game, this.server.games);
 	game.join(this.player);
 	this.expect('leave');
@@ -743,6 +857,11 @@ Client.on('message:leave', function ()
 {
 	this.player.game.leave(player);
 	this.expect('host', 'join');
+});
+
+Client.on('message:draw', function (type)
+{
+	this.player.game.draw(this.player, type);
 });
 
 Client.on('message:tock', function (turn)
