@@ -280,7 +280,7 @@ if (typeof module == 'object')
 		}
 	}
 
-	ooc.merge = function (keep, add)
+	/*ooc.merge = function (keep, add)
 	{
 		for (var key in add)
 		{
@@ -295,7 +295,7 @@ if (typeof module == 'object')
 				keep[key] = value;
 			}
 		}
-	}
+	}*/
 
 	ooc.setLocal = function (name, object)
 	{

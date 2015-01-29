@@ -3,9 +3,10 @@ DIR=$(dirname $0)
 #urxvt -title wmtag_1 -e $EDITOR $DIR/client/source/ooo.js &
 #urxvt -title wmtag_1 -e $EDITOR $DIR/client/source/oui.js &
 urxvt -title wmtag_1 -e $EDITOR $DIR/client/source/init.js &
+urxvt -title wmtag_1 -e $EDITOR $DIR/client/source/info.js &
 #urxvt -title wmtag_2 -e $EDITOR $DIR/server/ooo.js &
 urxvt -title wmtag_2 -e $EDITOR $DIR/server/init.js &
-urxvt -title wmtag_2 -e $EDITOR $DIR/client/source/info.js &
+urxvt -title wmtag_2 -e $EDITOR $DIR/server/mod0.js &
 urxvt -title wmtag_log -e $DIR/node &
 urxvt -title wmtag_log -e $EDITOR $DIR/keep/dump.js &
 urxvt -title wmtag_log -e $EDITOR $DIR/client/source/ooc.js &

@@ -1,4 +1,18 @@
 'use strict';
+//PROBLEM
+///wenn man state erst erkennt ab obfuscation gibt es die situation
+////daß man weiss es ist ein wlad aber nicht wieviel es kostet durchzugehn!!!
+
+//TODO
+///Kollisionen (erstmal nur mit Schwerten und Schilden)
+///Random Draw (erstmal; später evtl DeckBuilding)
+///MouseOver (HandMenu)
+///Karten (InfoAnsicht;Bild;Power;Gain;Title;Description)
+///Karten erstellen
+///Sound (erstmal beim Kartenablegen)
+///Animation (kleines Ausrollbanner)
+///Transitions (zwischen Stages)
+
 //power menu drawButton funktion mit werten
 //button klasse (zwischen sumbmit und input; input mit label)
 //rules_prompt
@@ -11,8 +25,6 @@
 (function ()
 {
 	var HOST = 'http://' + window.location.hostname + ':11133';
-	var TILES = [0, 2, 4];
-	var MAPTILES = [1, 3, 5];
 	var ITEMS = [0, 0, 0, 0, 0, 3, 4, 0, 1, 0, 0, 0, 0, 0];
 	var BORDER = 24;
 	var MARKS = ['#942e39', '#651144', '#aaa', '#2f1d71', '#fff', '#f44'];//actions, paths, route, others
@@ -48,88 +60,12 @@
 	///mouseover hält den char an und zeigt pfad
 
 	//WorldMap
-	function refreshVision ()//char, path
-	{
-		/*if (path)
-		{
-			var steps = ooc.hash(path.tiles);
-			var open = ooc.intkeys(char.route).concat(path.tiles);
-			var range = char.info.state[2] - path.cost;
-			var target = (path.tiles.length > 0) ? path.tiles[path.tiles.length - 1] : char.home.i;
-		}
-		else
-		{
-			var steps = {};
-			var open = ooc.intkeys(char.route);
-			var range = char.info.state[2];
-		}*/
-
-		var route = [];
-		var range = 0;
-
-		for (var info_id in chars)
-		{
-			var char = chars[info_id];
-			route = route.concat(char.task.route);
-			range += (char.info.state[2] - char.task.range);
-		}
-
-		this.range = this.findArea(route, range, function (data) { return (data.info ? data.info.state[2] : null) });
-
-		for (var i in this.realm.tiles)
-		{
-			var data = this.index[i].data;
-
-			if (i in this.range)
-			{
-				data.type = TILES[data.info.type.id];
-			}
-			else
-			{
-				data.type = MAPTILES[data.info.type.id];
-			}
-
-			if (i == target)
-			{
-				data.mark = 5;
-			}
-			else if (i in steps)
-			{
-				data.mark = 4;
-			}
-			else if (i in char.actions)
-			{
-				data.mark = 0;
-			}
-			else if (4 in data.groups)
-			{
-				data.mark = 2;
-			}
-			else if (i in char.route)
-			{
-				data.mark = 1;
-			}
-			else if ((2 in data.groups) && !((ooc.size(data.groups[2]) == 1) && (char.info.id in data.groups[2])))
-			{
-				data.mark = 3;
-			}
-			else
-			{
-				delete data.mark;
-			}
-		}
-	}
 
 	var WorldMap = oui.TileMap.extend(function (size, asset, layout)
 	{
 		oui.TileMap.call(this, size, asset, layout);
 		this.route = {};
 		this.marks = {};
-	});
-
-	WorldMap.method('Data', function (map, i, x, y)
-	{
-		this.type = 0;
 	});
 
 	WorldMap.method('calcCost', function (data)
@@ -142,7 +78,7 @@
 			}
 			else
 			{
-				return data.info.state[2];
+				return data.info.type.range;
 			}
 		}
 	});
@@ -169,12 +105,12 @@
 	{
 		var tile = this.getTileAt(drop_x, drop_y);
 
-		if (!card.type.condition(tile.data.info))
+		if (!card.type.condition(tile.data.info))//temp: later nor necessarily tile info
 		{
 			throw 'target is incompatible with card';
 		}
 
-		var chars = jup.matchChars(card.type.cost, this.root.data.chars);
+		var chars = jup.matchChars(card.type.power, this.root.data.chars);
 
 		if (ooc.size(chars) == 0)
 		{
@@ -188,7 +124,7 @@
 			var char = chars[info_id];
 			var path = this.findPath(char.home, tile);
 
-			if (char.info.state[2] < path.cost)
+			if (char.info.state[0] < path.cost)
 			{
 				continue;
 			}
@@ -209,9 +145,8 @@
 		return {char: min_char, paths: paths, card: card, tile: tile};
 	});
 
-	WorldMap.method('modifyAction', function (drop_x, drop_y, card)
+	WorldMap.method('update_actions', function (drop_x, drop_y, card)
 	{
-		this.root.push(action, 'actions');
 		var action = [min_char.info.id, paths];
 		var min_path = paths[min_char.info.id];
 		var action = [min_char.info.id, min_path.steps, card.type.id];
@@ -230,122 +165,55 @@
 		}
 	});
 
-	WorldMap.on('update_data', function (chars, knowledge, groups, types, tiles, terrain)
+	WorldMap.on('update_terrain', function (terrain)
 	{
-		//this.realm = realm;
-
 		for (var i = 0; i < this.index.length; i++)
 		{
-			if (('0' in groups) && (i in groups[0]))
-			{
-				var info = groups[0][i];
-				var data = {};
-				data.info = info;
-				data.type = TILES[info.type.id];
+			var tile = this.index[i];
 
-				if (2 in tiles[i])
-				{
-					data.mark = 2;
-				}
-			}
-			else if (i in terrain)
+			if (i in terrain)
 			{
-				var data = {type: MAPTILES[terrain[i]]};
+				tile.data = terrain[i];
 			}
 			else
 			{
-				var data = {type: 0};
+				tile.data = {type: 0};
 			}
-
-			this.index[i].data = data;
 		}
 	});
 
-	WorldMap.on('pick_tile4', function (tile, button)
+	WorldMap.on('update_chars', function (chars)
 	{
-		if (!(tile.i in this.range))
-		{
-			console.log('NEGATIVE');
-			return;
-		}
+		var realm = {};
 
-		if (this.path && (((this.path.tiles.length == 0) && (this.char.home.i == tile.i)) || (this.path.tiles[this.path.tiles.length - 1] == tile.i)))
+		for (var info_id in chars)
 		{
-			this.root.play_prompt.hide();
-			this.root.show(this.root.power_prompt);
-			this.root.trigger('prompt:power', [this.char, tile, this.path.steps]);
-			delete this.path;
-			refreshArea.call(this, this.char);
-		}
-		else
-		{
-			var that = this;
-			this.path = this.findPath(this.char.home, tile, function (data) { return (data.info ? ((data.info.id in that.char.route) ? 0 : data.info.state[2]) : null) });
-			refreshArea.call(this, this.char, this.path);
-		}
+			var char = chars[info_id];
+			var area = this.findArea(ooc.clone(char.task.route), char.info.state[0] - char.task.range);
 
-		return;
-		var action = [char.id, tile.i, path.steps, {}];
-		//this.root.trigger('prompt:power', [tile, char, info]);
-		this.root.trigger('prompt:power', [tile, char, info]);
-		return;
-
-		if (tile.i in char.actions)
-		{
-			var action = char.actions[tile.i];
-			char.info.state[5] = jup.mergePower(char.info.state[5], action[3]);
-			var tileb = char.home;
-			var steps = action[2];
-
-			for (var i = 0; i < steps.length; i++)
+			for (var tile_i in area)
 			{
-				tileb = tileb.steps[steps[i]];
-
-				if (char.route[tileb.i] == 1)
-				{
-					delete char.route[tileb.i];
-					char.info.state[2] += tileb.data.info.state[2];
-				}
-				else
-				{
-					char.route[tileb.i] -= 1;
-				}
-			}
-
-			action = JSON.parse(prompt('Action?:', JSON.stringify(char.actions[tile.i])));
-			delete char.actions[tile.i];
-		}
-		else
-		{
-			var path = this.findPath(this.focus_char.home, tile, function (data) { return (data.info ? ((data.info.id in char.route) ? 0 : data.info.state[2]) : null) });//if in char.route cost=0!!!
-			var action = JSON.parse(prompt('Action?:', JSON.stringify([this.focus_char.info.id, tile.i, path.steps, {0: 1}])));
-		}
-
-		if (action)
-		{
-			char.actions[action[1]] = action;
-			char.info.state[5] = jup.cancelPower(char.info.state[5], action[3]);
-			var tileb = char.home;
-			var steps = action[2];
-
-			for (var i = 0; i < steps.length; i++)
-			{
-				tileb = tileb.steps[steps[i]];
-
-				if (char.route[tileb.i] != undefined)
-				{
-					char.route[tileb.i] += 1;
-				}
-				else
-				{
-					char.route[tileb.i] = 1;
-					char.info.state[2] -= tileb.data.info.state[2];
-				}
+				realm[tile_i] = true;
 			}
 		}
 
-		refreshTiles.call(this, char, this.data_realm);
-		this.root.trigger('refresh:stats');
+		for (var i = 0; i < this.index.length; i++)
+		{
+			var tile = this.index[i];
+
+			if (i in realm)
+			{
+				tile.data.type = (tile.data.info.type.id << 1) + 2;
+			}
+			else if (tile.data.info)
+			{
+				tile.data.type = (tile.data.info.type.id << 1) + 3;
+			}
+		}
+	});
+
+	WorldMap.on('pick_tile', function (tile, button)
+	{
 	});
 
 	var CharMenu = oui.SingleMenu.extend(function (asset, layout, style)
@@ -476,11 +344,13 @@
 				var info_id = action.char.info.id;
 				var steps = action.paths[info_id].steps;
 				var card_id = action.card.type.id;
-				ooc.push([steps, card_id, tile_i], data, info_id, tile_i);
+				//tile_i in array[1] is temp: has to be the target info_id
+				ooc.push([card_id, tile_i, steps], data, info_id, tile_i);
 			}
 		}
 
 		this.root.send('tock', [data]);
+		this.root.delete('actions');
 	});
 
 	var ActionMenu = ooo.Scene.extend(function (layout)
@@ -495,7 +365,6 @@
 
 		if (actions)
 		{
-			console.log('update_actions', actions);
 			/*var rel_x = 0;
 
 			for (var tile_i in actions)
@@ -532,7 +401,7 @@
 	var Card = ooo.Sprite.extend(function (card_id, count)
 	{
 		ooo.Sprite.call(this, 'cards', card_id);
-		this.type = jup.cards[card_id];
+		this.type = jup.cards.by_id[card_id];
 		this.count = count;
 		this.ignore('mouse_drag', 'mouse_drop');
 	});
@@ -567,7 +436,35 @@
 		try
 		{
 			var action = this.root.play_prompt.world_map.findAction(drop_x, drop_y, this);
+
 			this.root.push(action, 'actions', action.tile.i);
+			var actions = this.root.data.actions;
+
+			for (var tile_i in actions)
+			{
+				for (var i = 0; i < actions[tile_i].length; i++)
+				{
+					var action = actions[tile_i][i];
+					var char = action.char;
+					var path = action.paths[char.info.id];
+					char.task.range += path.cost;
+					char.task.power = jup.addPower(char.task.power, action.card.type.power);
+
+					if (false)//Card is Job
+					{
+						var route = ooc.hash(char.task.route);
+
+						for (var i = 0; i < path.tiles.length; i++)
+						{
+							route[path.tiles[i]] = true;
+						}
+
+						char.task.route = ooc.intkeys(route);
+					}
+				}
+			}
+
+			this.root.put(this.root.data.chars, 'chars');
 
 			if (this.count == 1)
 			{
@@ -580,7 +477,13 @@
 		}
 		catch (e)
 		{
-			console.log('ERROR: %s', e);
+			console.log('CARD EXCEPTION');
+			console.log(e.toString());
+
+			if (e.stack)
+			{
+				console.log(e.stack);
+			}
 		}
 
 		this.rel_x = this.down_x;
@@ -604,7 +507,6 @@
 
 		if (hand)
 		{
-			console.log('update_hand', hand);
 			var rel_y = 0;
 			var z_index = 0;
 
@@ -615,10 +517,6 @@
 				this.show(card);//, z_index--
 				rel_y += 30;
 			}
-		}
-		else
-		{
-			console.log('delete_hand');
 		}
 	});
 
@@ -788,14 +686,10 @@
 			var data = knowledge[info_id];
 			var info = {};
 			info.id = parseInt(info_id);
-			info.type = jup.infos[data[0]];
+			info.type = jup.infos.by_id[data[0]];
+			info.state = data[1];
 			info.parents = {};
 			info.children = {};
-
-			if (data[1])
-			{
-				info.state = data[1];
-			}
 
 			if (data[2])
 			{
@@ -823,22 +717,20 @@
 				for (var parent_id in parents[info_id])
 				{
 					var parent = parents[info_id][parent_id];
-					parent.children[info_id] = info;
 					info.parents[parent_id] = parent;
+					parent.children[info_id] = info;
 				}
+
+				delete parents[info_id];
 			}
 			else
 			{
 				children[info_id] = info;
 			}
 
-			//VERKNÜPFUNGEN
 			knowledge[info_id] = info;
 			var group_id = info.type.group;
 			ooc.put(info, by_group, group_id, info_id);
-			//ooc.put(info, types, group_id, info.type.id, info_id);
-			//ooc.put(info, char, 'groups', group_id, info_id);
-			//ooc.put(info, char, 'types', group_id, info.type.id, info_id);
 		}
 
 		for (var group_id in by_group)
@@ -846,21 +738,46 @@
 			for (var info_id in by_group[group_id])
 			{
 				var info = by_group[group_id][info_id];
-				var root_tiles = rootsOf(info, 0);
+				var root_tiles = rootsOf(info, 1);
 				var root_chars = rootsOf(info, 2);
 
 				for (var info_id in root_tiles)
 				{
-					ooc.push(info, by_tile, info_id, 'group_types', group_id, info.type.id);
+					ooc.push(info, by_tile, info_id, group_id, info.type.id);
 				}
 
 				for (var info_id in root_chars)
 				{
-					ooc.push(info, by_char, info_id, 'group_types', group_id, info.type.id);
+					ooc.push(info, by_char, info_id, group_id, info.type.id);
 				}
 			}
 		}
+		//no realm stats!!! only char stats!!! (das heisst alles ist angreifbar/vergänglich)
 
+		for (var tile_i in terrain)
+		{
+			if (tile_i in by_group[1])
+			{
+				var info = by_group[1][tile_i];
+				var data = {};
+				data.info = info;
+				data.knowledge = by_tile[tile_i];
+				data.type = (info.type.id << 1) + 2;
+
+				/*if (2 in data.knowledge)
+				{
+					data.mark = 2;
+				}*/
+			}
+			else
+			{
+				var data = {type: (terrain[tile_i] << 1) + 3};
+			}
+
+			terrain[tile_i] = data;
+		}
+
+		this.put(terrain, 'terrain');
 		chars = ooc.hash(chars);
 
 		for (var info_id in chars)
@@ -868,48 +785,14 @@
 			var char = {};
 			char.info = knowledge[info_id];
 			char.knowledge = by_char[info_id];
-			var tile_i = char.knowledge.group_types[1][33][0].state[0];
+			var tile_i = char.knowledge[0][33][0].state[0];
 			char.home = this.play_prompt.world_map.index[tile_i];
-			var task = char.knowledge.group_types[1][23][0];
+			var task = char.knowledge[0][23][0];
 			char.task = ooc.map(task.type.param, task.state);
-			//console.log(char.knowledge.group_types[3][6][0].type.title);
 			chars[info_id] = char;
 		}
 
 		this.put(chars, 'chars');
-
-		//no realm stats!!! only char stats!!! (das heisst alles ist angreifbar/vergänglich)
-
-		//update world_map
-		var world_map = this.play_prompt.world_map;
-
-		for (var i = 0; i < world_map.index.length; i++)
-		{
-			if (i in by_group[0])
-			{
-				var info = by_group[0][i];
-				var data = {};
-				data.info = info;
-				data.type = TILES[info.type.id];
-				data.knowledge = by_tile[i];
-
-				if (2 in data.knowledge)
-				{
-					data.mark = 2;
-				}
-			}
-			else if (i in terrain)
-			{
-				var data = {type: MAPTILES[terrain[i]]};
-			}
-			else
-			{
-				var data = {type: 0};
-			}
-
-			world_map.index[i].data = data;
-		}
-
 		hand = ooc.hash(hand);
 
 		for (var card_id in hand)
@@ -1009,7 +892,7 @@
 		else
 		{
 			var mode = prompt('mode?', 'normal');
-			var rules = JSON.parse(prompt('rules?', '[1,32]'));
+			var rules = JSON.parse(prompt('rules?', '[1, 32]'));
 			var names = [this.auth_token[0]];
 			initGame.call(this, mode, rules, names);
 			this.send('host', [mode, rules]);
@@ -1043,6 +926,7 @@
 	Game.on('message:continue', function (mode, rules, names, time, hand, chars, knowledge, terrain, briefing, wait)
 	{
 		console.log('CONTINUE', arguments);
+		console.log(briefing.message);
 		this.login_prompt.hide();
 		ooc.setLocal('auth_token', this.auth_token);
 		initGame.call(this, mode, rules, names);
@@ -1062,6 +946,7 @@
 	Game.on('message:tick', function (hand, chars, knowledge, terrain, briefing)
 	{
 		console.log('TICK', arguments);
+		console.log(briefing.message);
 
 		if (!this.started)
 		{
@@ -1078,7 +963,7 @@
 
 	Game.on('message:card', function (card_id)
 	{
-		console.log('CARD', arguments);
+		console.log('CARD "%s"', jup.cards.by_id[card_id].title);
 
 		if (card_id in this.data.hand)
 		{

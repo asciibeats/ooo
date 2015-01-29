@@ -8,16 +8,12 @@ var ooc = require('../client/source/ooc.js');
 var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
 
-ooo.TileMap = ooc.Class.extend(function ()
+ooo.TileMap = ooc.Class.extend(function (size)
 {
 	ooc.Class.call(this);
+	this.size = size;
 	this.tiles = [];
 	this.index = [];
-});
-
-ooo.TileMap.method('init', function (size)
-{
-	this.size = size;
 
 	//create tiles
 	for (var y = 0, i = 0; y < size; y++)
@@ -31,7 +27,7 @@ ooo.TileMap.method('init', function (size)
 			tile.i = i;
 			tile.x = x;
 			tile.y = y;
-			tile.data = new this.Data(this, i, x, y);
+			tile.data = this.initData(i, x, y);
 			this.tiles[y][x] = tile;
 			this.index[i] = tile;
 		}
@@ -56,9 +52,9 @@ ooo.TileMap.method('init', function (size)
 	}
 });
 
-ooo.TileMap.method('Data', function (i, x, y)
+ooo.TileMap.method('initData', function (i, x, y)
 {
-	this.type = 0;
+	return {type: 0};
 });
 
 ooo.TileMap.method('calcCost', function (data)
@@ -73,13 +69,8 @@ ooo.TileMap.method('calcDistance', function (a, b)
 	return Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
 });
 
-ooo.TileMap.method('findArea', function (open, range, calcCost)
+ooo.TileMap.method('findArea', function (open, range)
 {
-	if (!calcCost)
-	{
-		calcCost = this.calcCost;
-	}
-
 	for (var i = 0; i < open.length; i++)
 	{
 		open[i] = this.index[open[i]];
@@ -102,7 +93,7 @@ ooo.TileMap.method('findArea', function (open, range, calcCost)
 				continue;
 			}
 
-			var next_c = calcCost.call(this, next.data);
+			var next_c = this.calcCost.call(this, next.data);
 
 			if (next_c == undefined)
 			{
@@ -145,16 +136,11 @@ ooo.TileMap.method('findArea', function (open, range, calcCost)
 	return done;
 });
 
-ooo.TileMap.method('findPath', function (origin, target, calcCost)
+ooo.TileMap.method('findPath', function (origin, target)
 {
 	if (origin.i == target.i)
 	{
 		return {tiles: [], steps: [], cost: 0};
-	}
-
-	if (!calcCost)
-	{
-		calcCost = this.calcCost;
 	}
 
 	var done = [];
@@ -177,7 +163,7 @@ ooo.TileMap.method('findPath', function (origin, target, calcCost)
 				continue;
 			}
 
-			var next_c = calcCost.call(this, next.data);
+			var next_c = this.calcCost.call(this, next.data);
 
 			if (next_c == undefined)
 			{
@@ -323,7 +309,7 @@ ooo.Server = ooc.Class.extend(function (Client, port)
 
 			if (!client.expected[type])
 			{
-				client.close('unexpected message "%s"', type);
+				client.close('unexpected message');
 				return;
 			}
 

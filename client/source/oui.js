@@ -637,7 +637,7 @@ var oui = {};
 				tile.i = i;
 				tile.x = x;
 				tile.y = y;
-				tile.data = new this.Data(this, i, x, y);
+				tile.data = this.initData(i, x, y);
 				this.tiles[y][x] = tile;
 				this.index[i] = tile;
 			}
@@ -662,9 +662,9 @@ var oui = {};
 		}
 	});
 
-	oui.TileMap.method('Data', function (map, i, x, y)
+	oui.TileMap.method('initData', function (i, x, y)
 	{
-		this.type = 0;
+		return {type: 0};
 	});
 
 	oui.TileMap.method('calcCost', function (data)
@@ -700,11 +700,11 @@ var oui = {};
 		return (min_x + min_y);
 	});
 
-	oui.TileMap.method('findArea', function (open, range, calcCost)
+	oui.TileMap.method('findArea', function (open, range)
 	{
-		if (!calcCost)
+		if (open.length == 0)
 		{
-			calcCost = this.calcCost;
+			throw 'No tiles to go from';
 		}
 
 		//var g = {};
@@ -715,7 +715,7 @@ var oui = {};
 			open[i].g = 0;
 		}
 
-		var done = [];
+		var done = [];//sparse array
 
 		do
 		{
@@ -731,7 +731,7 @@ var oui = {};
 					continue;
 				}
 
-				var next_c = calcCost.call(this, next.data);
+				var next_c = this.calcCost.call(this, next.data);
 
 				if (next_c == null)
 				{
@@ -774,16 +774,11 @@ var oui = {};
 		return done;
 	});
 
-	oui.TileMap.method('findPath', function (origin, target, calcCost)
+	oui.TileMap.method('findPath', function (origin, target)
 	{
 		if (origin.i == target.i)
 		{
 			return {tiles: [], steps: [], cost: 0};
-		}
-
-		if (!calcCost)
-		{
-			calcCost = this.calcCost;
 		}
 
 		var done = [];
@@ -806,7 +801,7 @@ var oui = {};
 					continue;
 				}
 
-				var next_c = calcCost.call(this, next.data);
+				var next_c = this.calcCost.call(this, next.data);
 
 				if (next_c == null)
 				{

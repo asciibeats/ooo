@@ -8,110 +8,36 @@ var DENY_DELAY = 1;
 var ELEMS = ['Fire', 'Ice', 'Stone'];
 var POOL_TIMEOUT = 4;
 
+//mod access to map is baaaaad /// needs to be changed!!!!!!!!!!!1 (or does it??? maximum freedom for mods!!! think about whats really never needed and remove that from reach!!!)
+/////do not influence basic game loop and functionality!!!
+
 //////EVENT TRIGGGER (protectio/laws)
 //remove all recursive functions!!!!!!!
 //abwechselnd tag und nacht
 //nachwächter action: leuchten (erhöht vision/range)
 //group: TRAPS (react to steps/path)
 
-function initKnowledge (knowledge, info, keys)
+var World = ooc.Class.extend(function ()
 {
-	var open = [];
-
-	do
-	{
-		knowledge[info.id] = [info.type.id, info.state];
-
-		for (var child_id in info.children)
-		{
-			var child = info.children[child_id];
-
-			if ((child.type.group != 5) || (child.state[1] in keys))
-			{
-				ooc.push(child_id, knowledge, info.id, 2);
-				open.push(child);
-			}
-		}
-	}
-	while (info = open.pop())
-}
-
-function gatherKnowledge (knowledge, info, insight, keys)
-{
-	var next = [info, insight];
-	var open = [];
-
-	do
-	{
-		info = next[0];
-		insight = next[1];
-
-		if (!(info.id in knowledge))
-		{
-			knowledge[info.id] = [info.type.id];
-		}
-
-		if ((info.type.group != 5) && (info.type.group != 1))//temp!!!!gruppen überarbeiten/vereinfachen
-		{
-			insight -= info.state[1];
-
-			if (insight < 0)
-			{
-				continue;
-			}
-		}
-
-		knowledge[info.id][1] = info.state;
-
-		for (var child_id in info.children)
-		{
-			var child = info.children[child_id];
-
-			if ((child.type.group != 1))//temp!!!!gruppen überarbeiten/vereinfachen
-			{
-				if (insight < child.state[0])
-				{
-					continue;
-				}
-			}
-
-			ooc.push(child_id, knowledge, info.id, 2);
-
-			if ((child.type.group != 5) || (child.state[1] in keys))
-			{
-				open.push([child, insight]);
-			}
-		}
-	}
-	while (next = open.pop())
-}
-
-var World = ooo.TileMap.extend(function ()
-{
+	ooc.Class.call(this);
 	this.knowledge = {};
-	//this.decay = [];
-	ooo.TileMap.call(this);
 	this.realms = [];
+	this.chars = {};
 });
 
-World.method('Data', function (map, i, x, y)
+World.method('link', function (child, parent)
 {
-	this.info = map.spawn([1]);
+	child.parents[parent.id] = this.knowledge[parent.id];
+	child.parents[parent.id].children[child.id] = child;
 });
 
-World.method('link', function (info, parent)
+World.method('unlink', function (child, parent)
 {
-	info.parents[parent.id] = this.knowledge[parent.id];
-	info.parents[parent.id].children[info.id] = info;
+	delete child.parents[parent.id];
+	delete parent.children[child.id];
 });
 
-World.method('unlink', function (info, parent)
-{
-	delete info.parents[parent.id];
-	delete parent.children[info.id];
-});
-
-World.method('relink', function (info, parents)
+World.method('relinkParents', function (info, parents)
 {
 	for (var info_id in info.parents)
 	{
@@ -126,7 +52,7 @@ World.method('relink', function (info, parents)
 	}
 });
 
-World.method('relink2', function (info, children)
+World.method('relinkChildren', function (info, children)
 {
 	for (var info_id in info.children)
 	{
@@ -144,10 +70,10 @@ World.method('relink2', function (info, children)
 World.method('spawn', function (data, parents)//, decay
 {
 	var info = {};
-	info.id = ooc.fill(info, this.knowledge);//array mit gelöschten ids!!! (kein object mehr)
-	info.type = jup.infos[data[0]];
-	//info.argv = data[1] || [];
+	info.id = ooc.fill(info, this.knowledge);//array mit gelöschten ids!!! (kein object mehr)//per closure??: function (deleted) { return function ()
+	info.type = jup.infos.by_id[data[0]];
 	info.state = data[1] || ooc.clone(info.type.state);
+	//info.state = ooc.map(info.type.param, data[1] ? data[1] : info.type.state);
 	info.parents = {};
 	info.children = {};
 
@@ -176,26 +102,33 @@ World.method('spawn', function (data, parents)//, decay
 	return info;
 });
 
+World.method('transform', function (info_id, type, state)
+{
+	var info = this.knowledge[info_id];
+	info.type = jup.infos.by_id[type];
+	info.state = state || ooc.clone(info.type.state);
+});
+
 World.method('unspawn', function (info)
 {
 	delete this.knowledge[info.id];
 
-	for (var i in info.children)
+	for (var info_id in info.children)
 	{
-		var child = info.children[i];
+		var child = info.children[info_id];
 		this.unlink(child, info);
 		//delete child.parents[info.id];
 		//delete info.children[i];
 		
 		if (ooc.size(child.parents) == 0)
 		{
-			this.unspawn(i);
+			this.unspawn(child);
 		}
 	}
 
-	for (var i in info.parents)
+	for (var info_id in info.parents)
 	{
-		var parent = info.parents[i];
+		var parent = info.parents[info_id];
 		this.unlink(info, parent);
 	}
 });
@@ -242,7 +175,7 @@ World.method('rootsOf', function (info, group)
 	return roots;
 });
 
-World.method('birth', function (data, home, seat)
+World.method('deliver', function (data, home)
 {
 	var char = {};
 	char.info = this.spawn(data, [home]);
@@ -251,10 +184,14 @@ World.method('birth', function (data, home, seat)
 	char.task = this.spawn([23, [[home], 0, {}]], [char.mind.id]);
 	//char.inventory = {};
 	//char.pools = {};
-	var realm = this.realms[seat];
-	realm.chars[char.info.id] = char;
-	initKnowledge(realm.knowledge, char.info, {});
-	//return char;
+	this.chars[char.info.id] = char;
+	return char;
+});
+
+World.method('kill', function (char)
+{
+	this.unspawn(char.info);
+	delete this.chars[char.info.id];
 });
 
 var Realm = ooc.Class.extend(function (stats)
@@ -269,25 +206,239 @@ var Realm = ooc.Class.extend(function (stats)
 	this.briefing = {};
 });
 
-var Game = ooc.Class.extend(function (mode, rules)
+Realm.method('join', function (char)
+{
+	this.chars[char.info.id] = char;
+	initKnowledge(this.knowledge, char.info, {});
+});
+
+var Map = ooo.TileMap.extend(function (size)
+{
+	ooo.TileMap.call(this, size);
+});
+
+Map.method('initData', function (i, x, y)
+{
+	return {info: null};
+});
+
+Map.method('calcCost', function (data)
+{
+	return data.info.type.range;
+});
+
+function log_exception (exception, message)
+{
+	console.log(message);
+
+	if (exception.stack)
+	{
+		console.log(exception.stack);
+	}
+	else
+	{
+		console.log(exception.toString());
+	}
+}
+
+//apply effects on char
+function collideChars(char_a, power_a, char_b, power_b)
+{
+	console.log('Colliding (%d) against (%d)', char_a.info.id, char_b.info.id, power_a, power_b);
+
+	//CHECK HERE FOR TREATIES!!!!!
+
+	if (power_b[1])//sword
+	{
+		var damage = power_a[0] ? (power_b[1] - power_a[0]) : power_b[1];
+
+		if (damage > 0)
+		{
+			console.log('(%d) takes %d damage', char_a.info.id, damage);
+			char_a.info.state[2] -= damage;
+		}
+	}
+}
+
+//Game
+function resolveCollision (collision)
+{
+	//gather powers and merge/match (one shield absorbs one sword)
+	////create rule_solve_function
+
+	///jede karte hat ein oder mehr schild(schaden schlucken),schwert(schafen verursachen),taler(+gold),hand(+diplomatie),maske(+itemklauen),magie etc (upleveln / blitze king of tokyo) die bei kollisionen einen pool bilden und bei auflösung abgerechnet werden
+	////kollisionen können auch ganz bewusst herbeigeführt werden->angriff etc
+
+	///schwert (deal damage (-1 health))
+	///shield (absorb damage)
+	///smoke (escape undetected if not smaller (and steal sth from other char(s)?)
+	/////nachts +x smoke??
+	///hands (both get sum if both play hands)
+	///flash (wenn beide flash(haste) spielen wird der char mir mehr ausgeführt als wäre er allein)
+	///hearts??? (heal other chars (+1 health))
+
+	//KARTENIDEE: "Nichtangriffspakt" (wenn man kollidiert werden alle schwerter ignoriert)
+
+	var powers = {};
+
+	for (var info_id in collision)
+	{
+		var actions = collision[info_id];
+		var power = {};
+		console.log('+++ (%d) +++', info_id);
+
+		for (var i = 0; i < actions.length; i++)
+		{
+			var action = actions[i];
+			console.log('GAIN "%s" %s', action.card.title, JSON.stringify(action.card.power));
+			power = jup.addPower(power, action.card.power);
+		}
+
+		powers[info_id] = power;
+	}
+
+	//collide everybody with everybody else (cross)
+	for (var info_id_a in collision)
+	{
+		var char_a = this.world.chars[info_id_a];
+		var power_a = powers[info_id_a];
+
+		for (var info_id_b in collision)
+		{
+			if (info_id_a == info_id_b)
+			{
+				continue;
+			}
+
+			var char_b = this.world.chars[info_id_b];
+			var power_b = powers[info_id_b];
+			collideChars(char_a, power_a, char_b, power_b);
+		}
+	}
+
+	for (var info_id in collision)
+	{
+		var char = this.world.chars[info_id];
+
+		if (char.info.state[2] < 1)
+		{
+			console.log('(%d) died', info_id);
+		}
+	}
+}
+
+//Game
+function executeActions (actions)
+{
+	for (var i = 0; i < actions.length; i++)
+	{
+		var action = actions[i];
+
+		if (action.card.effect != null)
+		{
+			console.log('EFFECT "%s"', action.card.title);
+			action.card.effect(this.world, action.realm, action.char, action.info);//oder erstmal sammeln und später updaten???
+		}
+	}
+}
+
+function initKnowledge (knowledge, info, keys)
+{
+	var open = [];
+
+	do
+	{
+		if (!(info.id in knowledge))
+		{
+			knowledge[info.id] = [info.type.id, info.state];
+		}
+
+		for (var info_id in info.children)
+		{
+			var child = info.children[info_id];
+			ooc.push(info_id, knowledge, info.id, 2);
+
+			if (child.type.id == 42)
+			{
+				continue;
+			}
+
+			open.push(child);
+		}
+	}
+	while (info = open.pop())
+}
+
+function gatherKnowledge (knowledge, info, insight, keys)
+{
+	var next = [info, insight];
+	var open = [];
+
+	//TODO
+	////visible/invisible locks (invisible are spells nstuff)
+	////merken wo chars anfangen und abbrechen(mit insight) und dort weitermachen
+	///////zu kompliziert??? denke schon... wenns anders lange dauert und sich lohnt, vorher net... wenns anders lange dauert und sich lohnt, vorher net
+	////wie krieg ich diese mindloop an clients übertragen?
+
+	do
+	{
+		info = next[0];
+		insight = next[1];
+
+		if (!(info.id in knowledge))
+		{
+			knowledge[info.id] = [info.type.id, info.state];
+		}
+
+		for (var info_id in info.children)
+		{
+			var child = info.children[info_id];
+
+			if (insight < child.obscurity)
+			{
+				continue;
+			}
+
+			//is it locked?
+			/*if ((child.type.group == 3) && (child.type.subgroup == 1))
+			{
+				var key = child.state[0];
+
+				if (key in keys)
+				{
+					//use key only once
+					delete keys[key];
+				}
+				else
+				{
+					continue;
+				}
+			}*/
+
+			ooc.push(info_id, knowledge, info.id, 2);
+
+			if (child.type.id == 42)
+			{
+				continue;
+			}
+
+			open.push([child, insight - child.obscurity]);
+		}
+	}
+	while (next = open.pop())
+}
+
+var Game = ooc.Class.extend(function (mode, rules, core, stats)
 {
 	ooc.Class.call(this);
-	this.mode = mode;//get from somewhere getMode(name)
+	this.mode = mode;
 	this.rules = rules;
-	this.stats = {};//load from database fetchModStats(name);
-	this.core = mod;
-	this.size = 0;
-	this.time = 0;
-	this.tocks = 0;
+	this.core = core;
+	this.stats = stats;
 	this.open = true;
 	this.started = false;
+	this.size = 0;
 	this.players = {};
-	//this.seats = [];
-	this.world = new World();
-	this.actions = {};
-
-	//this.chars = {};
-	//this.traps = {};
 });
 
 Game.method('broadcast', function (type, data)//, store=true/false
@@ -318,14 +469,14 @@ Game.method('join', function (player)
 
 	try
 	{
-		var ready = this.core.ready(this.stats, this.rules, this.size);
+		this.map_size = this.core.ready(this.stats, this.rules, this.size);
 	}
 	catch (e)
 	{
-		console.log('MOD READY EXCEPTION');
+		log_exception(e, 'CORE READY EXCEPTION');
 	}
 
-	if (ready)
+	if (this.map_size)
 	{
 		console.log('READY %d %d', this.id, START_DELAY);
 		this.open = false;
@@ -346,6 +497,7 @@ Game.method('leave', function (player)
 		this.open = true;
 		clearTimeout(this.timeout);
 		delete this.timeout;
+		delete this.map_size;
 	}
 
 	if (this.size > 0)
@@ -365,16 +517,35 @@ Game.method('start', function ()
 	console.log('START %d', this.id);
 	delete this.timeout;
 	this.started = true;//move to other container instead!!!!!!!!!!!!!!
+	this.actions = {};
+	this.time = 0;
+	this.tocks = 0;
+	this.map = new Map(this.map_size);
+	this.world = new World();
+
+	for (var i = 0; i < this.map.index.length; i++)
+	{
+		this.map.index[i].data.info = this.world.spawn([0]);
+	}
+
 	var seat = 0;
 
 	for (var name in this.players)
 	{
 		var player = this.players[name];
 		player.seat = seat;
-		//this.seats[seat] = player;
-		var stats = {};//load from database fetchModePlayerStats(name, mode);
-		this.world.realms[seat] = new Realm(stats);//seat: seat, 
+		var stats = {};//fetchPlayerStats(mode, name);
+		this.world.realms[seat] = new Realm(stats);
 		seat++;
+	}
+
+	try
+	{
+		this.core.start(this.stats, this.rules, this.world);
+	}
+	catch (e)
+	{
+		log_exception(e, 'CORE START EXCEPTION');
 	}
 
 	this.tick();
@@ -383,7 +554,6 @@ Game.method('start', function ()
 Game.method('tick', function ()
 {
 	console.log('TICK %d %d', this.id, this.time);
-
 	/*/remove deprecated info
 	var obsolete = this.world.decay.shift();
 
@@ -396,142 +566,21 @@ Game.method('tick', function ()
 		}
 	}*/
 
-	//consume items & init knowledge
-	/*for (var char_id in this.chars)
-	{
-		var char = this.chars[char_id];
-
-		for (var info_id in char.info.children)
-		{
-			var info = char.info.children[info_id];
-
-			if (info.type.group == 3)
-			{
-				info.type.effect.call(char);
-				this.world.unspawn(info);
-			}
-		}
-
-		char.realm.knowledge[char_id] = {};
-		initKnowledge(char.realm.knowledge[char_id], char.info, {});
-	}*/
-
-	//trigger traps
-	/*for (var tile_i in this.traps)
-	{
-		var tile = this.world.index[tile_i];
-		var chars = this.world.charsAt(tile_i);
-
-		for (var i = 0; i < this.traps[tile_i].length; i++)
-		{
-			//test trigger conditions
-			var trap = this.traps[tile_i][i];
-
-			if (trap.trigger(tile, chars))
-			{
-				trap.effect(tile, chars);
-			}
-			else
-			{
-				trap.time++;
-			}
-		}
-	}*/
-
-	//trigger events
-	/*for (var tile_i in this.pools)
-	{
-		var pool = this.pools[tile_i];
-		var power = jup.poolPower(pool.info.state[2]);
-		var event = jup.matchEvent(power);
-
-		//apply effects or increase timer
-		if (event && (pool.info.state[3] == event.time))
-		{
-			console.log('EVENT "%s" at (%d)', event.title, tile_i);
-			var tile = this.world.index[tile_i];
-
-			if (event.tile_effect)
-			{
-				event.tile_effect.call(this, tile);
-			}
-
-			for (var char_id in pool.info.state[2])
-			{
-				var char = this.chars[char_id];
-
-				if (event.char_effect)
-				{
-					event.char_effect.call(this, tile.i, char);
-				}
-
-				for (var signature in pool.info.state[2][char_id])
-				{
-					char.info.state[5] = jup.mergePower(char.info.state[5], pool.info.state[2][char_id][signature]);
-					delete char.pools[signature];
-				}
-			}
-
-			this.world.unspawn(pool.info);
-			delete this.pools[tile_i];
-		}
-		else if (pool.info.state[3] == POOL_TIMEOUT)
-		{
-			console.log('TIMEOUT at (%d)', tile_i);
-
-			for (var char_id in pool.info.state[2])
-			{
-				var char = this.chars[char_id];
-
-				for (var signature in pool.info.state[2][char_id])
-				{
-					char.info.state[5] = jup.mergePower(char.info.state[5], pool.info.state[2][char_id][signature]);
-					delete char.pools[signature];
-				}
-			}
-
-			this.world.unspawn(pool.info);
-			delete this.pools[tile_i];
-		}
-		else
-		{
-			pool.info.state[3]++;
-		}
-	}*/
 	for (var tile_i in this.actions)
 	{
-		//var tile = this.world.index[tile_i];
+		var collision = this.actions[tile_i];
+		//var tile = this.map.index[tile_i];
 
-		if (ooc.size(this.actions[tile_i]) > 1)
+		if (ooc.size(collision) > 1)
 		{
-			console.log('Kollision!!');
-			//gather gains and merge/match (one shield absorbs one sword)
-			////create rule_solve_function
-
-			///jede karte hat ein oder mehr schild(schaden schlucken),schwert(schafen verursachen),taler(+gold),hand(+diplomatie),maske(+itemklauen),magie etc (upleveln / blitze king of tokyo) die bei kollisionen einen pool bilden und bei auflösung abgerechnet werden
-			////kollisionen können auch ganz bewusst herbeigeführt werden->angriff etc
-
-			///schwert (deal damage/do nothing)
-			///shield (absorb damage/do nothing)
-			///smoke (???/escape undetected if not smaller)
-			/////nachts +x smoke??
-			///hands (both get sum if both play hands)
+			console.log('Collision at (%d)', tile_i);
+			resolveCollision.call(this, collision);
 		}
 		else
 		{
-			for (var info_id in this.actions[tile_i])
-			{
-				for (var i = 0; i < this.actions[tile_i][info_id].length; i++)
-				{
-					var action = this.actions[tile_i][info_id][i];
-
-					if (action.card.effect != null)
-					{
-						console.log('EFFECT "%s"', action.card.title);
-						action.card.effect(this.world, action.realm, action.char, action.info);//oder erstmal sammeln und später updaten???
-					}
-				}
-			}
+			console.log('Execution at (%d)', tile_i);
+			var actions = ooc.minKeyValue(collision);
+			executeActions.call(this, actions);
 		}
 	}
 
@@ -541,20 +590,10 @@ Game.method('tick', function ()
 	}
 	catch (e)
 	{
-		console.log('MOD TICK EXCEPTION');
-
-		if (e.stack)
-		{
-			console.log(e.stack);
-		}
-		else
-		{
-			console.log(e.toString());
-		}
+		log_exception(e, 'CORE TICK EXCEPTION');
 	}
 
-	//update realms
-	//for (var seat = 0; seat < this.world.realms.length; seat++)
+	//update realms (könnte man super parallelisieren!!!! und ist auch das teuerste; nodejs nachschlagen; mit callback??)
 	for (var name in this.players)
 	{
 		var player = this.players[name];
@@ -564,15 +603,16 @@ Game.method('tick', function ()
 		for (var info_id in realm.chars)
 		{
 			var char = realm.chars[info_id];
-			var area = this.world.findArea(ooc.clone(char.task.state[0]), char.info.state[2], function (data) { return data.info.state[2] });
+			var area = this.map.findArea(ooc.clone(char.task.state[0]), char.info.state[0]);
 
 			//var task = ooc.map(char.task.type.param, char.task.state);
 			//abgeschlossene aktionen abziehen!!!!(oder noch bestehende aktionen addieren??)
 			//determineTask(task, char.pools);
 			//task.range = 0;//pay only once for path!? (event exec verzögerungen sollten aber in extra kosten resultieren!!!
 			//char.task.state = ooc.index(char.task.type.param, task);
+			char.task.state = [[char.home.state[0]], 0, {}];//temp
 
-			this.world.relink2(char.mind, [char.home.id, char.task.id]);
+			this.world.relinkChildren(char.mind, [char.home.id, char.task.id]);
 
 			for (var tile_i in area)
 			{
@@ -582,7 +622,7 @@ Game.method('tick', function ()
 			}
 
 			initKnowledge(realm.knowledge, char.info, {});
-			gatherKnowledge(realm.knowledge, char.mind, char.info.state[3], {'xxx': true});
+			gatherKnowledge(realm.knowledge, char.mind, char.info.state[1], {'xxx': true});
 		}
 
 		if (player.client)
@@ -604,22 +644,22 @@ Game.method('tick', function ()
 	this.tocks = 0;
 });
 
-Game.method('draw', function (player, type)
+Game.method('draw', function (player, group)
 {
-	console.log('DRAW %d %s %d', this.id, player.name, type);
+	console.log('DRAW %d %s %d', this.id, player.name, group);
 	var realm = this.world.realms[player.seat];
 
 	try
 	{
-		var card_id = this.core.draw(this.stats, this.rules, this.world, realm, this.time, type);
+		var card_id = this.core.draw(this.stats, this.rules, this.world, realm, this.time, group);
 	}
 	catch (e)
 	{
-		console.log('MOD DRAW EXCEPTION');
+		log_exception(e, 'CORE DRAW EXCEPTION');
 	}
 
-	realm.briefing.draw--;
 	realm.hand.push(card_id);
+	realm.briefing.draw--;
 
 	if (player.client)
 	{
@@ -651,18 +691,55 @@ Game.method('tock', function (player, actions)
 		}
 
 		var char = realm.chars[info_id];
-		var home = this.world.index[char.home.state[0]];
+		var home = this.map.index[char.home.state[0]];
 		var task = ooc.map(char.task.type.param, char.task.state);
 		task.route = ooc.hash(task.route);
 		tasks[info_id] = task;
+		var hand_i = 0;
 
 		for (var tile_i in actions[info_id])
 		{
 			for (var i = 0; i < actions[info_id][tile_i].length; i++)
 			{
 				var action = actions[info_id][tile_i][i];
+				var card_id = action[0];
+
+				if (!(card_id in jup.cards.by_id))
+				{
+					throw 'no card';
+				}
+
+				var card = jup.cards.by_id[card_id];
+				hand_i = realm.hand.indexOf(card.id, hand_i);
+
+				if (hand_i < 0)
+				{
+					throw 'not holding';
+				}
+
+				var target_id = action[1];
+
+				if (!(target_id in this.world.knowledge))
+				{
+					throw 'no info';
+				}
+
+				var info = this.world.knowledge[target_id];
+
+				if (!card.condition(info))
+				{
+					throw 'condition fail';
+				}
+
+				var roots = this.world.rootsOf(info, 1);
+
+				if (!(tile_i in roots))
+				{
+					throw 'no root';
+				}
+
 				var tile = home;
-				var steps = action[0];
+				var steps = action[2];
 
 				for (var j = 0; j < steps.length; j++)
 				{
@@ -674,41 +751,25 @@ Game.method('tock', function (player, actions)
 					}
 
 					task.route[tile.i] = true;
-					task.range += tile.data.info.state[2];
+					task.range += tile.data.info.type.range;
 				}
 
 				if (tile.i != tile_i)
 				{
-					throw 'target mismatch';
+					throw 'tile mismatch';
 				}
 
-				var card_id = action[1];
-				var card = jup.cards[card_id];
-
-				if (!card.condition(tile.data.info))
-				{
-					throw 'card misplace';
-				}
-
-				var info = this.world.knowledge[action[2]];
-				var roots = this.world.rootsOf(info, 0);
-
-				if (!(tile_i in roots))
-				{
-					throw 'no info here';
-				}
-
-				task.cost = jup.addCost(task.cost, card.cost);
+				task.power = jup.addPower(task.power, card.power);
 				actions[info_id][tile_i][i] = {realm: realm, char: char, card: card, info: info};
 			}
 		}
 
-		if (task.range > char.info.state[2])
+		if (task.range > char.info.state[0])
 		{
 			throw 'exceeding range';
 		}
 
-		if (!jup.matchCost(task.cost, char.info.state[5]))
+		if (!jup.matchPower(task.power, char.info.state[3]))
 		{
 			throw 'exceeding power';
 		}
@@ -720,9 +781,9 @@ Game.method('tock', function (player, actions)
 		var char = realm.chars[info_id];
 		var task = tasks[info_id];
 		task.route = ooc.intkeys(task.route);
-		this.world.relink(char.info, task.route);
-		char.info.state[2] -= task.range;
-		char.info.state[5] = jup.subtractCost(char.info.state[5], task.cost);
+		this.world.relinkParents(char.info, task.route);
+		char.info.state[0] -= task.range;
+		char.info.state[3] = jup.subtractPower(char.info.state[3], task.power);
 		char.task.state = ooc.index(char.task.type.param, task);
 
 		for (var tile_i in actions[info_id])
@@ -730,6 +791,8 @@ Game.method('tock', function (player, actions)
 			for (var i = 0; i < actions[info_id][tile_i].length; i++)
 			{
 				var action = actions[info_id][tile_i][i];
+				realm.hand.splice(realm.hand.indexOf(action.card.id), 1);
+				console.log(realm.hand);
 				ooc.push(action, this.actions, tile_i, info_id);
 			}
 		}
@@ -749,6 +812,7 @@ Game.method('tock', function (player, actions)
 	}
 });
 
+//connection object (non persistent)
 var Client = ooo.Client.extend(function (server, socket)
 {
 	ooo.Client.call(this, server, socket);
@@ -852,7 +916,9 @@ Client.on('message:login', function (name, pass)
 Client.on('message:host', function (mode, rules)
 {
 	console.log('HOST %s %s', this.player.name, JSON.stringify(rules));
-	var game = new Game(mode, rules);
+	var core = mod;//getCore(mode);
+	var stats = {};//getStats(mode);
+	var game = new Game(mode, rules, core, stats);
 	game.id = ooc.fill(game, this.server.games);
 	game.join(this.player);
 	this.expect('leave');
@@ -887,6 +953,7 @@ Client.on('message:tock', function (actions)
 	this.player.game.tock(this.player, actions);
 });
 
+//Account Object (with persistent elements (name, pass, email, stats, etc)
 var Player = ooc.Class.extend(function (name, pass)
 {
 	ooc.Class.call(this);
@@ -943,9 +1010,9 @@ var Server = ooo.Server.extend(function (Client, port, state)
 		var game = new Game(state.games[i].size);
 		game.id = ooc.fill(game, this.games);
 
-		for (var name in state.games[i].world.realms)
+		for (var name in state.games[i].map.realms)
 		{
-			var realm = state.games[i].world.realms[name];
+			var realm = state.games[i].map.realms[name];
 			var player = this.players[name];
 			var seat = game.realms.length;
 			game.world.realms[seat] = realm;
