@@ -1,22 +1,23 @@
 'use strict';
 var ooo = {};
 //////TODO
-//trigger update_xy_asd in scene.show()
+//hitActor verienheitlichen
+//block events globally
+//ignore mouse_drag, mouse_drop by default and automatically listen on mouse_grab
+///ignore again on mouse_drop
 //functionality for STAGE: transition between multiple children stages (one inner mask + other outer mask -> mask expand/shrink)
-//IGNORE/LISTEN einzelne events!!!!
 //Textumbruch in ooo.Text()
 //cell auto resize; alles relativ zu mid??!!! (im moment bei layout.right relativ zu rel + width)
 ///ooc.Class für Actor benutzen!!!!
 ///tilemap rename tiles->coords index->tiles
-//system vars von user vars trennen!!! (passiert zu oft daß man wichtige classvars pberschreibet weil man nicht dran denkt daß die schon existiert (und ich habs geschrieben!!!))
+//system vars von user vars trennen (underscore für sysvars???? this._rel_x)!!! (passiert zu oft daß man wichtige classvars pberschreibet weil man nicht dran denkt daß die schon existiert (und ich habs geschrieben!!!))
 //////user vars in data objekt??
-//wenn exception in draw function catch -> this.once = false; this.update = false;
 //svg parser!!!!!!! ooo.Vector ooo.SVG ??
 //aufräumen!!!
-//events: type:name e.g. canvas:frame, mouse:down
 //layout/positionsangaben angle etc vereinheitlichen
-//refact helper functions (e.g. fill -> ooo.fill) // separate datei für browser & node
 //keyboard input eingrenzen (keyset = {})
+//retrieve constructor name on error
+
 (function ()
 {
 	var DRAG_OFF = 3;
@@ -218,13 +219,12 @@ var ooo = {};
 			}
 			catch (e)
 			{
-				console.log('EVENT EXCEPTION %s', type);
+				this.ignore(type);
+				console.log('ooo: exception in event for %s (%d)', '<todo: type of actor>', this.id);
+				console.log('ooo: ignoring future events of type \'%s\'', type);
+				console.log(this);
 				console.log(e.toString());
-
-				if (e.stack)
-				{
-					console.log(e.stack);
-				}
+				console.log(e.stack);
 			}
 		}
 	}
@@ -288,6 +288,19 @@ var ooo = {};
 	{
 		ooo.Actor.call(this);
 		this.layout = layout || {'left': 0, 'right': 0, 'top': 0, 'bottom': 0};
+	});
+
+	ooo.Cell.method('arrange', function (layout)
+	{
+		this.layout = layout || {'left': 0, 'right': 0, 'top': 0, 'bottom': 0};
+
+		//if (this.root && this.root.loaded)
+		if (this.parent)
+		{
+			this.trigger('resize', [this.parent.width, this.parent.height]);
+		}
+
+		return this;
 	});
 
 	ooo.Cell.on('resize', function (width, height)
@@ -383,19 +396,6 @@ var ooo = {};
 		this.place(rel_x, rel_y).resize(width, height);
 	});
 
-	ooo.Cell.method('arrange', function (layout)
-	{
-		this.layout = layout || {'left': 0, 'right': 0, 'top': 0, 'bottom': 0};
-
-		//if (this.root && this.root.loaded)
-		if (this.parent)
-		{
-			this.trigger('resize', [this.parent.width, this.parent.height]);
-		}
-
-		return this;
-	});
-
 	//Simple colored Box for testing
 	ooo.Box = ooo.Cell.extend(function (color, layout)
 	{
@@ -428,104 +428,63 @@ var ooo = {};
 		context.fillText(this.string, 0, 0);
 	});
 
-	//Container for actors
-	ooo.Scene = ooo.Cell.extend(function (layout)
+	//Actor
+	function hitActor3 (button, down_x, down_y, drag_x, drag_y)
 	{
-		ooo.Cell.call(this, layout);
-		this.scale_x = 1;
-		this.scale_y = 1;
-		this.children = [];
-		this.layers = [];
-	});
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
 
-	ooo.Scene.prepare = addEvent('prepare');
-	ooo.Scene.cleanup = addEvent('cleanup');
-	ooo.Scene.bubble = addEvent('bubble');
-
-	ooo.Scene.on('show', function (root, parent)
-	{
-		ooo.Cell.prototype.events.on.show.call(this, root, parent);
-		return [root, this];
-	});
-
-	ooo.Scene.on('resize', function (width, height)
-	{
-		ooo.Cell.prototype.events.on.resize.call(this, width, height);
-		return [this.width, this.height];
-	});
-
-	ooo.Scene.prepare('draw', function (time, context)
-	{
-		context.save();
-		context.scale(this.scale_x, this.scale_y);
-		context.globalAlpha = this.alpha;
-		context.translate(this.rel_x + this.mid_x, this.rel_y + this.mid_y);
-		context.rotate(this.angle);
-		context.translate(-this.mid_x, -this.mid_y);
-	});
-
-	ooo.Scene.cleanup('draw', function (time, context)
-	{
-		context.restore();
-	});
-
-	ooo.Scene.method('hideChildren', function ()
-	{
-		for (var i = 0; i < this.layers.length; i++)
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
 		{
-			var lid = this.layers[i];
-			var layer = this.children[lid];
-
-			for (var id in layer)
-			{
-				var child = layer[id];
-				delete child.id;
-				delete child.layer;
-				delete child.parent;
-				delete child.root;
-			}
+			return false;
 		}
+		else
+		{
+			//this.listen('mouse_drag', 'mouse_drop');
+			return [button, down_x, down_y, drag_x, drag_y];
+		}
+	}
 
-		this.children = [];
-		this.layers = [];
-		return this;
-	});
-
-	ooo.Scene.method('show', function (actor, layer)
+	//Actor
+	function hitActor (button, down_x, down_y)
 	{
-		if (actor.id != undefined)
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
 		{
-			actor.hide();
+			return false;
 		}
-
-		if (layer == null)
+		else
 		{
-			layer = 0;
+			return [button, down_x, down_y];
 		}
+	}
 
-		if (!this.children[layer])
+	//Actor
+	function hitActor2 (down_x, down_y)
+	{
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
 		{
-			this.children[layer] = {};
-			//insert + sort could potentially be optimized
-			this.layers.push(layer);
-			this.layers.sort(ascend);
+			return false;
 		}
-
-		actor.id = ooc.fill(actor, this.children[layer]);
-		actor.layer = layer;
-		actor.parent = this;
-
-		if (this.root && this.root.loaded)
+		else
 		{
-			actor.trigger('show', [this.root, this]);
-			actor.trigger('resize', [this.width, this.height]);
-
-			//iterate through data and:
-			//actor.trigger('update_xy', [this.root.data]);
+			return [down_x, down_y];
 		}
-
-		return this;
-	});
+	}
 
 	//Scene
 	function triggerLayer (i, type, argv, bubble)
@@ -554,6 +513,119 @@ var ooo = {};
 			triggerActor.call(this, child, 'cleanup', type, argv);
 		}
 	}
+
+	//Container for actors
+	ooo.Scene = ooo.Cell.extend(function (layout)
+	{
+		ooo.Cell.call(this, layout);
+		this.scale_x = 1;
+		this.scale_y = 1;
+		this.data = {};
+		this.children = [];
+		this.layers = [];
+	});
+
+	ooo.Scene.method('put', function (value, key)
+	{
+		Array.prototype.splice.call(arguments, 1, 0, this.data);
+		ooc.put.apply(null, arguments);
+		this.trigger('update_' + key, [this.data[key]]);
+	});
+
+	ooo.Scene.method('add', function (value, key)
+	{
+		Array.prototype.splice.call(arguments, 1, 0, this.data);
+		ooc.add.apply(null, arguments);
+		this.trigger('update_' + key, [this.data[key]]);
+	});
+
+	ooo.Scene.method('push', function (value, key)
+	{
+		Array.prototype.splice.call(arguments, 1, 0, this.data);
+		ooc.push.apply(null, arguments);
+		this.trigger('update_' + key, [this.data[key]]);
+	});
+
+	ooo.Scene.method('delete', function (key)
+	{
+		Array.prototype.unshift.call(arguments, this.data);
+		ooc.delete.apply(null, arguments);
+		this.trigger('update_' + key, [this.data[key]]);
+	});
+
+	ooo.Scene.method('pop', function (key)
+	{
+		Array.prototype.unshift.call(arguments, this.data);
+		ooc.pop.apply(null, arguments);
+		this.trigger('update_' + key, [this.data[key]]);
+	});
+
+	ooo.Scene.method('hideChildren', function ()
+	{
+		for (var i = 0; i < this.layers.length; i++)
+		{
+			var lid = this.layers[i];
+			var layer = this.children[lid];
+
+			for (var id in layer)
+			{
+				var child = layer[id];
+				delete child.id;
+				delete child.layer;
+				delete child.parent;
+				delete child.root;
+			}
+		}
+
+		this.children = [];
+		this.layers = [];
+		return this;
+	});
+
+	ooo.Scene.method('show', function (actor, layer)
+	{
+		if (layer == null)
+		{
+			layer = 0;
+		}
+
+		if (actor.id != undefined)
+		{
+			if ((layer in this.children) && (actor.id in this.children[layer]))
+			{
+				return;
+			}
+			else
+			{
+				actor.hide();
+			}
+		}
+
+		if (!(layer in this.children))
+		{
+			this.children[layer] = {};
+			//insert + sort could potentially be optimized
+			this.layers.push(layer);
+			this.layers.sort(ascend);
+		}
+
+		actor.id = ooc.fill(actor, this.children[layer]);
+		actor.layer = layer;
+		actor.parent = this;
+
+		if (this.root && this.root.loaded)
+		{
+			actor.trigger('show', [this.root, this]);
+			actor.trigger('resize', [this.width, this.height]);
+
+			for (var key in this.data)
+			{
+				this.trigger('update_' + key, [this.data[key]]);
+			}
+		}
+
+		return this;
+	});
 
 	ooo.Scene.method('trigger', function (type, argv, bubble)
 	{
@@ -597,51 +669,46 @@ var ooo = {};
 			return false;
 		}
 
-		triggerActor.call(this, this, 'bubble', type, argv);
+		return triggerActor.call(this, this, 'bubble', type, argv);
 	});
 
-	//Actor
-	function hitActor (button, down_x, down_y)
+	ooo.Scene.prepare = addEvent('prepare');
+	ooo.Scene.cleanup = addEvent('cleanup');
+	ooo.Scene.bubble = addEvent('bubble');
+
+	ooo.Scene.on('show', function (root, parent)
 	{
-		var shift_x = down_x - this.rel_x - this.mid_x;
-		var shift_y = down_y - this.rel_y - this.mid_y;
-		var angle = -this.angle;
-		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
-		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		return [root, this];
+	});
 
-		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
-		{
-			return false;
-		}
-		else
-		{
-			return [button, down_x, down_y];
-		}
-	}
-
-	function hitActor2 (down_x, down_y)
+	ooo.Scene.on('resize', function (width, height)
 	{
-		var shift_x = down_x - this.rel_x - this.mid_x;
-		var shift_y = down_y - this.rel_y - this.mid_y;
-		var angle = -this.angle;
-		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
-		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+		ooo.Cell.prototype.events.on.resize.call(this, width, height);
+		return [this.width, this.height];
+	});
 
-		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
-		{
-			return false;
-		}
-		else
-		{
-			return [down_x, down_y];
-		}
-	}
+	ooo.Scene.prepare('draw', function (time, context)
+	{
+		context.save();
+		context.scale(this.scale_x, this.scale_y);
+		context.globalAlpha = this.alpha;
+		context.translate(this.rel_x + this.mid_x, this.rel_y + this.mid_y);
+		context.rotate(this.angle);
+		context.translate(-this.mid_x, -this.mid_y);
+	});
 
 	//layers komplett abschaffen? -> array also reihenfolge nicht undefined -> insert before after push, unshift//array id damit auch abschaffen
 	//Actor
 	ooo.Scene.prepare('mouse_down', hitActor);
+	ooo.Scene.prepare('mouse_grab', hitActor3);
 	ooo.Scene.prepare('mouse_click', hitActor);
 	ooo.Scene.prepare('mouse_over', hitActor2);
+
+	ooo.Scene.cleanup('draw', function (time, context)
+	{
+		context.restore();
+	});
 
 	//Scene with own canvas
 	ooo.Stage = ooo.Scene.extend(function (layout)
@@ -651,27 +718,6 @@ var ooo = {};
 		this.context = this.canvas.getContext('2d');
 		this.update = true;
 		this.once = false;
-	});
-
-	ooo.Stage.on('draw', function (time, context)
-	{
-		if (this.update || this.once)
-		{
-			this.once = false;
-			return [time, this.context];
-		}
-		else
-		{
-			return false;
-		}
-	});
-
-	ooo.Stage.bubble('draw', function (time, context)
-	{
-		if (context)
-		{
-			context.drawImage(this.canvas, 0, 0);
-		}
 	});
 
 	ooo.Stage.method('resize', function (width, height)
@@ -702,96 +748,25 @@ var ooo = {};
 		this.context.restore();
 	});
 
-	function triggerPutPush (argv)
+	ooo.Stage.on('draw', function (time, context)
 	{
-		var value = this.data;
-		var type = 'update';
-
-		do
+		if (this.update || this.once)
 		{
-			var key = argv.shift()
-			value = value[key];
-			type += '_' + key;
-			this.trigger(type, [value]);
+			this.once = false;
+			return [time, this.context];
 		}
-		while (argv.length > 0)
-	}
-
-	function triggerDeletePop (argv)
-	{
-		var value = this.data;
-		var type = 'update';
-
-		do
+		else
 		{
-			var key = argv.shift();
-			value = value[key];
-			type += '_' + key;
-			this.trigger(type, [value]);
+			return false;
 		}
-		while (value != undefined)
-	}
-
-	//root actor to be embedded into html
-	ooo.Root = ooo.Stage.extend(function (hook, color)
-	{
-		ooo.Stage.call(this);
-		this.canvas.style.position = 'absolute';
-		this.canvas.focus();
-		this.hook = hook;
-		this.hook.style.overflow = 'hidden';
-		this.hook.appendChild(this.canvas);
-		this.resize(hook.clientWidth, hook.clientHeight);
-		this.context.fillStyle = color || '#444';
-		this.context.fillRect(0, 0, this.width, this.height);
-		this.fullscreen = false;
-		this.loaded = false;
-		this.root = this;
-		this.assets = {};
-		this.images = {};
-		this.data = {};
 	});
 
-	ooo.Root.method('put', function (value)
+	ooo.Stage.bubble('draw', function (time, context)
 	{
-		var argv = Array.prototype.slice.call(arguments);
-		argv.splice(1, 0, this.data);
-		ooc.put.apply(null, argv);
-		argv.splice(0, 2);
-		triggerPutPush.call(this, argv);
-	});
-
-	ooo.Root.method('delete', function ()
-	{
-		var argv = Array.prototype.slice.call(arguments);
-		argv.unshift(this.data);
-		ooc.delete.apply(null, argv);
-		argv.shift();
-		triggerDeletePop.call(this, argv);
-	});
-
-	ooo.Root.method('push', function (value)
-	{
-		var argv = Array.prototype.slice.call(arguments);
-		argv.splice(1, 0, this.data);
-		ooc.push.apply(null, argv);
-		argv.splice(0, 2);
-		triggerPutPush.call(this, argv);
-	});
-
-	ooo.Root.method('pop', function ()
-	{
-		var argv = Array.prototype.slice.call(arguments);
-		argv.unshift(this.data);
-		var value = ooc.pop.apply(null, argv);
-		argv.shift();
-		triggerDeletePop.call(this, argv);
-		return value;
-	});
-
-	ooo.Root.method('load', function (name, source, width, height)
-	{
-		this.assets[name] = {source: source, width: width, height: height};
+		if (context)
+		{
+			context.drawImage(this.canvas, 0, 0);
+		}
 	});
 
 	function loaded (root, asset, image)
@@ -824,6 +799,30 @@ var ooo = {};
 			}
 		}
 	}
+
+	//root actor to be embedded into html
+	ooo.Root = ooo.Stage.extend(function (hook, color)
+	{
+		ooo.Stage.call(this);
+		this.canvas.style.position = 'absolute';
+		this.canvas.focus();
+		this.hook = hook;
+		this.hook.style.overflow = 'hidden';
+		this.hook.appendChild(this.canvas);
+		this.resize(hook.clientWidth, hook.clientHeight);
+		this.context.fillStyle = color || '#444';
+		this.context.fillRect(0, 0, this.width, this.height);
+		this.fullscreen = false;
+		this.loaded = false;
+		this.root = this;
+		this.assets = {};
+		this.images = {};
+	});
+
+	ooo.Root.method('load', function (name, source, width, height)
+	{
+		this.assets[name] = {source: source, width: width, height: height};
+	});
 
 	ooo.Root.method('open', function ()
 	{
@@ -893,8 +892,6 @@ var ooo = {};
 		var down_y = 0;
 		var drag_x = 0;
 		var drag_y = 0;
-		var argv = [0];
-		var requestFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame;
 		var that = this;
 
 		function on_mousedown (event)
@@ -903,8 +900,6 @@ var ooo = {};
 			down_y = event.clientY;
 			down = true;
 			that.trigger('mouse_down', [event.button, down_x, down_y], true);
-			//event.preventDefault();
-			//event.stopPropagation();
 		}
 
 		function on_mousemove (event)
@@ -925,8 +920,7 @@ var ooo = {};
 				else if ((Math.abs(drag_x) > DRAG_OFF) || (Math.abs(drag_y) > DRAG_OFF))
 				{
 					drag = true;
-					//that.trigger('mouse_grab', [drag_x, drag_y], true);
-					that.trigger('mouse_drag', [drag_x, drag_y], true);
+					that.trigger('mouse_grab', [event.button, down_x, down_y, drag_x, drag_y], true);
 				}
 			}
 		}
@@ -937,19 +931,15 @@ var ooo = {};
 
 			if (drag)
 			{
-				that.trigger('mouse_drop', [event.clientX, event.clientY], true);
+				drag = false;
 				drag_x = 0;
 				drag_y = 0;
-				drag = false;
+				that.trigger('mouse_drop', [event.clientX, event.clientY], true);
 			}
 			else
 			{
 				that.trigger('mouse_click', [event.button, down_x, down_y], true);
 			}
-
-			//that.canvas.removeEventListener('mousemove', on_mousemove);
-			//event.preventDefault();
-			//event.stopPropagation();
 		}
 
 		function on_mouseout (event)
@@ -983,6 +973,9 @@ var ooo = {};
 			}
 		}
 
+		var argv = [0];
+		var requestFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame;
+
 		function on_resize (event)
 		{
 			that.trigger('resize', [that.hook.clientWidth, that.hook.clientHeight]);
@@ -996,8 +989,8 @@ var ooo = {};
 			that.trigger('draw', argv);
 		}
 
-		this.canvas.addEventListener('mousemove', on_mousemove);
 		this.canvas.addEventListener('mousedown', on_mousedown);
+		this.canvas.addEventListener('mousemove', on_mousemove);
 		this.canvas.addEventListener('mouseup', on_mouseup);
 		this.canvas.addEventListener('mouseout', on_mouseout);
 		window.addEventListener('keydown', on_keydown);

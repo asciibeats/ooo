@@ -13,6 +13,71 @@ if (typeof module == 'object')
 		return Func.bind.apply(Func, [Func].concat(argv));
 	}
 
+	ooc.addCount = function (a, b)
+	{
+		var count = ooc.clone(a);
+
+		for (var type in b)
+		{
+			if (type in count)
+			{
+				if (count[type] == -b[type])
+				{
+					delete count[type];
+				}
+				else
+				{
+					count[type] += b[type];
+				}
+			}
+			else
+			{
+				count[type] = b[type];
+			}
+		}
+
+		return count;
+	}
+
+	ooc.subtractCount = function (a, b)
+	{
+		var count = ooc.clone(a);
+
+		for (var type in b)
+		{
+			if (type in count)
+			{
+				if (count[type] == b[type])
+				{
+					delete count[type];
+				}
+				else
+				{
+					count[type] -= b[type];
+				}
+			}
+			else
+			{
+				count[type] = -b[type];
+			}
+		}
+
+		return count;
+	}
+
+	ooc.matchCount = function (a, b)
+	{
+		for (var type in a)
+		{
+			if (b[type] < a[type])
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	ooc.pos = function (value)
 	{
 		return value > 0 ? value : 0;
@@ -79,6 +144,18 @@ if (typeof module == 'object')
 			object[key] = value;
 		}
 	});
+
+	ooc.total = function (object)
+	{
+		var sum = 0;
+
+		for (var key in object)
+		{
+			sum += object[key];
+		}
+
+		return sum;
+	}
 
 	ooc.delete = function (object)
 	{

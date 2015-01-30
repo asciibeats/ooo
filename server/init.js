@@ -199,7 +199,7 @@ var Realm = ooc.Class.extend(function (stats)
 	this.stats = stats;
 	this.time = 0;
 	this.deck = [];
-	this.hand = [];
+	this.hand = {};
 	this.chars = {};
 	this.knowledge = {};
 	this.terrain = {};
@@ -295,7 +295,7 @@ function resolveCollision (collision)
 		{
 			var action = actions[i];
 			console.log('GAIN "%s" %s', action.card.title, JSON.stringify(action.card.power));
-			power = jup.addPower(power, action.card.power);
+			power = ooc.addCount(power, action.card.power);
 		}
 
 		powers[info_id] = power;
@@ -664,7 +664,7 @@ Game.method('draw', function (player, group)
 		log_exception(e, 'CORE DRAW EXCEPTION');
 	}
 
-	realm.hand.push(card_id);
+	ooc.add(1, realm.hand, card_id);
 	realm.briefing.draw--;
 
 	if (player.client)
@@ -687,6 +687,7 @@ Game.method('tock', function (player, actions)
 	var realm = this.world.realms[player.seat];
 	console.log('TOCK %d %d %s %s', this.id, realm.time, player.name, JSON.stringify(actions));
 	var tasks = {};
+	var tasks_hand = {};
 
 	//validate
 	for (var info_id in actions)
@@ -701,7 +702,6 @@ Game.method('tock', function (player, actions)
 		var task = ooc.map(char.task.type.param, char.task.state);
 		task.route = ooc.hash(task.route);
 		tasks[info_id] = task;
-		var hand_i = 0;
 
 		for (var tile_i in actions[info_id])
 		{
@@ -716,13 +716,8 @@ Game.method('tock', function (player, actions)
 				}
 
 				var card = jup.cards.by_id[card_id];
-				hand_i = realm.hand.indexOf(card.id, hand_i);
-
-				if (hand_i < 0)
-				{
-					throw 'not holding';
-				}
-
+				task.power = ooc.addCount(task.power, card.power);
+				ooc.add(1, tasks_hand, card_id);
 				var target_id = action[1];
 
 				if (!(target_id in this.world.knowledge))
@@ -765,7 +760,6 @@ Game.method('tock', function (player, actions)
 					throw 'tile mismatch';
 				}
 
-				task.power = jup.addPower(task.power, card.power);
 				actions[info_id][tile_i][i] = {realm: realm, char: char, card: card, info: info};
 			}
 		}
@@ -775,13 +769,20 @@ Game.method('tock', function (player, actions)
 			throw 'exceeding range';
 		}
 
-		if (!jup.matchPower(task.power, char.info.state[3]))
+		if (!ooc.matchCount(task.power, char.info.state[3]))
 		{
 			throw 'exceeding power';
 		}
 	}
 
-	//update
+	if (!ooc.matchCount(tasks_hand, realm.hand))
+	{
+		throw 'exceeding hand';
+	}
+
+	//update (do all validation before!)
+	realm.hand = ooc.subtractCount(realm.hand, tasks_hand);
+
 	for (var info_id in actions)
 	{
 		var char = realm.chars[info_id];
@@ -789,7 +790,7 @@ Game.method('tock', function (player, actions)
 		task.route = ooc.intkeys(task.route);
 		this.world.relinkParents(char.info, task.route);
 		char.info.state[0] -= task.range;
-		char.info.state[3] = jup.subtractPower(char.info.state[3], task.power);
+		char.info.state[3] = ooc.subtractCount(char.info.state[3], task.power);
 		char.task.state = ooc.index(char.task.type.param, task);
 
 		for (var tile_i in actions[info_id])
@@ -797,8 +798,6 @@ Game.method('tock', function (player, actions)
 			for (var i = 0; i < actions[info_id][tile_i].length; i++)
 			{
 				var action = actions[info_id][tile_i][i];
-				realm.hand.splice(realm.hand.indexOf(action.card.id), 1);
-				console.log(realm.hand);
 				ooc.push(action, this.actions, tile_i, info_id);
 			}
 		}

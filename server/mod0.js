@@ -1,6 +1,7 @@
 var mod = {};
 module.exports = mod;
 var jup = require('../client/source/info.js');
+var ooc = require('../client/source/ooc.js');
 //HOWTO PREVENT REQUIRE IN THIS FILE!!!! require(xy, false) in init??
 //contain/restrict access only to necessary data (world,traps,pools,realms,??)
 //GITHUB REPOSITORY MIT ALLEN MODS!!
@@ -23,10 +24,16 @@ mod.ready = function (stats, rules, size)
 mod.start = function (stats, rules, world)
 {
 	var forest = [133, 134, 135, 102, 166];
+	var berries = [100];
 
 	for (var i = 0; i < forest.length; i++)
 	{
 		world.transform(forest[i], 1);
+	}
+
+	for (var i = 0; i < berries.length; i++)
+	{
+		world.transform(berries[i], 2);
 	}
 
 	for (var seat = 0; seat < world.realms.length; seat++)
@@ -71,7 +78,7 @@ mod.update = function (stats, rules, world, time)
 				draw += char.info.state[5];
 			}
 
-			realm.briefing.draw = draw - realm.hand.length;
+			realm.briefing.draw = draw - ooc.total(realm.hand);
 		}
 
 		//check win condition

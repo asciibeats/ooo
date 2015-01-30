@@ -616,6 +616,7 @@ var oui = {};
 	oui.TileMap = ooo.Cell.extend(function (size, asset, layout)
 	{
 		ooo.Cell.call(this, layout);
+		this.ignore('mouse_drag', 'mouse_drop');
 		this.size = size;
 		this.asset = asset;
 		this.drag_x = 0;
@@ -872,18 +873,29 @@ var oui = {};
 		this.patch_h = this.size * this.image.tile_h;
 	});
 
+	oui.TileMap.on('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
+	{
+		this.listen('mouse_drag', 'mouse_drop');
+		this.drag_x = drag_x;
+		this.drag_y = drag_y;
+		return false;
+	});
+
 	oui.TileMap.on('mouse_drag', function (drag_x, drag_y)
 	{
 		this.drag_x = drag_x;
 		this.drag_y = drag_y;
+		return false;
 	});
 
 	oui.TileMap.on('mouse_drop', function (drop_x, drop_y)
 	{
+		this.ignore('mouse_drag', 'mouse_drop');
 		this.drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
 		this.drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
 		this.drag_x = 0;
 		this.drag_y = 0;
+		return false;
 	});
 
 	oui.TileMap.on('mouse_click', function (button, down_x, down_y)

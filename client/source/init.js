@@ -1,8 +1,7 @@
 'use strict';
 //NEXT: HandMenu (keine Actors mehr per Card! so wie ActionMenu && MouseOver und Info)
 //THEN: MouseOver
-//THEN: KartenInfoDrawn (InfoAnsicht;Bild;Power;Gain;Title;Description)
-
+//THEN: KartenInfoDrawn (InfoAnsicht;Bild;Count;Gain;Title;Description)
 //THEN: aktionsmanagement (path modifikation; aktion verschieben)
 //THEN: ActionMenu (hand to menu; tile to menu; menu to menu)
 
@@ -34,7 +33,7 @@
 (function ()
 {
 	var HOST = 'http://' + window.location.hostname + ':11133';
-	var ITEMS = [0, 0, 0, 0, 0, 3, 4, 0, 1, 0, 0, 0, 0, 0];
+	var ITEMS = [0, 0, 0, 0, 0, 3, 4, 0, 1, 0, 5, 0, 0, 0];
 	var BORDER = 24;
 	var MARKS = ['#fff', '#777', '#eaa', '#2f1d71', '#fff', '#f44'];//actions, paths, route, others
 	var WAIT = 'PLEASE WAIT FOR %d OTHER PLAYERS';
@@ -119,12 +118,22 @@
 			throw 'target is out of reach';
 		}
 
-		if (!card.type.condition(tile.data.info))//temp: later nor necessarily tile info
+		if (!card.condition(tile.data.info))//temp: later nor necessarily tile info
 		{
 			throw 'target does not meet cards condition';
 		}
 
-		var chars = jup.matchChars(card.type.power, this.root.data.chars);
+		var chars = {};
+
+		for (var info_id in this.root.data.chars)
+		{
+			var char = this.root.data.chars[info_id];
+
+			if (ooc.matchCount(card.power, char.info.state[3]))
+			{
+				chars[info_id] = char;
+			}
+		}
 
 		if (ooc.size(chars) == 0)
 		{
@@ -139,7 +148,7 @@
 			var char = chars[info_id];
 			var path = this.findPath(char.home, tile);
 
-			if ((path == null) || (char.info.state[0] < path.cost))
+			if ((path == null) || ((char.info.state[0] - char.temp.range) < path.cost))
 			{
 				continue;
 			}
@@ -266,120 +275,10 @@
 		}
 	});
 
-	WorldMap.on('show_ready', function ()
+	WorldMap.on('show_wait', function ()
 	{
 		delete this.action;
 		this.marks = {};
-	});
-
-	var CharMenu = oui.SingleMenu.extend(function (asset, layout, style)
-	{
-		oui.SingleMenu.call(this, asset, layout, style);
-	});
-
-	CharMenu.method('drawButton', function (time, context, data, pick)
-	{
-		if (pick)
-		{
-			var type = 1;
-		}
-		else
-		{
-			var type = 0;
-		}
-
-		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
-	});
-
-	/*CharMenu.on('update_data', function (chars, realm)
-	{
-		this.data = [];
-
-		for (var char_id in chars)
-		{
-			this.data.push(chars[char_id]);
-		}
-	});*/
-
-	CharMenu.on('focus:char', function (char)
-	{
-		this.pick = {};
-
-		for (var i = 0; i < this.data.length; i++)
-		{
-			if (this.data[i].info.id == char.info.id)
-			{
-				this.pick[i] = true;
-				break;
-			}
-		}
-	});
-
-	CharMenu.on('pick_item', function (data, index)
-	{
-		this.root.trigger('focus:char', [data]);
-	});
-
-	var Inventory = oui.Menu.extend(function (asset, layout, style)
-	{
-		oui.Menu.call(this, asset, layout, style);
-	});
-
-	Inventory.method('drawButton', function (time, context, data, pick)
-	{
-		var type = ITEMS[data[0]];
-		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
-		context.fillStyle = '#fff';
-		context.font = '12px sans-serif';
-		context.textAlign = 'right';
-		context.textBaseline = 'bottom';
-		context.fillText(data[1].length, 60, 60);
-	});
-
-	Inventory.on('focus:char', function (char)
-	{
-		this.data = [];
-
-		for (var type_id in char.inventory)
-		{
-			this.data.push([type_id, char.inventory[type_id]]);
-		}
-	});
-
-	Inventory.on('pick_item', function (data, index)
-	{
-		var info = ooc.minKeyValue(data[1]);
-		console.log(info.type.title);
-	});
-
-	var TurnMenu = oui.Menu.extend(function (layout)
-	{
-		oui.Menu.call(this, 'buttons', layout);
-		this.reset([7,1]);
-	});
-
-	TurnMenu.on('focus:char', function (char)
-	{
-		this.focus_char = char;
-	});
-
-	TurnMenu.on('pick_item', function (data, index)
-	{
-		if (index == 0)
-		{
-			var actions = [];
-
-			for (var tile_i in this.focus_char.actions)
-			{
-				actions.push(this.focus_char.actions[tile_i]);
-			}
-
-			//this.root.send('tock', [actions]);
-		}
-		else
-		{
-			//delete char.actions
-		}
 	});
 
 	var TextBox = ooo.Text.extend(function (layout, color, font, alignment, baseline)
@@ -393,54 +292,96 @@
 		this.string = JSON.stringify(stats);
 	});
 
-	var Card = ooo.Sprite.extend(function (card_id, count)
+	/////////////////PLAY PROMPT
+	var HandMenu = ooo.Cell.extend(function (asset)
 	{
-		ooo.Sprite.call(this, 'cards', card_id);
-		this.type = jup.cards.by_id[card_id];
-		this.count = count;
+		ooo.Cell.call(this);
 		this.ignore('mouse_drag', 'mouse_drop');
+		//////IGNORE BY DEFAULT!!!!!!!!!!!!
+		this.asset = asset;
+		this.stacks = [];
 	});
 
-	/*Card.method('shrink', function ()
+	HandMenu.on('show', function (root, parent)
 	{
-	});
-
-	Card.on('show', function (root, parent)
-	{
-		ooo.Actor.prototype.events.on.show.call(this, root, parent);
+		ooo.Cell.prototype.events.on.show.call(this, root, parent);
 		this.image = root.images[this.asset];
-	});*/
+	});
 
-	Card.on('mouse_down', function (button, down_x, down_y)
+	HandMenu.on('draw', function (time, context)
 	{
-		this.down_x = this.rel_x;
-		this.down_y = this.rel_y;
+		var tile_w = this.image.tile_w;
+		var tile_h = this.image.tile_h;
+
+		for (var i = 0; i < this.stacks.length; i++)
+		{
+			var stack = this.stacks[i];
+			context.drawImage(this.image, this.image.tile_x[stack.card.id], this.image.tile_y[stack.card.id], tile_w, tile_h, 0, 0, tile_w, tile_h);
+			context.translate(0, tile_h);
+		}
+	});
+
+	HandMenu.on('update_hand', function (hand)
+	{
+		this.stacks = [];
+
+		if (hand)
+		{
+			console.log('update_hand');
+			//sort hand by power
+			for (var card_id in hand)
+			{
+				this.stacks.push({card: jup.cards.by_id[card_id], count: hand[card_id]});
+				//prepare/render stage
+			}
+
+			this.arrange({left: BORDER, width: this.image.tile_w, vertical: 50, height: ooc.size(hand) * this.image.tile_h});
+		}
+		else
+		{
+			console.log('delete_hand');
+		}
+	});
+
+	HandMenu.on('mouse_click', function (button, down_x, down_y)
+	{
+		var index = Math.floor(down_y / this.image.tile_h);
+		console.log(this.stacks[index].card.title);
+		return false;
+	});
+
+	HandMenu.on('mouse_grab', function (button, down_x, down_y)
+	{
 		this.listen('mouse_drag', 'mouse_drop');
+		var index = Math.floor(down_y / this.image.tile_h);
+		this.drag_stack = this.stacks[index];
 		return false;
 	});
 
-	Card.on('mouse_drag', function (drag_x, drag_y)
+	HandMenu.on('mouse_drag', function (drag_x, drag_y)
 	{
-		this.rel_x = this.down_x + drag_x;
-		this.rel_y = this.down_y + drag_y;
+		//this.rel_x = this.down_x + drag_x;
+		//this.rel_y = this.down_y + drag_y;
 		return false;
 	});
 
-	Card.on('mouse_drop', function (drop_x, drop_y)
+	HandMenu.on('mouse_drop', function (drop_x, drop_y)
 	{
+		this.ignore('mouse_drag', 'mouse_drop');
+
 		try
 		{
-			var action = this.root.play_prompt.world_map.findAction(drop_x, drop_y, this);
+			var action = this.root.world_map.findAction(drop_x, drop_y, this.drag_stack.card);
 			this.root.push(action, 'actions', action.tile.i);
 			this.root.trigger('edit_action', [action]);
 
-			if (this.count == 1)
+			if (this.drag_stack.count == 1)
 			{
-				this.root.delete('hand', this.type.id);
+				this.root.delete('hand', this.drag_stack.card.id);
 			}
 			else
 			{
-				this.count--;
+				this.root.add(-1, 'hand', this.drag_stack.card.id);
 			}
 		}
 		catch (e)
@@ -454,67 +395,14 @@
 			}
 		}
 
-		this.rel_x = this.down_x;
-		this.rel_y = this.down_y;
-		this.ignore('mouse_drag', 'mouse_drop');
-	});
-
-	var HandMenu = ooo.Scene.extend(function (layout)
-	{
-		ooo.Scene.call(this, layout);
+		delete this.drag_card;
+		return false;
 	});
 
 	/*HandMenu.on('mouse_over', function ()
 	{
 		console.log('asdfasdf');
 	});*/
-
-	HandMenu.on('update_hand', function (hand)
-	{
-		this.hideChildren();
-
-		if (hand)
-		{
-			var rel_y = 0;
-			var z_index = 0;
-
-			for (var card_id in hand)
-			{
-				var card = hand[card_id];
-				card.place(-98, rel_y);
-				this.show(card);//, z_index--
-				rel_y += 30;
-			}
-		}
-	});
-
-	var ReadyButton = ooo.Box.extend(function (color, layout)
-	{
-		ooo.Box.call(this, color, layout);
-	});
-
-	ReadyButton.on('mouse_click', function (button, down_x, down_y)
-	{
-		var actions = this.root.data.actions;
-		var data = {};
-
-		for (var tile_i in actions)
-		{
-			for (var i = 0; i < actions[tile_i].length; i++)
-			{
-				var action = actions[tile_i][i];
-				var info_id = action.char.info.id;
-				var steps = action.paths[info_id].steps;
-				var card_id = action.card.type.id;
-				//tile_i in array[1] is temp: has to be the target info_id
-				ooc.push([card_id, tile_i, steps], data, info_id, tile_i);
-			}
-		}
-
-		this.root.send('tock', [data]);
-		this.root.trigger('show_ready');
-		return false;
-	});
 
 	var ActionMenu = ooo.Cell.extend(function (asset)
 	{
@@ -529,10 +417,37 @@
 		this.image = root.images[this.asset];
 	});
 
+	ActionMenu.on('draw', function (time, context)
+	{
+		var tile_w = this.image.tile_w;
+		var tile_h = this.image.tile_h;
+
+		for (var x = 0; x < this.actions.length; x++)
+		{
+			context.save();
+
+			for (var y = 0; y < this.actions[x].length; y++)
+			{
+				var action = this.actions[x][y];
+				context.drawImage(this.image, this.image.tile_x[action.card.id], this.image.tile_y[action.card.id], tile_w, tile_h, 0, 0, tile_w, tile_h);
+				context.translate(0, tile_h);
+			}
+
+			context.restore();
+			context.translate(tile_w, 0);
+		}
+
+		context.fillStyle = '#ddd';
+		context.fillRect(0, 0, 64, 64);
+	});
+
 	ActionMenu.on('update_actions', function (actions)
 	{
+		this.actions = [];
+
 		if (actions)
 		{
+			console.log('update_actions');
 			var x = 0;
 			var y = 0;
 			var max_y = 0;
@@ -557,17 +472,39 @@
 				y = 0;
 			}
 
-			//this.arrange({right: BORDER, width: x * this.image.tile_w, top: BORDER, height: max_y * this.image.tile_h});
-			this.arrange({horizontal: 50, width: x * this.image.tile_w, top: BORDER, height: max_y * this.image.tile_h});
+			this.arrange({horizontal: 50, width: (x * this.image.tile_w) + 64, top: BORDER, height: max_y * this.image.tile_h});
 		}
 		else
 		{
-			this.actions = [];
+			console.log('delete_actions');
 		}
 	});
 
 	ActionMenu.on('mouse_click', function (button, down_x, down_y)
 	{
+		if ((down_x > (this.width - 64)) && (down_y < 64))
+		{
+			var actions = this.root.data.actions;
+			var data = {};
+
+			for (var tile_i in actions)
+			{
+				for (var i = 0; i < actions[tile_i].length; i++)
+				{
+					var action = actions[tile_i][i];
+					var info_id = action.char.info.id;
+					var steps = action.paths[info_id].steps;
+					var card_id = action.card.id;
+					//tile_i in array[1] is temp: has to be the target info_id
+					ooc.push([card_id, tile_i, steps], data, info_id, tile_i);
+				}
+			}
+
+			this.root.send('tock', [data]);
+			this.root.trigger('show_wait');
+			return false;
+		}
+
 		var x = Math.floor(down_x / this.image.tile_w);
 		var y = Math.floor(down_y / this.image.tile_h);
 
@@ -575,27 +512,6 @@
 		{
 			console.log(this.actions[x][y].card.type.title);
 			return false;
-		}
-	});
-
-	ActionMenu.on('draw', function (time, context)
-	{
-		var tile_w = this.image.tile_w;
-		var tile_h = this.image.tile_h;
-
-		for (var x = 0; x < this.actions.length; x++)
-		{
-			context.save();
-
-			for (var y = 0; y < this.actions[x].length; y++)
-			{
-				var action = this.actions[x][y];
-				context.drawImage(this.image, this.image.tile_x[action.card.type.id], this.image.tile_y[action.card.type.id], tile_w, tile_h, 0, 0, tile_w, tile_h);
-				context.translate(0, tile_h);
-			}
-
-			context.restore();
-			context.translate(tile_w, 0);
 		}
 	});
 
@@ -622,73 +538,70 @@
 	{
 		this.action.char = this.root.data.chars[info_id];
 		this.root.put(this.root.data.actions, 'actions');
-		this.parent.world_map.trigger('edit_action', [this.action]);
+		this.root.world_map.trigger('edit_action', [this.action]);
 	});
 
-	var PlayPrompt = ooo.Scene.extend(function (map_size, layout)
+	var PlayPrompt = ooo.Scene.extend(function (layout)
 	{
-		//battle(red),diplomacy(blue),shady(gray),development(yellow),nature(green),magic(purple)
 		ooo.Scene.call(this, layout);
-		this.world_map = new WorldMap(map_size, 'steps');
-		this.show(this.world_map);
-
-		/*this.show(new ooo.Box('#4d3932', {bottom: BORDER, top: BORDER, width: 148, right: BORDER}));
-		this.char_menu = new CharMenu('chars', {bottom: BORDER+10, top: BORDER+10, width: 64, right: BORDER+10}, OUI_VERTICAL | OUI_BOTTOM);
-		this.show(this.char_menu, 1);
-		this.inventory = new Inventory('items', {bottom: BORDER+10, top: BORDER+10, width: 64, right: BORDER+74}, OUI_VERTICAL | OUI_BOTTOM);
-		this.show(this.inventory, 1);*/
-
-		//this.notemenu = new oui.Menu('steps', {width: 64, right: BORDER, top: BORDER, bottom: 128}, OUI_REVERSED | OUI_BOTTOM | OUI_VERTICAL).reset([1,1,1]);
-		//this.show(this.notemenu, 1);
-
-		//this.turnmenu = new TurnMenu({left: BORDER, right: BORDER, top: BORDER, height: 64});
-		//this.show(this.turnmenu, 1);
-
-		this.hand_menu = new HandMenu();
+		this.hand_menu = new HandMenu('items');
 		this.action_menu = new ActionMenu('items');
 		this.path_menu = new PathMenu();
-		this.ready_button = new ReadyButton('#faa', {right: BORDER, width: 64, bottom: BORDER, height: 64});
 	});
 
 	PlayPrompt.on('update_hand', function (hand)
 	{
-		if (hand)
+		if (hand && ooc.size(hand))
 		{
-			this.show(this.hand_menu, 3);
+			console.log('show_hand');
+			this.show(this.hand_menu);
 		}
 		else
 		{
+			console.log('hide_hand');
 			this.hand_menu.hide();
 		}
 	});
 
 	PlayPrompt.on('update_actions', function (actions)
 	{
-		if (actions)
+		if (actions && ooc.size(actions))
 		{
-			this.show(this.action_menu, 3);
+			console.log('show_actions');
+			this.show(this.action_menu);
 		}
 		else
 		{
+			console.log('hide_actions');
 			this.action_menu.hide();
 		}
 	});
 
 	PlayPrompt.on('edit_action', function (action)
 	{
-		this.show(this.path_menu, 3);
+		this.show(this.path_menu);
 	});
 
-	PlayPrompt.on('show_turn', function ()
+	/////////////DRAW PROMPT
+	var CardExpose = ooo.Box.extend(function (color, layout)
 	{
-		this.show(this.ready_button, 4);
+		ooo.Box.call(this, color, layout);
+		this.card = null;
 	});
 
-	PlayPrompt.on('show_ready', function ()
+	CardExpose.on('mouse_click', function (button, down_x, down_y)
 	{
-		this.action_menu.hide();
-		this.path_menu.hide();
-		this.ready_button.hide();
+		this.root.add(1, 'hand', this.card.id);
+		this.parent.card_stacks.listen('mouse_click');
+		this.parent.count--;
+
+		if (this.parent.count == 0)
+		{
+			this.root.trigger('show_play');
+		}
+
+		this.hide();
+		return false;
 	});
 
 	var CardStack = ooo.Box.extend(function (type, color, layout)
@@ -699,40 +612,38 @@
 
 	CardStack.on('mouse_click', function (button, down_x, down_y)
 	{
-		//block until answer!!!!!!!!!!!!!!
+		this.parent.ignore('mouse_click');
 		this.root.send('draw', [this.type]);
 		return false;
 	});
 
-	var DrawPrompt = ooo.Scene.extend(function (layout)
+	var DrawPrompt = ooo.Scene.extend(function ()
 	{
-		ooo.Scene.call(this, layout);
+		ooo.Scene.call(this, null);
 		this.count = 0;
-		this.show(new CardStack(0, '#440', {left: 0, width: 150, top: 0, height: 150}));
-		this.show(new CardStack(1, '#044', {right: 0, width: 150, top: 0, height: 150}));
+
+		this.card_stacks = new ooo.Scene({horizontal: 50, width: 400, vertical:50, height: 150});
+		this.card_stacks.show(new CardStack(0, '#440', {left: 0, width: 150, top: 0, height: 150}));
+		this.card_stacks.show(new CardStack(1, '#044', {right: 0, width: 150, top: 0, height: 150}));
+		this.show(this.card_stacks);
+
+		this.card_expose = new CardExpose('#444', {horizontal: 50, width: 200, vertical:50, height: 200});
 	});
 
-	var CardPrompt = ooo.Scene.extend(function (layout)
+	DrawPrompt.bubble('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
 	{
-		ooo.Scene.call(this, layout);
-		this.card = null;
-		this.show(new ooo.Box('#444', {horizontal: 50, width: 200, vertical:50, height: 200}));
+		//return false;
 	});
 
-	CardPrompt.on('mouse_click', function (button, down_x, down_y)
+	DrawPrompt.bubble('mouse_click', function (button, down_x, down_y)
 	{
-		this.root.put(this.card, 'hand', this.card.type.id);
-		//this.root.put(this.root.data.hand, 'hand');
-		this.root.draw_prompt.count--;
-
-		if (this.root.draw_prompt.count == 0)
-		{
-			this.root.draw_prompt.hide();
-			this.root.trigger('show_turn');
-		}
-
-		this.hide();
 		return false;
+	});
+
+	DrawPrompt.on('show_card', function (card)
+	{
+		this.card_expose.card = card;
+		this.show(this.card_expose, 1);
 	});
 
 	//Game
@@ -747,9 +658,10 @@
 			this.players[names[i]] = true;
 		}
 
-		this.draw_prompt = new DrawPrompt({horizontal: 50, width: 380, vertical: 50, height: 150});
-		this.card_prompt = new CardPrompt();
-		this.play_prompt = new PlayPrompt(rules[1]);//mode integration bez rule semantik
+		this.world_map = new WorldMap(rules[1], 'steps');
+		this.show(this.world_map);
+		this.draw_prompt = new DrawPrompt();
+		this.play_prompt = new PlayPrompt();//mode integration bez rule semantik
 	}
 
 	//Game
@@ -759,7 +671,6 @@
 		//this.once = true;
 		this.time = time;
 		this.started = true;
-		this.show(this.play_prompt);
 	}
 
 	//Game
@@ -931,7 +842,7 @@
 			char.info = knowledge[info_id];
 			char.knowledge = by_char[info_id];
 			var tile_i = char.knowledge[0][33][0].state[0];
-			char.home = this.play_prompt.world_map.index[tile_i];
+			char.home = this.world_map.index[tile_i];
 			var task = char.knowledge[0][23][0];
 			char.task = ooc.map(task.type.param, task.state);
 			//char.temp = ooc.clone(char.task);
@@ -939,16 +850,10 @@
 		}
 
 		this.data.chars = chars;
-		this.delete('actions');
+		this.put({}, 'actions');
 		//results in update_chars!
 		//this.put(chars, 'chars');
-		hand = ooc.hash(hand);
-
-		for (var card_id in hand)
-		{
-			hand[card_id] = new Card(card_id, hand[card_id]);
-		}
-
+		//hand = ooc.hash(hand);
 		this.put(hand, 'hand');
 		//update char_menu (stats & items & portraits)
 		///////////stats oben, items rechts, portraits unten
@@ -966,7 +871,7 @@
 		}
 		else
 		{
-			this.trigger('show_turn');
+			this.trigger('show_play');
 		}
 	}
 
@@ -976,9 +881,9 @@
 		this.players = {};
 		this.started = false;
 		this.logo_prompt = new ooo.Box('#222');
-		//get time for min logo show
-		this.login_prompt = new LoginPrompt();
+		//getTime() for min logo show
 		this.show(this.logo_prompt);
+		this.login_prompt = new LoginPrompt();
 	});
 
 	Game.on('show_load', function ()
@@ -988,28 +893,30 @@
 
 	Game.on('show_init', function (stats)
 	{
-		//this.init_prompt.count = briefing.draw;
-		this.show(this.init_prompt, 1);
+		//this.init_prompt.stats = stats;
+		//this.show(this.init_prompt, 1);
 	});
 
 	Game.on('show_draw', function (count)
 	{
+		//this.wait_prompt.hide();
+		this.play_prompt.hide();
 		this.draw_prompt.count = count;
 		this.show(this.draw_prompt, 1);
 	});
 
-	Game.on('show_card', function (card)
+	Game.on('show_play', function ()
 	{
-		this.card_prompt.card = card;
-		this.show(this.card_prompt, 2);
-	});
-
-	Game.on('show_turn', function ()
-	{
+		//this.wait_prompt.hide();
+		this.draw_prompt.hide();
+		this.show(this.play_prompt, 1);
 	});
 
 	Game.on('show_wait', function ()
 	{
+		this.play_prompt.hide();
+		this.draw_prompt.hide();
+		//this.show(this.wait_prompt, 1);
 	});
 
 	Game.on('update_actions', function (actions)
@@ -1031,7 +938,7 @@
 					var char = action.char;
 					var path = action.paths[char.info.id];
 					char.temp.range += path.cost;
-					char.temp.power = jup.addPower(char.temp.power, action.card.type.power);
+					char.temp.power = ooc.addCount(char.temp.power, action.card.power);
 
 					if (false)//Card is Job
 					{
@@ -1167,18 +1074,8 @@
 
 	Game.on('message:card', function (card_id)
 	{
-		console.log('CARD "%s"', jup.cards.by_id[card_id].title);
-
-		if (card_id in this.data.hand)
-		{
-			var card = this.data.hand[card_id];
-			card.count++;
-		}
-		else
-		{
-			var card = new Card(card_id, 1);
-		}
-
+		var card = jup.cards.by_id[card_id];
+		console.log('CARD \'%s\'', card.title);
 		this.trigger('show_card', [card]);
 	});
 

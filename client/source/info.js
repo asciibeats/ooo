@@ -48,87 +48,6 @@ GROUPS[4] = 'Events';*/
 		return roots;
 	}
 
-	jup.addPower = function (a, b)
-	{
-		var cost = ooc.clone(a);
-
-		for (var type in b)
-		{
-			if (type in cost)
-			{
-				cost[type] += b[type];
-			}
-			else
-			{
-				cost[type] = b[type];
-			}
-		}
-
-		return cost;
-	}
-
-	jup.subtractPower = function (a, b)
-	{
-		var cost = ooc.clone(a);
-
-		for (var type in b)
-		{
-			if (type in cost)
-			{
-				var amount = b[type];
-
-				if (cost[type] > amount)
-				{
-					cost[type] -= amount;
-				}
-				else if (cost[type] == amount)
-				{
-					delete cost[type];
-				}
-				else
-				{
-					throw 'asdfasdf cancel pow';
-				}
-			}
-			else
-			{
-				throw 'asdf cancel pow';
-			}
-		}
-
-		return cost;
-	}
-
-	jup.matchPower = function (card, char)
-	{
-		for (var type in card)
-		{
-			if (char[type] < card[type])
-			{
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	jup.matchChars = function (power, chars)
-	{
-		var match = {};
-
-		for (var info_id in chars)
-		{
-			var char = chars[info_id];
-
-			if (jup.matchPower(power, char.info.state[3]))
-			{
-				match[info_id] = char;
-			}
-		}
-
-		return match;
-	}
-
 	var Info = ooc.Class.extend(function (group, subgroup, obscurity, title, param, state)
 	{
 		this.group = group;
@@ -226,7 +145,8 @@ GROUPS[4] = 'Events';*/
 	{
 		return function (world, realm, char, info)
 		{
-			world.spawn(data, [info.id]);
+			var info = world.spawn(data, [info.id]);
+			console.log('(%d) spawns "%s"', info.id, info.type.title);
 		}
 	}
 
@@ -234,24 +154,31 @@ GROUPS[4] = 'Events';*/
 	{
 		return function (world, realm, char, info)
 		{
-			world.spawn(data, [char.info.id]);
+			var info = world.spawn(data, [char.info.id]);
+			console.log('(%d) gains "%s"', char.info.id, info.type.title);
 		}
 	}
 
-	regInfo(0, new Tile('Grassland', 1, 1, []));
-	regInfo(1, new Tile('Forest', 3, 3, []));
-	regInfo(5, new Item('Corn', 1, []));
-	regInfo(6, new Item('Blueberries', 1, []));
-	regInfo(9, new Char('Hero', 1, [10, 5, 2, {0: 9, 1: 9, 2: 9, 3: 9, 4: 9, 5: 9, 6: 9, 7: 9}, 0, 1]));
-	regInfo(8, new Item('Apple', 1, []));
-	regInfo(7, new Item('Ring', 1, []));
 	regInfo(42, new Data('Mind', 0, [], []));
 	regInfo(33, new Data('Home', 0, ['tile'], [0]));
 	regInfo(23, new Data('Task', 0, ['route', 'range', 'power'], [[], 0, {}]));
 	regInfo(73, new Data('Word', 0, ['string'], ['rosebud']));//Codeword or sth that can be extract by torture
 
+	regInfo(0, new Tile('Grassland', 1, 1, []));
+	regInfo(1, new Tile('Forest', 3, 3, []));
+	regInfo(2, new Tile('Fruits', 1, 1, []));
+
+	regInfo(9, new Char('Hero', 1, [10, 5, 2, {0: 9, 1: 9, 2: 9, 3: 9, 4: 9, 5: 9, 6: 9, 7: 9}, 0, 1]));
+
+	regInfo(5, new Item('Corn', 1, []));
+	regInfo(6, new Item('Blueberries', 1, []));
+	regInfo(10, new Item('Wood', 1, []));
+	regInfo(8, new Item('Apple', 1, []));
+	regInfo(7, new Item('Ring', 1, []));
+
 	regCard(0, 0, new Card('Wanderlust', '###', {0: 1}, in_group(1), null));
-	regCard(2, 0, new Card('Jack Lumber', '###', {0: 1}, is_type(1), gain([6])));
+	regCard(0, 0, new Card('Gatherer', '###', {0: 1}, is_type(2), gain([6])));
+	regCard(2, 0, new Card('Jack Lumber', '###', {0: 1}, is_type(1), gain([8])));
 	regCard(1, 1, new Card('Imperial Scout', '###', {1: 2}, is_type(0), null));
 	regCard(3, 1, new Card('Imperial Guard', '###', {0: 2}, is_type(0), null));
 
