@@ -36,7 +36,7 @@ mod.start = function (stats, rules, world)
 		if (seat == 0)
 		{
 			realm.join(world.deliver([9], 132));
-			//realm.join(world.deliver([9], 234));
+			realm.join(world.deliver([9], 40));
 		}
 		else
 		{

@@ -19,6 +19,8 @@ var ooo = {};
 //keyboard input eingrenzen (keyset = {})
 (function ()
 {
+	var DRAG_OFF = 3;
+
 	function addEvent (channel)
 	{
 		return function (type, func)
@@ -920,9 +922,10 @@ var ooo = {};
 				{
 					that.trigger('mouse_drag', [drag_x, drag_y], true);
 				}
-				else if ((Math.abs(drag_x) > 3) || (Math.abs(drag_y) > 3))
+				else if ((Math.abs(drag_x) > DRAG_OFF) || (Math.abs(drag_y) > DRAG_OFF))
 				{
 					drag = true;
+					//that.trigger('mouse_grab', [drag_x, drag_y], true);
 					that.trigger('mouse_drag', [drag_x, drag_y], true);
 				}
 			}

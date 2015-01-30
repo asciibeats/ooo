@@ -244,6 +244,26 @@ function log_exception (exception, message)
 //apply effects on char
 function collideChars(char_a, power_a, char_b, power_b)
 {
+	//gather powers and merge/match (one shield absorbs one sword)
+	////create rule_solve_function
+
+	///jede karte hat ein oder mehr schild(schaden schlucken),schwert(schafen verursachen),taler(+gold),hand(+diplomatie),maske(+itemklauen),magie etc (upleveln / blitze king of tokyo) die bei kollisionen einen pool bilden und bei auflösung abgerechnet werden
+	////kollisionen können auch ganz bewusst herbeigeführt werden->angriff etc
+
+	///schwert (deal damage (-1 health))
+	///shield (absorb damage)
+	///smoke (escape undetected if not smaller (and steal sth from other char(s)?)
+	/////nachts +x smoke??
+	///hands(nicht coins denn die gibts als items) (both get sum if both play hands)
+	///flash (wenn beide flash(haste) spielen wird der char mir mehr ausgeführt als wäre er allein)
+	///hearts??? (heal other chars (+1 health))
+	///mouth (if >= count than opponent get his power)
+
+	///ANREGEN ZUM TREFFEN ABER AUCH ABHALTEN
+	////MAN KANN WAS GEWINNEN ABER AUCH (DURCH DIEBE) VERLIEREN
+
+	//KARTENIDEE: "Nichtangriffspakt" (wenn man kollidiert werden alle schwerter ignoriert oder wandeln sich zu händen)
+
 	console.log('Colliding (%d) against (%d)', char_a.info.id, char_b.info.id, power_a, power_b);
 
 	//CHECK HERE FOR TREATIES!!!!!
@@ -263,22 +283,6 @@ function collideChars(char_a, power_a, char_b, power_b)
 //Game
 function resolveCollision (collision)
 {
-	//gather powers and merge/match (one shield absorbs one sword)
-	////create rule_solve_function
-
-	///jede karte hat ein oder mehr schild(schaden schlucken),schwert(schafen verursachen),taler(+gold),hand(+diplomatie),maske(+itemklauen),magie etc (upleveln / blitze king of tokyo) die bei kollisionen einen pool bilden und bei auflösung abgerechnet werden
-	////kollisionen können auch ganz bewusst herbeigeführt werden->angriff etc
-
-	///schwert (deal damage (-1 health))
-	///shield (absorb damage)
-	///smoke (escape undetected if not smaller (and steal sth from other char(s)?)
-	/////nachts +x smoke??
-	///hands (both get sum if both play hands)
-	///flash (wenn beide flash(haste) spielen wird der char mir mehr ausgeführt als wäre er allein)
-	///hearts??? (heal other chars (+1 health))
-
-	//KARTENIDEE: "Nichtangriffspakt" (wenn man kollidiert werden alle schwerter ignoriert)
-
 	var powers = {};
 
 	for (var info_id in collision)
@@ -582,6 +586,8 @@ Game.method('tick', function ()
 			var actions = ooc.minKeyValue(collision);
 			executeActions.call(this, actions);
 		}
+		
+		delete this.actions[tile_i];
 	}
 
 	try

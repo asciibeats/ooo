@@ -280,23 +280,6 @@ if (typeof module == 'object')
 		}
 	}
 
-	/*ooc.merge = function (keep, add)
-	{
-		for (var key in add)
-		{
-			var value = add[key];
-
-			if (keep[key] && (typeof value == 'object'))
-			{
-				ooc.merge(keep[key], value);
-			}
-			else
-			{
-				keep[key] = value;
-			}
-		}
-	}*/
-
 	ooc.setLocal = function (name, object)
 	{
 		localStorage[name] = JSON.stringify(object);

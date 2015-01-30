@@ -530,7 +530,7 @@ var oui = {};
 		if ((this.data[index] != undefined) && (col < this.cols) && (row < this.rows))
 		{
 			var argv = this.preparePick(this.data[index], index);
-			this.trigger('pick:item', argv);
+			this.trigger('pick_item', argv);
 			return false;
 		}
 	});
@@ -578,7 +578,7 @@ var oui = {};
 		oui.Menu.call(this, asset, layout, style);
 	});
 
-	TabMenu.on('pick:item', function (data, index)
+	TabMenu.on('pick_item', function (data, index)
 	{
 		this.parent.front.mask('draw');
 		this.parent.front.mask('mouse_click');

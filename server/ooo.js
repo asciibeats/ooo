@@ -309,7 +309,9 @@ ooo.Server = ooc.Class.extend(function (Client, port)
 
 			if (!client.expected[type])
 			{
-				client.close('unexpected message');
+				var msg = 'unexpected message: ' + type;
+				console.log(msg);
+				client.close(msg);
 				return;
 			}
 

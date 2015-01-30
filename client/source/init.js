@@ -1,33 +1,42 @@
 'use strict';
-//PROBLEM
-///wenn man state erst erkennt ab obfuscation gibt es die situation
-////daß man weiss es ist ein wlad aber nicht wieviel es kostet durchzugehn!!!
+//NEXT: HandMenu (keine Actors mehr per Card! so wie ActionMenu && MouseOver und Info)
+//THEN: MouseOver
+//THEN: KartenInfoDrawn (InfoAnsicht;Bild;Power;Gain;Title;Description)
+
+//THEN: aktionsmanagement (path modifikation; aktion verschieben)
+//THEN: ActionMenu (hand to menu; tile to menu; menu to menu)
+
+//NO REALM STATS!!! only char stats!!! (das heisst alles ist angreifbar/vergänglich)
 
 //TODO
-///Kollisionen (erstmal nur mit Schwerten und Schilden)
-///Random Draw (erstmal; später evtl DeckBuilding)
-///MouseOver (HandMenu)
-///Karten (InfoAnsicht;Bild;Power;Gain;Title;Description)
+///ActionModifikation
+
+///Drag Actions from
+//////Hand to Tile (create Action) DONE
+//////Hand to Action (create Action)
+//////Tile to Tile
+//////Tile to Action
+//////Action to Tile
+//////Action to Action
+//////Tile to Hand (revert to Card)
+//////Action to Hand (revert to Card)
+
+//rules_prompt
+//browser_prompt
+
 ///Karten erstellen
+
+///////LATER
 ///Sound (erstmal beim Kartenablegen)
 ///Animation (kleines Ausrollbanner)
 ///Transitions (zwischen Stages)
-
-//power menu drawButton funktion mit werten
-//button klasse (zwischen sumbmit und input; input mit label)
-//rules_prompt
-//browser_prompt
-//ein job pro charlevel!!??
-//ein job ist aktion die jede runde wiederholt wird
-//holzfäller (+x holz)
-//alle item spawner sind jobs??
 
 (function ()
 {
 	var HOST = 'http://' + window.location.hostname + ':11133';
 	var ITEMS = [0, 0, 0, 0, 0, 3, 4, 0, 1, 0, 0, 0, 0, 0];
 	var BORDER = 24;
-	var MARKS = ['#942e39', '#651144', '#aaa', '#2f1d71', '#fff', '#f44'];//actions, paths, route, others
+	var MARKS = ['#fff', '#777', '#eaa', '#2f1d71', '#fff', '#f44'];//actions, paths, route, others
 	var WAIT = 'PLEASE WAIT FOR %d OTHER PLAYERS';
 	var MOVE = 'PLEASE MAKE A MOVE';
 
@@ -45,7 +54,7 @@
 		this.root.auth_token = data;
 		this.root.send('login', data);
 		this.root.login_prompt.hide();
-		this.root.show(this.root.logo_prompt);//change for load_screen
+		this.root.trigger('show_load');
 	});
 
 	var LoginPrompt = ooo.Scene.extend(function (layout)
@@ -89,7 +98,7 @@
 
 		if (tile.i in this.marks)
 		{
-			context.globalAlpha = 0.8;
+			context.globalAlpha = 1.0;
 			context.fillStyle = MARKS[this.marks[tile.i]];
 			context.fillRect(6, 6, 84, 84);
 		}
@@ -105,9 +114,14 @@
 	{
 		var tile = this.getTileAt(drop_x, drop_y);
 
+		if (!tile.data.info)
+		{
+			throw 'target is out of reach';
+		}
+
 		if (!card.type.condition(tile.data.info))//temp: later nor necessarily tile info
 		{
-			throw 'target is incompatible with card';
+			throw 'target does not meet cards condition';
 		}
 
 		var chars = jup.matchChars(card.type.power, this.root.data.chars);
@@ -117,19 +131,21 @@
 			throw 'no char with these powers';
 		}
 
-		var paths = [];
+		var paths = {};
+		var quirks = {};
 
 		for (var info_id in chars)
 		{
 			var char = chars[info_id];
 			var path = this.findPath(char.home, tile);
 
-			if (char.info.state[0] < path.cost)
+			if ((path == null) || (char.info.state[0] < path.cost))
 			{
 				continue;
 			}
 
 			paths[info_id] = path;
+			quirks[info_id] = {};
 
 			if ((min_char == undefined) || (path.cost < paths[min_char.info.id].cost))
 			{
@@ -142,27 +158,7 @@
 			throw 'not reachable by matching chars';
 		}
 
-		return {char: min_char, paths: paths, card: card, tile: tile};
-	});
-
-	WorldMap.method('update_actions', function (drop_x, drop_y, card)
-	{
-		var action = [min_char.info.id, paths];
-		var min_path = paths[min_char.info.id];
-		var action = [min_char.info.id, min_path.steps, card.type.id];
-		console.log(JSON.stringify(Object.keys(paths)), JSON.stringify(action));
-
-		//show path selector on world_map
-		for (var info_id in paths)
-		{
-			var path = paths[info_id];
-
-			for (var i = 0; i < path.tiles.length; i++)
-			{
-				var tile_i = path.tiles[i];
-				this.marks[tile_i] = (info_id == min_char.info.id) ? 1 : 0;
-			}
-		}
+		return {char: min_char, paths: paths, card: card, tile: tile, quirks: quirks};
 	});
 
 	WorldMap.on('update_terrain', function (terrain)
@@ -189,7 +185,7 @@
 		for (var info_id in chars)
 		{
 			var char = chars[info_id];
-			var area = this.findArea(ooc.clone(char.task.route), char.info.state[0] - char.task.range);
+			var area = this.findArea(ooc.clone(char.temp.route), char.info.state[0] - char.temp.range);
 
 			for (var tile_i in area)
 			{
@@ -212,8 +208,68 @@
 		}
 	});
 
+	WorldMap.on('update_actions', function (actions)
+	{
+		delete this.action;
+		this.marks = {};
+	});
+
+	WorldMap.on('edit_action', function (action)
+	{
+		this.action = action;
+		var focus_id = action.char.info.id;
+
+		for (var info_id in action.paths)
+		{
+			var tiles = action.paths[info_id].tiles;
+
+			for (var i = 0; i < tiles.length; i++)
+			{
+				this.marks[tiles[i]] = (info_id == focus_id) ? 0 : 1;
+			}
+		}
+
+		this.marks[action.tile.i] = 2;
+	});
+
 	WorldMap.on('pick_tile', function (tile, button)
 	{
+		if (this.action)//in edit mode
+		{
+			var info_id = this.action.char.info.id;
+			var quirks = this.action.quirks[info_id];
+
+			if (this.marks[tile.i] == 0)
+			{
+				//avoid tile
+				if (tile.i in quirks)
+				{
+					delete quirks[tile.i];
+				}
+				else
+				{
+					quirks[tile.i] = false;
+				}
+			}
+			else
+			{
+				//pass by tile
+				if (tile.i in quirks)
+				{
+					delete quirks[tile.i];
+				}
+				else
+				{
+					quirks[tile.i] = true;
+				}
+			}
+		}
+	});
+
+	WorldMap.on('show_ready', function ()
+	{
+		delete this.action;
+		this.marks = {};
 	});
 
 	var CharMenu = oui.SingleMenu.extend(function (asset, layout, style)
@@ -259,7 +315,7 @@
 		}
 	});
 
-	CharMenu.on('pick:item', function (data, index)
+	CharMenu.on('pick_item', function (data, index)
 	{
 		this.root.trigger('focus:char', [data]);
 	});
@@ -290,7 +346,7 @@
 		}
 	});
 
-	Inventory.on('pick:item', function (data, index)
+	Inventory.on('pick_item', function (data, index)
 	{
 		var info = ooc.minKeyValue(data[1]);
 		console.log(info.type.title);
@@ -307,7 +363,7 @@
 		this.focus_char = char;
 	});
 
-	TurnMenu.on('pick:item', function (data, index)
+	TurnMenu.on('pick_item', function (data, index)
 	{
 		if (index == 0)
 		{
@@ -318,72 +374,11 @@
 				actions.push(this.focus_char.actions[tile_i]);
 			}
 
-			this.root.send('tock', [actions]);
+			//this.root.send('tock', [actions]);
 		}
 		else
 		{
 			//delete char.actions
-		}
-	});
-
-	var ReadyButton = ooo.Box.extend(function (color, layout)
-	{
-		ooo.Box.call(this, color, layout);
-	});
-
-	ReadyButton.on('mouse_click', function (button, down_x, down_y)
-	{
-		var actions = this.root.data.actions;
-		var data = {};
-
-		for (var tile_i in actions)
-		{
-			for (var i = 0; i < actions[tile_i].length; i++)
-			{
-				var action = actions[tile_i][i];
-				var info_id = action.char.info.id;
-				var steps = action.paths[info_id].steps;
-				var card_id = action.card.type.id;
-				//tile_i in array[1] is temp: has to be the target info_id
-				ooc.push([card_id, tile_i, steps], data, info_id, tile_i);
-			}
-		}
-
-		this.root.send('tock', [data]);
-		this.root.delete('actions');
-	});
-
-	var ActionMenu = ooo.Scene.extend(function (layout)
-	{
-		ooo.Scene.call(this, layout);
-		this.ready_button = new ReadyButton('#faa', {left: 0, width: 50, top: 0, height: 50});
-	});
-
-	ActionMenu.on('update_actions', function (actions)
-	{
-		this.hideChildren();
-
-		if (actions)
-		{
-			/*var rel_x = 0;
-
-			for (var tile_i in actions)
-			{
-				for (var i = 0; i < actions[tile_i].length; i++)
-				{
-					var action = actions[tile_i][i];
-					action.card.place(rel_x, i * 40);//.resize(64, 64);
-					this.show(action.card);
-					console.log(rel_x, i * 40, 64, 64);
-				}
-
-				rel_x += 48;
-			}*/
-
-			this.show(this.ready_button);
-		}
-		else
-		{
 		}
 	});
 
@@ -436,35 +431,8 @@
 		try
 		{
 			var action = this.root.play_prompt.world_map.findAction(drop_x, drop_y, this);
-
 			this.root.push(action, 'actions', action.tile.i);
-			var actions = this.root.data.actions;
-
-			for (var tile_i in actions)
-			{
-				for (var i = 0; i < actions[tile_i].length; i++)
-				{
-					var action = actions[tile_i][i];
-					var char = action.char;
-					var path = action.paths[char.info.id];
-					char.task.range += path.cost;
-					char.task.power = jup.addPower(char.task.power, action.card.type.power);
-
-					if (false)//Card is Job
-					{
-						var route = ooc.hash(char.task.route);
-
-						for (var i = 0; i < path.tiles.length; i++)
-						{
-							route[path.tiles[i]] = true;
-						}
-
-						char.task.route = ooc.intkeys(route);
-					}
-				}
-			}
-
-			this.root.put(this.root.data.chars, 'chars');
+			this.root.trigger('edit_action', [action]);
 
 			if (this.count == 1)
 			{
@@ -520,6 +488,143 @@
 		}
 	});
 
+	var ReadyButton = ooo.Box.extend(function (color, layout)
+	{
+		ooo.Box.call(this, color, layout);
+	});
+
+	ReadyButton.on('mouse_click', function (button, down_x, down_y)
+	{
+		var actions = this.root.data.actions;
+		var data = {};
+
+		for (var tile_i in actions)
+		{
+			for (var i = 0; i < actions[tile_i].length; i++)
+			{
+				var action = actions[tile_i][i];
+				var info_id = action.char.info.id;
+				var steps = action.paths[info_id].steps;
+				var card_id = action.card.type.id;
+				//tile_i in array[1] is temp: has to be the target info_id
+				ooc.push([card_id, tile_i, steps], data, info_id, tile_i);
+			}
+		}
+
+		this.root.send('tock', [data]);
+		this.root.trigger('show_ready');
+		return false;
+	});
+
+	var ActionMenu = ooo.Cell.extend(function (asset)
+	{
+		ooo.Cell.call(this);
+		this.asset = asset;
+		this.actions = [];
+	});
+
+	ActionMenu.on('show', function (root, parent)
+	{
+		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.asset];
+	});
+
+	ActionMenu.on('update_actions', function (actions)
+	{
+		if (actions)
+		{
+			var x = 0;
+			var y = 0;
+			var max_y = 0;
+
+			for (var tile_i in actions)
+			{
+				this.actions[x] = [];
+
+				for (var i = 0; i < actions[tile_i].length; i++)
+				{
+					var action = actions[tile_i][i];
+					this.actions[x][y] = action;
+					y++;
+
+					if (y > max_y)
+					{
+						max_y = y;
+					}
+				}
+
+				x++;
+				y = 0;
+			}
+
+			//this.arrange({right: BORDER, width: x * this.image.tile_w, top: BORDER, height: max_y * this.image.tile_h});
+			this.arrange({horizontal: 50, width: x * this.image.tile_w, top: BORDER, height: max_y * this.image.tile_h});
+		}
+		else
+		{
+			this.actions = [];
+		}
+	});
+
+	ActionMenu.on('mouse_click', function (button, down_x, down_y)
+	{
+		var x = Math.floor(down_x / this.image.tile_w);
+		var y = Math.floor(down_y / this.image.tile_h);
+
+		if ((x in this.actions) && (y in this.actions[x]))
+		{
+			console.log(this.actions[x][y].card.type.title);
+			return false;
+		}
+	});
+
+	ActionMenu.on('draw', function (time, context)
+	{
+		var tile_w = this.image.tile_w;
+		var tile_h = this.image.tile_h;
+
+		for (var x = 0; x < this.actions.length; x++)
+		{
+			context.save();
+
+			for (var y = 0; y < this.actions[x].length; y++)
+			{
+				var action = this.actions[x][y];
+				context.drawImage(this.image, this.image.tile_x[action.card.type.id], this.image.tile_y[action.card.type.id], tile_w, tile_h, 0, 0, tile_w, tile_h);
+				context.translate(0, tile_h);
+			}
+
+			context.restore();
+			context.translate(tile_w, 0);
+		}
+	});
+
+	var PathMenu = oui.Menu.extend(function ()
+	{
+		oui.Menu.call(this, 'chars');
+	});
+
+	PathMenu.method('drawButton', function (time, context, data, pick)
+	{
+		context.drawImage(this.image, this.image.tile_x[0], this.image.tile_y[0], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+	});
+
+	PathMenu.on('edit_action', function (action)
+	{
+		this.action = action;
+		var info_ids = Object.keys(action.paths);
+		var width = info_ids.length * this.image.tile_w;
+		this.arrange({horizontal: 50, width: width, bottom: BORDER, height: this.image.tile_h});
+		this.reset(info_ids);
+	});
+
+	PathMenu.on('pick_item', function (info_id)
+	{
+		this.action.char = this.root.data.chars[info_id];
+		this.root.put(this.root.data.actions, 'actions');
+		this.parent.world_map.trigger('edit_action', [this.action]);
+	});
+
 	var PlayPrompt = ooo.Scene.extend(function (map_size, layout)
 	{
 		//battle(red),diplomacy(blue),shady(gray),development(yellow),nature(green),magic(purple)
@@ -539,11 +644,51 @@
 		//this.turnmenu = new TurnMenu({left: BORDER, right: BORDER, top: BORDER, height: 64});
 		//this.show(this.turnmenu, 1);
 
-		this.action_menu = new ActionMenu({horizontal: 50, width: 250, top: BORDER, height: 200});
-		this.show(this.action_menu, 1);
+		this.hand_menu = new HandMenu();
+		this.action_menu = new ActionMenu('items');
+		this.path_menu = new PathMenu();
+		this.ready_button = new ReadyButton('#faa', {right: BORDER, width: 64, bottom: BORDER, height: 64});
+	});
 
-		this.hand_menu = new HandMenu({left: 0, width: 98, vertical: 50, height: 350});
-		this.show(this.hand_menu, 2);
+	PlayPrompt.on('update_hand', function (hand)
+	{
+		if (hand)
+		{
+			this.show(this.hand_menu, 3);
+		}
+		else
+		{
+			this.hand_menu.hide();
+		}
+	});
+
+	PlayPrompt.on('update_actions', function (actions)
+	{
+		if (actions)
+		{
+			this.show(this.action_menu, 3);
+		}
+		else
+		{
+			this.action_menu.hide();
+		}
+	});
+
+	PlayPrompt.on('edit_action', function (action)
+	{
+		this.show(this.path_menu, 3);
+	});
+
+	PlayPrompt.on('show_turn', function ()
+	{
+		this.show(this.ready_button, 4);
+	});
+
+	PlayPrompt.on('show_ready', function ()
+	{
+		this.action_menu.hide();
+		this.path_menu.hide();
+		this.ready_button.hide();
 	});
 
 	var CardStack = ooo.Box.extend(function (type, color, layout)
@@ -583,6 +728,7 @@
 		if (this.root.draw_prompt.count == 0)
 		{
 			this.root.draw_prompt.hide();
+			this.root.trigger('show_turn');
 		}
 
 		this.hide();
@@ -752,7 +898,6 @@
 				}
 			}
 		}
-		//no realm stats!!! only char stats!!! (das heisst alles ist angreifbar/vergänglich)
 
 		for (var tile_i in terrain)
 		{
@@ -789,10 +934,14 @@
 			char.home = this.play_prompt.world_map.index[tile_i];
 			var task = char.knowledge[0][23][0];
 			char.task = ooc.map(task.type.param, task.state);
+			//char.temp = ooc.clone(char.task);
 			chars[info_id] = char;
 		}
 
-		this.put(chars, 'chars');
+		this.data.chars = chars;
+		this.delete('actions');
+		//results in update_chars!
+		//this.put(chars, 'chars');
 		hand = ooc.hash(hand);
 
 		for (var card_id in hand)
@@ -809,12 +958,15 @@
 
 		if (briefing.init)
 		{
-			this.showInit(briefing.init);
+			this.trigger('show_init', [briefing.init]);
 		}
-
-		if (briefing.draw)
+		else if (briefing.draw)
 		{
-			this.showDraw(briefing.draw);
+			this.trigger('show_draw', [briefing.draw]);
+		}
+		else
+		{
+			this.trigger('show_turn');
 		}
 	}
 
@@ -829,22 +981,74 @@
 		this.show(this.logo_prompt);
 	});
 
-	Game.method('showInit', function (stats)
+	Game.on('show_load', function ()
+	{
+		this.show(this.logo_prompt);//change for load_screen
+	});
+
+	Game.on('show_init', function (stats)
 	{
 		//this.init_prompt.count = briefing.draw;
 		this.show(this.init_prompt, 1);
 	});
 
-	Game.method('showDraw', function (count)
+	Game.on('show_draw', function (count)
 	{
 		this.draw_prompt.count = count;
 		this.show(this.draw_prompt, 1);
 	});
 
-	Game.method('showCard', function (card)
+	Game.on('show_card', function (card)
 	{
 		this.card_prompt.card = card;
 		this.show(this.card_prompt, 2);
+	});
+
+	Game.on('show_turn', function ()
+	{
+	});
+
+	Game.on('show_wait', function ()
+	{
+	});
+
+	Game.on('update_actions', function (actions)
+	{
+		for (var info_id in this.data.chars)
+		{
+			var char = this.data.chars[info_id];
+			char.temp = ooc.clone(char.task);
+		}
+
+		if (actions)
+		{
+			//add up task estimates
+			for (var tile_i in actions)
+			{
+				for (var i = 0; i < actions[tile_i].length; i++)
+				{
+					var action = actions[tile_i][i];
+					var char = action.char;
+					var path = action.paths[char.info.id];
+					char.temp.range += path.cost;
+					char.temp.power = jup.addPower(char.temp.power, action.card.type.power);
+
+					if (false)//Card is Job
+					{
+						var route = ooc.hash(char.temp.route);
+
+						for (var i = 0; i < path.tiles.length; i++)
+						{
+							route[path.tiles[i]] = true;
+						}
+
+						char.temp.route = ooc.intkeys(route);
+					}
+				}
+			}
+		}
+
+		this.put(this.data.chars, 'chars');
 	});
 
 	Game.on('socket:open', function ()
@@ -973,10 +1177,9 @@
 		else
 		{
 			var card = new Card(card_id, 1);
-			//this.data.hand[card_id] = card;
 		}
 
-		this.showCard(card);
+		this.trigger('show_card', [card]);
 	});
 
 	Game.on('message:away', function (name)

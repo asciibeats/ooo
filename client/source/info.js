@@ -242,7 +242,7 @@ GROUPS[4] = 'Events';*/
 	regInfo(1, new Tile('Forest', 3, 3, []));
 	regInfo(5, new Item('Corn', 1, []));
 	regInfo(6, new Item('Blueberries', 1, []));
-	regInfo(9, new Char('Hero', 1, [5, 5, 2, {0: 9, 1: 9, 2: 9, 3: 9, 4: 9, 5: 9, 6: 9, 7: 9}, 0, 1]));
+	regInfo(9, new Char('Hero', 1, [10, 5, 2, {0: 9, 1: 9, 2: 9, 3: 9, 4: 9, 5: 9, 6: 9, 7: 9}, 0, 1]));
 	regInfo(8, new Item('Apple', 1, []));
 	regInfo(7, new Item('Ring', 1, []));
 	regInfo(42, new Data('Mind', 0, [], []));
@@ -262,6 +262,7 @@ GROUPS[4] = 'Events';*/
 	////Professions
 	////gibts passive gebäude?? bestimmt
 	////manche gebäude spawnen
+	////Immer mit dauerhaftem Pfad verbunden
 
 	////Development: on buildings
 	////Knowledge: on chars/homes
