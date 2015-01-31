@@ -20,15 +20,16 @@ var oui = {};
 		this.baseline = baseline || 'top';
 	});
 
-	oui.Form.method('show', function (actor, layer)
+	oui.Form.method('show', function (actor, index)
 	{
-		ooo.Scene.prototype.show.call(this, actor, layer);
+		ooo.Scene.prototype.show.call(this, actor, index);
 
 		//focus on first input added
-		if (!this.focus && (actor instanceof oui.Input))
+		if ((this.focus == undefined) && (actor instanceof oui.Input))
 		{
 			this.focus = actor;
-			actor.toggle();
+			console.log(actor.index);
+			//actor.toggle();
 		}
 
 		return this;
@@ -36,60 +37,60 @@ var oui = {};
 
 	oui.Form.method('reset', function ()
 	{
-		this.focus.toggle();
+		//this.focus.toggle();
 		delete this.focus;
 
-		//for (var i = 0; i < this.children.length; i++)
-		for (var id in this.children[0])
+		for (var index = 0; index < this.children.length; index++)
 		{
-			var child = this.children[0][id];
+			var actor = this.children[index];
 
-			if (child instanceof oui.Input)
+			if ((actor != undefined) && (actor instanceof oui.Input))
 			{
-				if (!this.focus)
-				{
-					this.focus = child;
-					child.toggle();
-				}
-
-				if (child.reset)
-				{
-					child.reset();
-				}
+				this.focus = actor;
+				//actor.toggle();
+				break;
 			}
 		}
+
+		this.trigger('form_reset');
 	});
 
-	oui.Form.on('input:press', function (time, char, key, shift)
+	oui.Form.capture('input_press', function (time, char, key, shift)
 	{
-		if (key == 9)//tab
+		if (key == 13)//tab
 		{
-			this.focus.toggle();
-			var id = this.focus.id;
-			var layer = this.children[this.focus.layer];
-			var length = ooc.size(layer);
+			this.trigger('form_submit', [null, {}]);
+			return false;
+		}
+		else if (key == 9)//tab
+		{
+			//this.focus.toggle();
+			var index = this.focus.index;
+			var length = this.children.length;
 
 			do
 			{
-				id = ooc.wrap(shift ? id - 1 : id + 1, length);
-				this.focus = layer[id];
+				index = ooc.wrap(shift ? index - 1 : index + 1, length);
+				this.focus = this.children[index];
 			}
 			while (!(this.focus instanceof oui.Input))
 
-			this.focus.toggle();
+			//this.focus.toggle();
 			return false;
 		}
 	});
 
-	oui.Form.on('draw', function (time, context)
+	oui.Form.capture('draw', function (time, context)//erzeugt komischen glitch (in firefox) beim öffnen der js-konsole (F12) (verschwindet wenn context.font auskommentiert wird
+	//oui.Form.prepare('draw', function (time, context)
 	{
+		//ooo.Scene.prototype.events.prepare.draw.call(this, time, context);//
 		context.fillStyle = this.color;
 		context.font = this.font;
 		context.textAlign = this.align;
 		context.textBaseline = this.baseline;
 	});
 
-	oui.Form.prepare('input:press', function (time, char, key, shift)
+	oui.Form.prepare('input_press', function (time, char, key, shift)
 	{
 		if (this.parent.focus != this)
 		{
@@ -97,34 +98,35 @@ var oui = {};
 		}
 	});
 
-	oui.Form.bubble('form:submit', function (type, data)
+	oui.Form.bubble('form_submit', function (type, data)
 	{
 		console.log('submit %s %s', type, JSON.stringify(data));
 	});
 
-	oui.Input = ooo.Cell.extend(function (layout)//alphabet
+	oui.Input = ooo.Cell.extend(function (name, layout)//alphabet
 	{
 		ooo.Cell.call(this, layout);
+		this.name = name;
 		this.focus = false;
 	});
 
-	oui.Input.method('toggle', function ()
+	/*oui.Input.method('toggle', function ()
 	{
 		this.focus = !this.focus;
-	});
+	});*/
 
 	oui.Input.on('mouse_click', function (button, down_x, down_y)
 	{
-		this.parent.focus.toggle();
+		//this.parent.focus.toggle();
 		this.parent.focus = this;
-		this.toggle();
+		//this.toggle();
 	});
 
-	oui.Button = oui.Input.extend(function (asset, index, layout)
+	oui.Button = oui.Input.extend(function (name, asset, type, layout)
 	{
-		oui.Input.call(this, layout);
+		oui.Input.call(this, name, layout);
 		this.asset = asset;
-		this.index = index;
+		this.type = type;
 	});
 
 	oui.Button.on('show', function (root, parent)
@@ -137,63 +139,57 @@ var oui = {};
 	{
 		if (this.focus)
 		{
-			context.drawImage(this.image, this.image.tile_x[this.index], this.image.tile_y[this.index], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+			context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 		}
 		else
 		{
-			context.drawImage(this.image, this.image.tile_x[this.index], this.image.tile_y[this.index], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+			context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 		}
 	});
 
-	oui.Submit = oui.Button.extend(function (asset, type, layout)
+	oui.Submit = oui.Button.extend(function (name, asset, type, layout)
 	{
-		oui.Button.call(this, asset, type, layout);
+		oui.Button.call(this, name, asset, type, layout);
 	});
 
 	oui.Submit.on('mouse_click', function (button, down_x, down_y)
 	{
-		oui.Button.prototype.events.on['mouse_click'].call(this, button, down_x, down_y);
-		this.parent.trigger('form:submit', [this.type, []]);
+		oui.Button.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		this.parent.trigger('form_submit', [this.name, {}]);
 		return false;
 	});
 
-	oui.Submit.on('input:press', function (time, char, key, shift)
+	oui.Submit.on('input_press', function (time, char, key, shift)
 	{
 		if (key == 13)//enter
 		{
-			this.parent.trigger('form:submit', [this.type, []]);
+			this.parent.trigger('form_submit', [this.name, {}]);
 			return false;
 		}
 	});
 
-	oui.Field = oui.Input.extend(function (type, layout)//alphabet
+	oui.Field = oui.Input.extend(function (name, layout)//alphabet
 	{
-		oui.Input.call(this, layout);
-		this.type = type;
-		this.reset();
+		oui.Input.call(this, name, layout);
+		oui.Field.prototype.events.on.form_reset.call(this);
 	});
 
-	oui.Field.method('reset', function ()
+	oui.Field.on('form_reset', function ()
 	{
 		this.chars = [];
 		this.caret = 0;
-		this.text = '';
-		this.sub = '';
+		this.string = '';
+		this.substr = '';
 	});
 
-	oui.Field.on('form:submit', function (type, data)
+	oui.Field.on('form_submit', function (name, data)
 	{
-		data.push(this.text);
+		ooc.push(this.string, data, this.name);
 	});
 
-	oui.Field.on('input:press', function (time, char, key, shift)
+	oui.Field.on('input_press', function (time, char, key, shift)
 	{
-		if (key == 13)//enter
-		{
-			this.parent.trigger('form:submit', [this.type, []]);
-			return false;
-		}
-		else if (key == 8)//backspace
+		if (key == 8)//backspace
 		{
 			if (this.caret > 0)
 			{
@@ -232,110 +228,116 @@ var oui = {};
 			return;
 		}
 
-		this.text = this.chars.join('');
-		this.sub = this.text.substr(0, this.caret);
+		this.string = this.chars.join('');
+		this.substr = this.string.substr(0, this.caret);
 	});
 
 	oui.Field.on('draw', function (time, context)
 	{
-		//context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
-		context.fillText(this.text, 0, 0);
+		context.fillText(this.string, 0, 0);
 
 		if (this.focus && ((time % 2000) < 1300))//caret blink
 		{
-			context.fillRect(context.measureText(this.sub).width, 0, this.height >>> 3, this.height);
+			context.fillRect(context.measureText(this.substr).width, 0, this.height >>> 3, this.height);
 		}
 	});
 
-	oui.Count = oui.Input.extend(function (min, max, init, layout)
+	oui.Counter = oui.Input.extend(function (name, min, max, init, layout)
 	{
-		oui.Input.call(this, layout);
+		oui.Input.call(this, name, layout);
 		this.min = min;
 		this.max = max;
 		this.init = init;
-		this.reset();
+		oui.Counter.prototype.events.on.form_reset.call(this);
 	});
 
-	oui.Count.method('reset', function ()
+	oui.Counter.on('form_reset', function ()
 	{
-		this.number = this.init;
+		this.count = this.init;
 	});
 
-	oui.Count.on('form:submit', function (type, data)
+	oui.Counter.on('form_submit', function (name, data)
 	{
-		data.push(this.number);
+		ooc.push(this.count, data, this.name);
 	});
 
-	oui.Count.on('mouse_click', function (button, down_x, down_y)
+	oui.Counter.on('mouse_click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on['mouse_click'].call(this, down_x, down_y);
+		oui.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
 
 		if (down_x < (this.width >>> 1))
 		{
-			if (this.number > this.min)
+			if (this.count > this.min)
 			{
-		 		this.number--;
+		 		this.count--;
 			}
 			else
 			{
-		 		this.number = this.max;
+		 		this.count = this.max;
 			}
 		}
 		else
 		{
-			if (this.number < this.max)
+			if (this.count < this.max)
 			{
-		 		this.number++;
+		 		this.count++;
 			}
 			else
 			{
-		 		this.number = this.min;
+		 		this.count = this.min;
 			}
 		}
 	});
 
-	oui.Count.on('draw', function (time, context)
+	oui.Counter.on('draw', function (time, context)
 	{
-		//context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
-		context.fillText(this.number, 0, 0);
+		context.fillText(this.count, 0, 0);
 	});
 
-	oui.Option = oui.Input.extend(function (options, init, type, layout)
+	oui.Options = oui.Input.extend(function (name, options, init, layout)
 	{
-		oui.Input.call(this, type, layout);
+		oui.Input.call(this, name, layout);
 		this.options = options;
 		this.init = init;
-		this.reset();
+		oui.Options.prototype.events.on.form_reset.call(this);
 	});
 
-	oui.Option.method('reset', function ()
+	oui.Options.on('form_reset', function ()
 	{
 		this.pick = this.init;
 	});
 
-	oui.Option.on('form:submit', function (type, data)
+	oui.Options.on('form_submit', function (type, data)
 	{
-		data.push(this.pick);
+		ooc.push(this.pick, data, this.name);
 	});
 
-	oui.Option.on('mouse_click', function (button, down_x, down_y)
+	oui.Options.on('mouse_click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on['mouse_click'].call(this, down_x, down_y);
-		down_x < (this.width >>> 1) ? this.pick-- : this.pick++;
+		oui.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+
+		if (down_x < (this.width >>> 1))
+		{
+			this.pick--;
+		}
+		else
+		{
+			this.pick++;
+		}
+
 		this.pick = ooc.wrap(this.pick, this.options.length);
 	});
 
-	oui.Option.on('draw', function (time, context)
+	oui.Options.on('draw', function (time, context)
 	{
-		//context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
 		context.fillText(this.options[this.pick], 0, 0);
 	});
 
-	oui.Switch = oui.Input.extend(function (init, layout)
+	oui.Switch = oui.Input.extend(function (name, init, layout)
 	{
-		oui.Input.call(this, layout);
+		oui.Input.call(this, name, layout);
 		this.init = init;
-		this.reset();
+		oui.Switch.prototype.events.on.form_reset.call(this);
 	});
 
 	oui.Switch.method('reset', function ()
@@ -343,14 +345,14 @@ var oui = {};
 		this.state = this.init;
 	});
 
-	oui.Switch.on('form:submit', function (type, data)
+	oui.Switch.on('form_submit', function (name, data)
 	{
-		data.push(this.state);
+		ooc.push(this.state, data, this.name);
 	});
 
 	oui.Switch.on('mouse_click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on['mouse_click'].call(this, down_x, down_y);
+		oui.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
 		this.state = this.state ? 0 : 1;
 	});
 
@@ -360,6 +362,7 @@ var oui = {};
 		context.fillText(this.state, 0, 0);
 	});
 
+	//MENUS
 	oui.Menu = ooo.Cell.extend(function (asset, layout, style)//switch to oui.Button.extend
 	{
 		ooo.Cell.call(this, layout);
@@ -623,13 +626,13 @@ var oui = {};
 		this.drag_y = 0;
 		this.drop_x = 0;
 		this.drop_y = 0;
+		this.coords = [];
 		this.tiles = [];
-		this.index = [];
 
 		//create tiles
 		for (var y = 0, i = 0; y < size; y++)
 		{
-			this.tiles[y] = [];
+			this.coords[y] = [];
 
 			for (var x = 0; x < size; x++, i++)
 			{
@@ -639,8 +642,8 @@ var oui = {};
 				tile.x = x;
 				tile.y = y;
 				tile.data = this.initData(i, x, y);
-				this.tiles[y][x] = tile;
-				this.index[i] = tile;
+				this.coords[y][x] = tile;
+				this.tiles[i] = tile;
 			}
 		}
 
@@ -655,10 +658,10 @@ var oui = {};
 				{
 					var nx = (x + SQR_NMASK[i][0] + size) % size;
 					var ny = (y + SQR_NMASK[i][1] + size) % size;
-					steps[i] = this.tiles[ny][nx];
+					steps[i] = this.coords[ny][nx];
 				}
 
-				this.tiles[y][x].steps = steps;
+				this.coords[y][x].steps = steps;
 			}
 		}
 	});
@@ -712,7 +715,7 @@ var oui = {};
 
 		for (var i = 0; i < open.length; i++)
 		{
-			open[i] = this.index[open[i]];
+			open[i] = this.tiles[open[i]];
 			open[i].g = 0;
 		}
 
@@ -860,9 +863,15 @@ var oui = {};
 
 	oui.TileMap.method('getTileAt', function (down_x, down_y)
 	{
-		var tile_x = Math.floor(((this.drop_x + down_x) % this.patch_w) / this.image.tile_w);
-		var tile_y = Math.floor(((this.drop_y + down_y) % this.patch_h) / this.image.tile_h);
-		return this.tiles[tile_y][tile_x];
+		var tile_x = Math.floor(ooc.wrap(this.drop_x - this.mid_x + down_x, this.patch_w) / this.image.tile_w);
+		var tile_y = Math.floor(ooc.wrap(this.drop_y - this.mid_y + down_y, this.patch_h) / this.image.tile_h);
+		return this.coords[tile_y][tile_x];
+	});
+
+	oui.TileMap.method('viewTile', function (tile)
+	{
+		this.drop_x = (tile.x * this.image.tile_w) + (this.image.tile_w >>> 1);
+		this.drop_y = (tile.y * this.image.tile_h) + (this.image.tile_h >>> 1);
 	});
 
 	oui.TileMap.on('show', function (root, parent)
@@ -871,6 +880,44 @@ var oui = {};
 		this.image = root.images[this.asset];
 		this.patch_w = this.size * this.image.tile_w;
 		this.patch_h = this.size * this.image.tile_h;
+	});
+
+	oui.TileMap.on('resize', function (width, height)
+	{
+		ooo.Cell.prototype.events.on.resize.call(this, width, height);
+		this.mid_x = this.width >>> 1;
+		this.mid_y = this.height >>> 1;
+	});
+
+	oui.TileMap.on('draw', function (time, context)
+	{
+		var drop_x = ooc.wrap(this.drop_x - this.drag_x - this.mid_x, this.patch_w);
+		var drop_y = ooc.wrap(this.drop_y - this.drag_y - this.mid_y, this.patch_h);
+		var start_x = Math.floor(drop_x / this.image.tile_w);
+		var start_y = Math.floor(drop_y / this.image.tile_h);
+		var end_x = start_x + Math.ceil(this.width / this.image.tile_w);
+		var end_y = start_y + Math.ceil(this.height / this.image.tile_h);
+
+		context.translate(-(drop_x % this.image.tile_w), -(drop_y % this.image.tile_h));
+
+		for (var y = start_y; y <= end_y; y++)
+		{
+			var tile_y = y % this.size;
+			context.save();
+
+			for (var x = start_x; x <= end_x; x++)
+			{
+				var tile_x = x % this.size;
+				var tile = this.coords[tile_y][tile_x];
+				context.save();
+				this.drawTile(tile, tile.data, time, context);
+				context.restore();
+				context.translate(this.image.tile_w, 0);
+			}
+
+			context.restore();
+			context.translate(0, this.image.tile_h);
+		}
 	});
 
 	oui.TileMap.on('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
@@ -905,37 +952,6 @@ var oui = {};
 		return false;
 	});
 
-	oui.TileMap.on('draw', function (time, context)
-	{
-		var drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
-		var drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
-		var start_x = Math.floor(drop_x / this.image.tile_w);
-		var start_y = Math.floor(drop_y / this.image.tile_h);
-		var end_x = start_x + Math.ceil(this.width / this.image.tile_w);
-		var end_y = start_y + Math.ceil(this.height / this.image.tile_h);
-
-		context.translate(-(drop_x % this.image.tile_w), -(drop_y % this.image.tile_h));
-
-		for (var y = start_y; y <= end_y; y++)
-		{
-			var tile_y = y % this.size;
-			context.save();
-
-			for (var x = start_x; x <= end_x; x++)
-			{
-				var tile_x = x % this.size;
-				var tile = this.tiles[tile_y][tile_x];
-				context.save();
-				this.drawTile(tile, tile.data, time, context);
-				context.restore();
-				context.translate(this.image.tile_w, 0);
-			}
-
-			context.restore();
-			context.translate(0, this.image.tile_h);
-		}
-	});
-
 	oui.HexMap = oui.TileMap.extend(function (size, tile_w, tile_h, type, layout)
 	{
 		oui.TileMap.apply(this, arguments);
@@ -950,13 +966,13 @@ var oui = {};
 		this.hex_y = this.tile_3h4 / hex_d;
 		this.size2 = size >>> 1;
 		this.size32 = size + this.size2;
+		this.coords = [];
 		this.tiles = [];
-		this.index = [];
 
 		//create tiles
 		for (var y = 0, i = 0; y < size; y++)
 		{
-			this.tiles[y] = [];
+			this.coords[y] = [];
 
 			for (var x = 0; x < size; x++, i++)
 			{
@@ -966,8 +982,8 @@ var oui = {};
 				tile.y = y;
 				tile.z = -tile.x - y;
 				tile.type = 0;
-				this.tiles[y][x] = tile;
-				this.index[i] = tile;
+				this.coords[y][x] = tile;
+				this.tiles[i] = tile;
 			}
 		}
 
@@ -984,10 +1000,10 @@ var oui = {};
 				{
 					var nx = (x + nmask[i][0] + size) % size;
 					var ny = (y + nmask[i][1] + size) % size;
-					steps[i] = this.tiles[ny][nx];
+					steps[i] = this.coords[ny][nx];
 				}
 
-				this.tiles[y][x].steps = steps;
+				this.coords[y][x].steps = steps;
 			}
 		}
 	});
@@ -1077,7 +1093,7 @@ var oui = {};
 			}
 		}
 
-		this.trigger('input:pick', [this.tiles[tile_y][tile_x], button, tile_x, tile_y]);
+		this.trigger('input_pick', [this.coords[tile_y][tile_x], button, tile_x, tile_y]);
 		return false;
 	});
 
@@ -1106,7 +1122,7 @@ var oui = {};
 			for (var x = start_x; x <= end_x; x++)
 			{
 				var tile_x = x % this.size;
-				var tile = this.tiles[tile_y][tile_x];
+				var tile = this.coords[tile_y][tile_x];
 				context.drawImage(this.image, this.coords[tile.type][0], this.coords[tile.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
 
 				if ('mark' in tile)

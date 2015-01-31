@@ -5,7 +5,6 @@ var ooc = require('../client/source/ooc.js');
 var jup = require('../client/source/info.js');
 var START_DELAY = 0;
 var DENY_DELAY = 1;
-var ELEMS = ['Fire', 'Ice', 'Stone'];
 var POOL_TIMEOUT = 4;
 
 //mod access to map is baaaaad /// needs to be changed!!!!!!!!!!!1 (or does it??? maximum freedom for mods!!! think about whats really never needed and remove that from reach!!!)
@@ -527,9 +526,9 @@ Game.method('start', function ()
 	this.map = new Map(this.map_size);
 	this.world = new World();
 
-	for (var i = 0; i < this.map.index.length; i++)
+	for (var i = 0; i < this.map.tiles.length; i++)
 	{
-		this.map.index[i].data.info = this.world.spawn([0]);
+		this.map.tiles[i].data.info = this.world.spawn([0]);
 	}
 
 	var seat = 0;
@@ -573,7 +572,7 @@ Game.method('tick', function ()
 	for (var tile_i in this.actions)
 	{
 		var collision = this.actions[tile_i];
-		//var tile = this.map.index[tile_i];
+		//var tile = this.map.tiles[tile_i];
 
 		if (ooc.size(collision) > 1)
 		{
@@ -698,7 +697,7 @@ Game.method('tock', function (player, actions)
 		}
 
 		var char = realm.chars[info_id];
-		var home = this.map.index[char.home.state[0]];
+		var home = this.map.tiles[char.home.state[0]];
 		var task = ooc.map(char.task.type.param, char.task.state);
 		task.route = ooc.hash(task.route);
 		tasks[info_id] = task;
@@ -821,11 +820,11 @@ Game.method('tock', function (player, actions)
 var Client = ooo.Client.extend(function (server, socket)
 {
 	ooo.Client.call(this, server, socket);
-	this.expected = {'login': true};
+	this.expected = {login: true};
 	this.attempts = 0;
 });
 
-Client.on('socket:close', function ()
+Client.on('socket_close', function ()
 {
 	var player = this.player;
 
@@ -849,7 +848,7 @@ Client.on('socket:close', function ()
 	}
 });
 
-Client.on('message:register', function (name, pass)
+Client.on('message_register', function (name, pass)
 {
 	if (this.server.players[name] != undefined)
 	{
@@ -866,7 +865,7 @@ Client.on('message:register', function (name, pass)
 	this.send('grant', [games]).expect('host', 'join');
 });
 
-Client.on('message:login', function (name, pass)
+Client.on('message_login', function (name, pass)
 {
 	var player = this.server.players[name];
 
@@ -918,7 +917,7 @@ Client.on('message:login', function (name, pass)
 	}
 });
 
-Client.on('message:host', function (mode, rules)
+Client.on('message_host', function (mode, rules)
 {
 	console.log('HOST %s %s', this.player.name, JSON.stringify(rules));
 	var core = mod;//getCore(mode);
@@ -929,7 +928,7 @@ Client.on('message:host', function (mode, rules)
 	this.expect('leave');
 });
 
-Client.on('message:join', function (id)
+Client.on('message_join', function (id)
 {
 	var game = this.server.games[id];
 
@@ -942,18 +941,18 @@ Client.on('message:join', function (id)
 	this.expect('leave');
 });
 
-Client.on('message:leave', function ()
+Client.on('message_leave', function ()
 {
 	this.player.game.leave(player);
 	this.expect('host', 'join');
 });
 
-Client.on('message:draw', function (type)
+Client.on('message_draw', function (type)
 {
 	this.player.game.draw(this.player, type);
 });
 
-Client.on('message:tock', function (actions)
+Client.on('message_tock', function (actions)
 {
 	this.player.game.tock(this.player, actions);
 });

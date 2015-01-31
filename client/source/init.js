@@ -1,4 +1,5 @@
 'use strict';
+//Items? wie sind die im spiel integriert?
 //NEXT: HandMenu (keine Actors mehr per Card! so wie ActionMenu && MouseOver und Info)
 //THEN: MouseOver
 //THEN: KartenInfoDrawn (InfoAnsicht;Bild;Count;Gain;Title;Description)
@@ -30,6 +31,22 @@
 ///Animation (kleines Ausrollbanner)
 ///Transitions (zwischen Stages)
 
+////////////////////////////////////////////////////////////
+//Königsmacher nicht vergessen!!! einer kriegt ne krone der andere schutz/allianz
+//Karten sind per Realm und Items per Char!!!!!
+//Passive Karten blockieren die HandMenu!!! auto balance!!! :D
+//devel konsole triggern per / und eingabe per eval (this=root) (inkl history+localStore)
+
+//TODO DATENFORMAT UND VERARBEITUNG!!!!
+
+//JOBS KOSTEN WEDER POWER NOCH RANGE oder nur power oder so, aber wenn man sie abbricht verliert man die kosten permanent
+///führt dazu daß stabilität besonders wichtig und man fur weitsicht belohnt wird
+
+////jobs sind immer durch tile augmentations (gebäude) gekennzeichnet????
+////aber nicht alle gebäude sind jobs
+
+////HOWTO Synergys forcieren zwischen chars
+
 (function ()
 {
 	var HOST = 'http://' + window.location.hostname + ':11133';
@@ -39,31 +56,42 @@
 	var WAIT = 'PLEASE WAIT FOR %d OTHER PLAYERS';
 	var MOVE = 'PLEASE MAKE A MOVE';
 
+	var LogoPrompt = ooo.Scene.extend(function (layout)
+	{
+		ooo.Scene.call(this, layout);
+		this.show(new ooo.Box('#474'), 0);
+		this.show(new ooo.Box('#eee', {width: 200, height: 200}), 1);
+	});
+
 	var LoginForm = oui.Form.extend(function (color, font, layout, align, baseline)
 	{
 		oui.Form.call(this, color, font, layout, align, baseline);
-		this.show(new ooo.Box('#777'), -1);
-		this.show(new oui.Field('auth_token', {top: 10, left: 10, right:10, height: 30}));
-		this.show(new oui.Field('auth_token', {top: 50, left: 10, right:10, height: 30}));
-		this.show(new oui.Submit('login', 0, {top: 90, left: 10, right: 10, height: 30}));
+		this.show(new ooo.Box('#777'), 0);
+		this.show(new oui.Field('token', {top: 10, left: 10, right:10, height: 30}), 1);
+		this.show(new oui.Field('token', {top: 50, left: 10, right:10, height: 30}), 2);
+		this.show(new oui.Submit('login', 'login', 0, {top: 90, left: 10, right: 10, height: 30}), 3);
 	});
 
-	LoginForm.bubble('form:submit', function (type, data)
+	LoginForm.bubble('form_submit', function (name, data)
 	{
-		this.root.auth_token = data;
-		this.root.send('login', data);
-		this.root.login_prompt.hide();
+		this.root.data.token = data.token;
+		this.root.send('login', data.token);
 		this.root.trigger('show_load');
 	});
 
 	var LoginPrompt = ooo.Scene.extend(function (layout)
 	{
 		ooo.Scene.call(this, layout);
-		this.show(new ooo.Box('#444'), -1);
-		this.form = new LoginForm('#a50', '30px sans-serif', {horizontal: 50, width: 150, vertical: 50, height: 130});
-		this.show(this.form);
+		this.show(new ooo.Box('#444'), 0);
+		this.show(new LoginForm('#a50', '30px sans-serif', {horizontal: 50, width: 150, vertical: 50, height: 130}), 1);
 	});
 
+	var LoadPrompt = ooo.Scene.extend(function (layout)
+	{
+		ooo.Scene.call(this, layout);
+		this.show(new ooo.Box('#227'), 0);
+		this.show(new ooo.Box('#aaa', {width: 300, height: 100}), 1);
+	});
 	//fremde charpaths werden durch avatar dargestellt der immer hin und her läuft (kann auch doppelt vorkommen)
 	///mouseover hält den char an und zeigt pfad
 
@@ -172,9 +200,9 @@
 
 	WorldMap.on('update_terrain', function (terrain)
 	{
-		for (var i = 0; i < this.index.length; i++)
+		for (var i = 0; i < this.tiles.length; i++)
 		{
-			var tile = this.index[i];
+			var tile = this.tiles[i];
 
 			if (i in terrain)
 			{
@@ -202,9 +230,9 @@
 			}
 		}
 
-		for (var i = 0; i < this.index.length; i++)
+		for (var i = 0; i < this.tiles.length; i++)
 		{
-			var tile = this.index[i];
+			var tile = this.tiles[i];
 
 			if (i in realm)
 			{
@@ -215,12 +243,6 @@
 				tile.data.type = (tile.data.info.type.id << 1) + 3;
 			}
 		}
-	});
-
-	WorldMap.on('update_actions', function (actions)
-	{
-		delete this.action;
-		this.marks = {};
 	});
 
 	WorldMap.on('edit_action', function (action)
@@ -275,7 +297,7 @@
 		}
 	});
 
-	WorldMap.on('show_wait', function ()
+	WorldMap.on(['end_edit', 'update_actions', 'show_wait'], function ()
 	{
 		delete this.action;
 		this.marks = {};
@@ -293,6 +315,50 @@
 	});
 
 	/////////////////PLAY PROMPT
+	var TurnButton = oui.Button.extend(function (asset, type, layout)
+	{
+		oui.Button.call(this, 'foo', asset, type, layout);
+		this.type = 1;
+	});
+
+	TurnButton.on('mouse_click', function (button, down_x, down_y)
+	{
+		if (this.type == 2)
+		{
+			this.type = 0;
+			var actions = this.root.data.actions;
+			var data = {};
+
+			for (var tile_i in actions)
+			{
+				for (var i = 0; i < actions[tile_i].length; i++)
+				{
+					var action = actions[tile_i][i];
+					var info_id = action.char.info.id;
+					var steps = action.paths[info_id].steps;
+					var card_id = action.card.id;
+					//tile_i in array[1] is temp: has to be the target info_id
+					ooc.push([card_id, tile_i, steps], data, info_id, tile_i);
+				}
+			}
+
+			this.root.send('tock', [data]);
+			this.root.trigger('show_wait');
+		}
+		else if (this.type == 0)
+		{
+			this.root.trigger('end_edit');
+		}
+
+		this.type++;
+		return false;
+	});
+
+	TurnButton.on('edit_action', function (action)
+	{
+		this.type = 0;
+	});
+
 	var HandMenu = ooo.Cell.extend(function (asset)
 	{
 		ooo.Cell.call(this);
@@ -387,12 +453,8 @@
 		catch (e)
 		{
 			console.log('CARD EXCEPTION');
-			console.log(e.toString());
-
-			if (e.stack)
-			{
-				console.log(e.stack);
-			}
+			console.log(e);
+			alert(e);
 		}
 
 		delete this.drag_card;
@@ -436,9 +498,6 @@
 			context.restore();
 			context.translate(tile_w, 0);
 		}
-
-		context.fillStyle = '#ddd';
-		context.fillRect(0, 0, 64, 64);
 	});
 
 	ActionMenu.on('update_actions', function (actions)
@@ -472,7 +531,7 @@
 				y = 0;
 			}
 
-			this.arrange({horizontal: 50, width: (x * this.image.tile_w) + 64, top: BORDER, height: max_y * this.image.tile_h});
+			this.arrange({horizontal: 50, width: (x * this.image.tile_w), top: BORDER, height: (max_y * this.image.tile_h)});
 		}
 		else
 		{
@@ -482,29 +541,6 @@
 
 	ActionMenu.on('mouse_click', function (button, down_x, down_y)
 	{
-		if ((down_x > (this.width - 64)) && (down_y < 64))
-		{
-			var actions = this.root.data.actions;
-			var data = {};
-
-			for (var tile_i in actions)
-			{
-				for (var i = 0; i < actions[tile_i].length; i++)
-				{
-					var action = actions[tile_i][i];
-					var info_id = action.char.info.id;
-					var steps = action.paths[info_id].steps;
-					var card_id = action.card.id;
-					//tile_i in array[1] is temp: has to be the target info_id
-					ooc.push([card_id, tile_i, steps], data, info_id, tile_i);
-				}
-			}
-
-			this.root.send('tock', [data]);
-			this.root.trigger('show_wait');
-			return false;
-		}
-
 		var x = Math.floor(down_x / this.image.tile_w);
 		var y = Math.floor(down_y / this.image.tile_h);
 
@@ -544,17 +580,18 @@
 	var PlayPrompt = ooo.Scene.extend(function (layout)
 	{
 		ooo.Scene.call(this, layout);
+		this.show(new TurnButton('items', 0, {right: BORDER, width: 64, top: BORDER, height: 64}), 0);
 		this.hand_menu = new HandMenu('items');
 		this.action_menu = new ActionMenu('items');
 		this.path_menu = new PathMenu();
 	});
 
-	PlayPrompt.on('update_hand', function (hand)
+	PlayPrompt.capture('update_hand', function (hand)
 	{
 		if (hand && ooc.size(hand))
 		{
 			console.log('show_hand');
-			this.show(this.hand_menu);
+			this.show(this.hand_menu, 1);
 		}
 		else
 		{
@@ -563,12 +600,12 @@
 		}
 	});
 
-	PlayPrompt.on('update_actions', function (actions)
+	PlayPrompt.capture('update_actions', function (actions)
 	{
 		if (actions && ooc.size(actions))
 		{
 			console.log('show_actions');
-			this.show(this.action_menu);
+			this.show(this.action_menu, 2);
 		}
 		else
 		{
@@ -577,9 +614,9 @@
 		}
 	});
 
-	PlayPrompt.on('edit_action', function (action)
+	PlayPrompt.capture('edit_action', function (action)
 	{
-		this.show(this.path_menu);
+		this.show(this.path_menu, 3);
 	});
 
 	/////////////DRAW PROMPT
@@ -591,7 +628,6 @@
 
 	CardExpose.on('mouse_click', function (button, down_x, down_y)
 	{
-		this.root.add(1, 'hand', this.card.id);
 		this.parent.card_stacks.listen('mouse_click');
 		this.parent.count--;
 
@@ -600,6 +636,7 @@
 			this.root.trigger('show_play');
 		}
 
+		console.log('asdf');
 		this.hide();
 		return false;
 	});
@@ -623,27 +660,27 @@
 		this.count = 0;
 
 		this.card_stacks = new ooo.Scene({horizontal: 50, width: 400, vertical:50, height: 150});
-		this.card_stacks.show(new CardStack(0, '#440', {left: 0, width: 150, top: 0, height: 150}));
-		this.card_stacks.show(new CardStack(1, '#044', {right: 0, width: 150, top: 0, height: 150}));
-		this.show(this.card_stacks);
+		this.card_stacks.show(new CardStack(0, '#440', {left: 0, width: 150, top: 0, height: 150}), 0);
+		this.card_stacks.show(new CardStack(1, '#044', {right: 0, width: 150, top: 0, height: 150}), 1);
+		this.show(this.card_stacks, 0);
 
 		this.card_expose = new CardExpose('#444', {horizontal: 50, width: 200, vertical:50, height: 200});
 	});
 
+	DrawPrompt.capture('show_card', function (card)
+	{
+		this.card_expose.card = card;
+		this.show(this.card_expose, 1);
+	});
+
 	DrawPrompt.bubble('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
 	{
-		//return false;
+		return false;
 	});
 
 	DrawPrompt.bubble('mouse_click', function (button, down_x, down_y)
 	{
 		return false;
-	});
-
-	DrawPrompt.on('show_card', function (card)
-	{
-		this.card_expose.card = card;
-		this.show(this.card_expose, 1);
 	});
 
 	//Game
@@ -659,7 +696,7 @@
 		}
 
 		this.world_map = new WorldMap(rules[1], 'steps');
-		this.show(this.world_map);
+		this.show(this.world_map, 0);
 		this.draw_prompt = new DrawPrompt();
 		this.play_prompt = new PlayPrompt();//mode integration bez rule semantik
 	}
@@ -667,8 +704,6 @@
 	//Game
 	function startGame (time)
 	{
-		//this.update = false;
-		//this.once = true;
 		this.time = time;
 		this.started = true;
 	}
@@ -713,21 +748,6 @@
 
 		return roots;
 	}
-
-	//Königsmacher nicht vergessen!!! einer kriegt ne krone der andere schutz/allianz
-	//Karten sind per Realm und Items per Char!!!!!
-	//Passive Karten blockieren die HandMenu!!! auto balance!!! :D
-	//devel konsole triggern per / und eingabe per eval (this=root) (inkl history+localStore)
-
-	//TODO DATENFORMAT UND VERARBEITUNG!!!!
-
-	//JOBS KOSTEN WEDER POWER NOCH RANGE oder nur power oder so, aber wenn man sie abbricht verliert man die kosten permanent
-	///führt dazu daß stabilität besonders wichtig und man fur weitsicht belohnt wird
-
-	////jobs sind immer durch tile augmentations (gebäude) gekennzeichnet????
-	////aber nicht alle gebäude sind jobs
-
-	////HOWTO Synergys forcieren zwischen chars
 
 	//Game
 	function prepareTock (hand, chars, knowledge, terrain, briefing)//stats
@@ -842,7 +862,7 @@
 			char.info = knowledge[info_id];
 			char.knowledge = by_char[info_id];
 			var tile_i = char.knowledge[0][33][0].state[0];
-			char.home = this.world_map.index[tile_i];
+			char.home = this.world_map.tiles[tile_i];
 			var task = char.knowledge[0][23][0];
 			char.task = ooc.map(task.type.param, task.state);
 			//char.temp = ooc.clone(char.task);
@@ -850,6 +870,7 @@
 		}
 
 		this.data.chars = chars;
+		this.world_map.viewTile(ooc.minKeyValue(chars).home);
 		this.put({}, 'actions');
 		//results in update_chars!
 		//this.put(chars, 'chars');
@@ -880,46 +901,181 @@
 		ooo.Client.call(this, hook, color);
 		this.players = {};
 		this.started = false;
-		this.logo_prompt = new ooo.Box('#222');
-		//getTime() for min logo show
-		this.show(this.logo_prompt);
-		this.login_prompt = new LoginPrompt();
+		this.trigger('show_logo');
 	});
 
-	Game.on('show_load', function ()
+	Game.capture('socket_open', function ()
 	{
-		this.show(this.logo_prompt);//change for load_screen
+		var token = ooc.getLocal('token');
+
+		if (token)
+		{
+			this.data.token = token;
+			this.send('login', token);
+		}
+		else
+		{
+			this.trigger('show_login');
+		}
 	});
 
-	Game.on('show_init', function (stats)
+	Game.capture('socket_close', function (code)
+	{
+		console.log('CLOSED %s', code);
+	});
+
+	Game.capture('message_grant', function (games)
+	{
+		ooc.setLocal('token', this.data.token);
+
+		if (ooc.size(games) > 0)
+		{
+			var id = parseInt(prompt('choose from: ' + JSON.stringify(games), '0'));
+			var mode = games[id][0];
+			var rules = games[id][1];
+			var names = games[id][2];
+			names.push(this.data.token[0]);
+			initGame.call(this, mode, rules, names);
+			this.send('join', [id]);
+		}
+		else
+		{
+			var mode = prompt('mode?', 'normal');
+			var rules = JSON.parse(prompt('rules?', '[1, 32]'));
+			var names = [this.data.token[0]];
+			initGame.call(this, mode, rules, names);
+			this.send('host', [mode, rules]);
+		}
+	});
+
+	Game.capture('message_join', function (name)
+	{
+		console.log('JOIN %s', name);
+		this.players[name] = true;
+	});
+
+	Game.capture('message_leave', function (name)
+	{
+		console.log('LEAVE %s', name);
+		delete this.players[name];
+
+		if (this.timeout)
+		{
+			clearTimeout(this.timeout);
+			delete this.timeout;
+		}
+	});
+
+	Game.capture('message_ready', function (delay)
+	{
+		console.log('READY %d', delay);
+		countDown.call(this, delay);
+	});
+
+	Game.capture('message_continue', function (mode, rules, names, time, hand, chars, knowledge, terrain, briefing, wait)
+	{
+		console.log('CONTINUE', arguments);
+		console.log(briefing.message);
+		ooc.setLocal('token', this.data.token);
+		initGame.call(this, mode, rules, names);
+		startGame.call(this, time);
+		prepareTock.call(this, hand, chars, knowledge, terrain, briefing);
+
+		if (wait)
+		{
+			console.log(WAIT, wait);
+		}
+		else
+		{
+			console.log(MOVE);
+		}
+	});
+
+	Game.capture('message_tick', function (hand, chars, knowledge, terrain, briefing)
+	{
+		console.log('TICK', arguments);
+		console.log(briefing.message);
+
+		if (!this.started)
+		{
+			startGame.call(this, 0);
+		}
+		else
+		{
+			this.time++;
+		}
+
+		prepareTock.call(this, hand, chars, knowledge, terrain, briefing);
+		console.log(MOVE);
+	});
+
+	Game.capture('message_card', function (card_id)
+	{
+		var card = jup.cards.by_id[card_id];
+		console.log('CARD \'%s\'', card.title);
+		this.add(1, 'hand', card_id);
+		this.trigger('show_card', [card]);
+	});
+
+	Game.capture('message_away', function (name)
+	{
+		console.log('AWAY %s', name);
+	});
+
+	Game.capture('message_back', function (name)
+	{
+		console.log('BACK %s', name);
+	});
+
+	Game.capture('message_wait', function (wait)
+	{
+		console.log(WAIT, wait);
+	});
+
+	Game.capture('show_logo', function ()
+	{
+		//getTime() for min logo show
+		this.logo_prompt = new LogoPrompt();
+		this.show(this.logo_prompt, 1);
+	});
+
+	Game.capture(['show_login', 'message_deny'], function ()
+	{
+		this.login_prompt = new LoginPrompt();
+		this.show(this.login_prompt, 1);
+		delete this.logo_prompt;
+	});
+
+	Game.capture('show_load', function ()
+	{
+		this.load_prompt = new LoadPrompt();
+		this.show(this.load_prompt, 1);
+		delete this.login_prompt;
+	});
+
+	Game.capture('show_init', function (stats)
 	{
 		//this.init_prompt.stats = stats;
 		//this.show(this.init_prompt, 1);
 	});
 
-	Game.on('show_draw', function (count)
+	Game.capture('show_draw', function (count)
 	{
-		//this.wait_prompt.hide();
-		this.play_prompt.hide();
 		this.draw_prompt.count = count;
 		this.show(this.draw_prompt, 1);
 	});
 
-	Game.on('show_play', function ()
+	Game.capture('show_play', function ()
 	{
-		//this.wait_prompt.hide();
-		this.draw_prompt.hide();
 		this.show(this.play_prompt, 1);
 	});
 
-	Game.on('show_wait', function ()
+	Game.capture('show_wait', function ()
 	{
-		this.play_prompt.hide();
-		this.draw_prompt.hide();
 		//this.show(this.wait_prompt, 1);
 	});
 
-	Game.on('update_actions', function (actions)
+	Game.capture('update_actions', function (actions)
 	{
 		for (var info_id in this.data.chars)
 		{
@@ -958,146 +1114,29 @@
 		this.put(this.data.chars, 'chars');
 	});
 
-	Game.on('socket:open', function ()
-	{
-		var auth_token = ooc.getLocal('auth_token');
-
-		if (auth_token)
-		{
-			this.auth_token = auth_token;
-			this.send('login', auth_token);
-		}
-		else
-		{
-			this.logo_prompt.hide();
-			this.show(this.login_prompt);
-		}
-	});
-
-	Game.on('socket:close', function (code)
-	{
-		console.log('CLOSED %s', code);
-	});
-
-	Game.on('message:deny', function ()
-	{
-		this.login_prompt.form.reset();
-		this.show(this.login_prompt);
-	});
-
-	Game.on('message:grant', function (games)
-	{
-		this.login_prompt.hide();
-		ooc.setLocal('auth_token', this.auth_token);
-
-		if (ooc.size(games) > 0)
-		{
-			var id = parseInt(prompt('choose from: ' + JSON.stringify(games), '0'));
-			var mode = games[id][0];
-			var rules = games[id][1];
-			var names = games[id][2];
-			names.push(this.auth_token[0]);
-			initGame.call(this, mode, rules, names);
-			this.send('join', [id]);
-		}
-		else
-		{
-			var mode = prompt('mode?', 'normal');
-			var rules = JSON.parse(prompt('rules?', '[1, 32]'));
-			var names = [this.auth_token[0]];
-			initGame.call(this, mode, rules, names);
-			this.send('host', [mode, rules]);
-		}
-	});
-
-	Game.on('message:join', function (name)
-	{
-		console.log('JOIN %s', name);
-		this.players[name] = true;
-	});
-
-	Game.on('message:leave', function (name)
-	{
-		console.log('LEAVE %s', name);
-		delete this.players[name];
-
-		if (this.timeout)
-		{
-			clearTimeout(this.timeout);
-			delete this.timeout;
-		}
-	});
-
-	Game.on('message:ready', function (delay)
-	{
-		console.log('READY %d', delay);
-		countDown.call(this, delay);
-	});
-
-	Game.on('message:continue', function (mode, rules, names, time, hand, chars, knowledge, terrain, briefing, wait)
-	{
-		console.log('CONTINUE', arguments);
-		console.log(briefing.message);
-		this.login_prompt.hide();
-		ooc.setLocal('auth_token', this.auth_token);
-		initGame.call(this, mode, rules, names);
-		startGame.call(this, time);
-		prepareTock.call(this, hand, chars, knowledge, terrain, briefing);
-
-		if (wait)
-		{
-			console.log(WAIT, wait);
-		}
-		else
-		{
-			console.log(MOVE);
-		}
-	});
-
-	Game.on('message:tick', function (hand, chars, knowledge, terrain, briefing)
-	{
-		console.log('TICK', arguments);
-		console.log(briefing.message);
-
-		if (!this.started)
-		{
-			startGame.call(this, 0);
-		}
-		else
-		{
-			this.time++;
-		}
-
-		prepareTock.call(this, hand, chars, knowledge, terrain, briefing);
-		console.log(MOVE);
-	});
-
-	Game.on('message:card', function (card_id)
-	{
-		var card = jup.cards.by_id[card_id];
-		console.log('CARD \'%s\'', card.title);
-		this.trigger('show_card', [card]);
-	});
-
-	Game.on('message:away', function (name)
-	{
-		console.log('AWAY %s', name);
-	});
-
-	Game.on('message:back', function (name)
-	{
-		console.log('BACK %s', name);
-	});
-
-	Game.on('message:wait', function (wait)
-	{
-		console.log(WAIT, wait);
-	});
-
 	window.addEventListener('load', function ()
 	{
-		//delete localStorage['auth_token'];
+		//delete localStorage['token'];
 		var hook = document.getElementById('hook');
+		var root = new ooo.Root(hook, '#444');
+		var box = new ooo.Box('#f00', {width: 100, height: 100});
+		box.is_out = true;
+		root.show(box, 1);
+		box.events.on.mouse_click = function (button, down_x, down_y)
+		{
+			this.color = '#0f0';
+		}
+		box.events.on.mouse_in = function (down_x, down_y)
+		{
+			this.color = '#0ff';
+		}
+		box.events.on.mouse_out = function (down_x, down_y)
+		{
+			this.color = '#a0f';
+		}
+		console.log(box.hasOwnProperty('events'));
+		root.open();
+		return;
 		var client = new Game(hook, '#444');
 		client.load('steps', 'assets/steps.png', 96, 96);
 		client.load('chars', 'assets/chars.png', 64, 64);

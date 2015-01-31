@@ -396,8 +396,20 @@ if (typeof module == 'object')
 		return low;
 	}
 
-	ooc.Class = function ()
+	ooc.addEvent = function (channel)
 	{
+		return function (types, func)
+		{
+			if (!Array.isArray(types))
+			{
+				types = [types];
+			}
+
+			for (var i = 0; i < types.length; i++)
+			{
+				ooc.put(func, this.prototype, 'events', channel, types[i]);
+			}
+		}
 	}
 
 	function inherit (Child, Parent)
@@ -415,16 +427,16 @@ if (typeof module == 'object')
 
 		if (Parent.prototype.events)
 		{
-			var events = {};
-
-			for (var type in Parent.prototype.events)
-			{
-				events[type] = Parent.prototype.events[type];
-			}
-
-			Child.prototype.events = events;
+			Child.prototype.events = ooc.clone(Parent.prototype.events);
 		}
 	}
+
+	ooc.Class = function ()
+	{
+		this.ignores = {};
+	}
+
+	ooc.Class.on = ooc.addEvent('on');
 
 	ooc.Class.clone = function ()
 	{
@@ -453,51 +465,43 @@ if (typeof module == 'object')
 		return Child;
 	}
 
-	ooc.Class.on = function (type, func)
-	{
-		if (!this.prototype.events)
-		{
-			this.prototype.events = {};
-		}
-
-		this.prototype.events[type] = func;
-	}
-
 	ooc.Class.method = function (name, func)
 	{
 		this.prototype[name] = func;
 	}
 
-	ooc.Class.method('attach', function (child)
+	ooc.Class.method('ignore', function ()
 	{
-		//this.children.push(child);
+		for (var i in arguments)
+		{
+			this.ignores[arguments[i]] = true;
+		}
+
+		return this;
 	});
 
-	ooc.Class.method('detach', function (child)
+	ooc.Class.method('listen', function ()
 	{
+		for (var i in arguments)
+		{
+			delete this.ignores[arguments[i]];
+		}
+
+		return this;
 	});
 
 	ooc.Class.method('trigger', function (type, argv)
 	{
-		if (this.events && this.events[type])
+		if (this.events && this.events.on && this.events.on[type])
 		{
 			try
 			{
-				this.events[type].apply(this, argv);
+				this.events.on[type].apply(this, argv);
 			}
 			catch (e)
 			{
-				console.log('EXCEPTION %s', e.toString());
-
-				if (e.stack)
-				{
-					console.log(e.stack);
-				}
+				console.log('EXCEPTION "%s"', e.toString());
 			}
-		}
-		else
-		{
-			console.log('NOTYPE: ' + type);
 		}
 	});
 })();

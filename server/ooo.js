@@ -12,13 +12,13 @@ ooo.TileMap = ooc.Class.extend(function (size)
 {
 	ooc.Class.call(this);
 	this.size = size;
+	this.coords = [];
 	this.tiles = [];
-	this.index = [];
 
 	//create tiles
 	for (var y = 0, i = 0; y < size; y++)
 	{
-		this.tiles[y] = [];
+		this.coords[y] = [];
 
 		for (var x = 0; x < size; x++, i++)
 		{
@@ -28,8 +28,8 @@ ooo.TileMap = ooc.Class.extend(function (size)
 			tile.x = x;
 			tile.y = y;
 			tile.data = this.initData(i, x, y);
-			this.tiles[y][x] = tile;
-			this.index[i] = tile;
+			this.coords[y][x] = tile;
+			this.tiles[i] = tile;
 		}
 	}
 
@@ -44,10 +44,10 @@ ooo.TileMap = ooc.Class.extend(function (size)
 			{
 				var nx = (x + SQR_NMASK[i][0] + size) % size;
 				var ny = (y + SQR_NMASK[i][1] + size) % size;
-				steps[i] = this.tiles[ny][nx];
+				steps[i] = this.coords[ny][nx];
 			}
 
-			this.tiles[y][x].steps = steps;
+			this.coords[y][x].steps = steps;
 		}
 	}
 });
@@ -73,7 +73,7 @@ ooo.TileMap.method('findArea', function (open, range)
 {
 	for (var i = 0; i < open.length; i++)
 	{
-		open[i] = this.index[open[i]];
+		open[i] = this.tiles[open[i]];
 		open[i].g = 0;
 	}
 
@@ -227,35 +227,6 @@ ooo.Client = ooc.Class.extend(function (server, socket)
 	this.expected = {};
 });
 
-ooo.Client.method('trigger', function (type, argv)
-{
-	if (this.events && this.events[type])
-	{
-		try
-		{
-			this.events[type].apply(this, argv);
-		}
-		catch (e)
-		{
-			this.close(e.toString());
-			console.log('CLIENT EXCEPTION');
-
-			if (e.stack)
-			{
-				console.log(e.stack);
-			}
-			else
-			{
-				console.log(e.toString());
-			}
-		}
-	}
-	else
-	{
-		console.log('NOTYPE: ' + type);
-	}
-});
-
 ooo.Client.method('send', function (type, data)
 {
 	var message = JSON.stringify(Array.prototype.slice.call(arguments));
@@ -276,6 +247,31 @@ ooo.Client.method('expect', function ()
 	}
 
 	return this;
+});
+
+ooo.Client.method('trigger', function (type, argv)
+{
+	if (this.events && this.events.on && this.events.on[type])
+	{
+		try
+		{
+			this.events.on[type].apply(this, argv);
+		}
+		catch (e)
+		{
+			this.close(e.toString());
+			console.log('CLIENT EXCEPTION');
+
+			if (e.stack)
+			{
+				console.log(e.stack);
+			}
+			else
+			{
+				console.log(e.toString());
+			}
+		}
+	}
 });
 
 ooo.Server = ooc.Class.extend(function (Client, port)
@@ -316,13 +312,13 @@ ooo.Server = ooc.Class.extend(function (Client, port)
 			}
 
 			client.expected = {};
-			client.trigger('message:' + type, data[1]);
+			client.trigger('message_' + type, data[1]);
 		});
 
 		socket.on('close', function ()
 		{
 			delete that.clients[client.id];
-			client.trigger('socket:close');
+			client.trigger('socket_close');
 		});
 	});
 });

@@ -23,8 +23,8 @@ mod.ready = function (stats, rules, size)
 
 mod.start = function (stats, rules, world)
 {
-	var forest = [133, 134, 135, 102, 166];
-	var berries = [100];
+	var forest = [0, 1, 31, 32, 992];
+	var berries = [66];
 
 	for (var i = 0; i < forest.length; i++)
 	{
@@ -42,8 +42,8 @@ mod.start = function (stats, rules, world)
 
 		if (seat == 0)
 		{
-			realm.join(world.deliver([9], 132));
-			realm.join(world.deliver([9], 40));
+			realm.join(world.deliver([9], 64));
+			realm.join(world.deliver([9], 36));
 		}
 		else
 		{
