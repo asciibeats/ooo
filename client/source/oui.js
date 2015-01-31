@@ -1,10 +1,19 @@
 'use strict';
+var oui = {};
+
 var OUI_BOTTOM = 1;
 var OUI_REVERSED = 2;
 var OUI_VERTICAL = 4;
-var oui = {};
+
+var OUI_ENTER = 13;
+var OUI_TAB = 9;
+var OUI_BACKSPACE = 8;
+var OUI_DELETE = 46;
+var OUI_LEFT = 37;
+var OUI_RIGHT = 39;
+
+//TODO
 //reset blink on input field tab jump
-//optimize findPath to use multiple origins
 
 (function ()
 {
@@ -28,8 +37,7 @@ var oui = {};
 		if ((this.focus == undefined) && (actor instanceof oui.Input))
 		{
 			this.focus = actor;
-			console.log(actor.index);
-			//actor.toggle();
+			actor.focused = true;
 		}
 
 		return this;
@@ -37,7 +45,7 @@ var oui = {};
 
 	oui.Form.method('reset', function ()
 	{
-		//this.focus.toggle();
+		this.focus.focused = false;
 		delete this.focus;
 
 		for (var index = 0; index < this.children.length; index++)
@@ -47,7 +55,7 @@ var oui = {};
 			if ((actor != undefined) && (actor instanceof oui.Input))
 			{
 				this.focus = actor;
-				//actor.toggle();
+				actor.focused = true;
 				break;
 			}
 		}
@@ -57,14 +65,14 @@ var oui = {};
 
 	oui.Form.capture('input_press', function (time, char, key, shift)
 	{
-		if (key == 13)//tab
+		if (key == OUI_ENTER)
 		{
 			this.trigger('form_submit', [null, {}]);
 			return false;
 		}
-		else if (key == 9)//tab
+		else if (key == OUI_TAB)
 		{
-			//this.focus.toggle();
+			this.focus.focused = false;
 			var index = this.focus.index;
 			var length = this.children.length;
 
@@ -75,7 +83,7 @@ var oui = {};
 			}
 			while (!(this.focus instanceof oui.Input))
 
-			//this.focus.toggle();
+			this.focus.focused = true;
 			return false;
 		}
 	});
@@ -103,23 +111,18 @@ var oui = {};
 		console.log('submit %s %s', type, JSON.stringify(data));
 	});
 
-	oui.Input = ooo.Cell.extend(function (name, layout)//alphabet
+	oui.Input = ooo.Cell.extend(function (name, layout)//todo?: limit alphabet
 	{
 		ooo.Cell.call(this, layout);
 		this.name = name;
-		this.focus = false;
+		this.focused = false;
 	});
-
-	/*oui.Input.method('toggle', function ()
-	{
-		this.focus = !this.focus;
-	});*/
 
 	oui.Input.on('mouse_click', function (button, down_x, down_y)
 	{
-		//this.parent.focus.toggle();
+		this.parent.focus.focused = false;
 		this.parent.focus = this;
-		//this.toggle();
+		this.focused = true;
 	});
 
 	oui.Button = oui.Input.extend(function (name, asset, type, layout)
@@ -137,7 +140,7 @@ var oui = {};
 
 	oui.Button.on('draw', function (time, context)
 	{
-		if (this.focus)
+		if (this.focused)
 		{
 			context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 		}
@@ -157,15 +160,6 @@ var oui = {};
 		oui.Button.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
 		this.parent.trigger('form_submit', [this.name, {}]);
 		return false;
-	});
-
-	oui.Submit.on('input_press', function (time, char, key, shift)
-	{
-		if (key == 13)//enter
-		{
-			this.parent.trigger('form_submit', [this.name, {}]);
-			return false;
-		}
 	});
 
 	oui.Field = oui.Input.extend(function (name, layout)//alphabet
@@ -189,7 +183,7 @@ var oui = {};
 
 	oui.Field.on('input_press', function (time, char, key, shift)
 	{
-		if (key == 8)//backspace
+		if (key == OUI_BACKSPACE)
 		{
 			if (this.caret > 0)
 			{
@@ -197,21 +191,21 @@ var oui = {};
 				this.chars.splice(this.caret, 1);
 			}
 		}
-		else if (key == 46)//delete
+		else if (key == OUI_DELETE)
 		{
 			if (this.caret < this.chars.length)
 			{
 				this.chars.splice(this.caret, 1);
 			}
 		}
-		else if (key == 37)//left
+		else if (key == OUI_LEFT)
 		{
 			if (this.caret > 0)
 			{
 				this.caret--;
 			}
 		}
-		else if (key == 39)//right
+		else if (key == OUI_RIGHT)
 		{
 			if (this.caret < this.chars.length)
 			{
@@ -236,7 +230,7 @@ var oui = {};
 	{
 		context.fillText(this.string, 0, 0);
 
-		if (this.focus && ((time % 2000) < 1300))//caret blink
+		if (this.focused && ((time % 2000) < 1300))//caret blink
 		{
 			context.fillRect(context.measureText(this.substr).width, 0, this.height >>> 3, this.height);
 		}
@@ -309,7 +303,7 @@ var oui = {};
 
 	oui.Options.on('form_submit', function (type, data)
 	{
-		ooc.push(this.pick, data, this.name);
+		ooc.push(this.options[this.pick], data, this.name);
 	});
 
 	oui.Options.on('mouse_click', function (button, down_x, down_y)
@@ -358,7 +352,6 @@ var oui = {};
 
 	oui.Switch.on('draw', function (time, context)
 	{
-		//context.drawImage(this.image, this.img_x, this.img_y, this.width, this.height, 0, 0, this.width, this.height);
 		context.fillText(this.state, 0, 0);
 	});
 

@@ -85,7 +85,29 @@
 	{
 		ooo.Scene.call(this, layout);
 		this.show(new ooo.Box('#444'), 0);
-		this.show(new LoginForm('#a50', '30px sans-serif', {horizontal: 50, width: 150, vertical: 50, height: 130}), 1);
+		this.show(new LoginForm('#21aad8', '30px sans-serif', {horizontal: 50, width: 150, vertical: 50, height: 130}), 1);
+	});
+
+	var RuleForm = oui.Form.extend(function (color, font, layout, align, baseline)
+	{
+		oui.Form.call(this, color, font, layout, align, baseline);
+		this.show(new ooo.Box('#555'), 0);
+		this.show(new oui.Options('mode', ['normal', 'battle'], 0, {top: 10, left: 10, right:10, height: 30}), 1);
+		this.show(new oui.Counter('rules', 1, 4, 1, {top: 50, left: 10, right:10, height: 30}), 2);
+		this.show(new oui.Options('rules', [16, 32, 64], 1, {top: 90, left: 10, right:10, height: 30}), 3);
+		this.show(new oui.Submit('host', 'login', 1, {top: 130, left: 10, right: 10, height: 30}), 4);
+	});
+
+	RuleForm.bubble('form_submit', function (name, data)
+	{
+		this.root.trigger('host_game', [data.mode[0], data.rules]);
+	});
+
+	var RulePrompt = ooo.Scene.extend(function (layout)
+	{
+		ooo.Scene.call(this, layout);
+		this.show(new ooo.Box('#183'), 0);
+		this.show(new RuleForm('#d821b1', '30px sans-serif', {horizontal: 50, width: 150, vertical: 50, height: 170}), 1);
 	});
 
 	var LoadPrompt = ooo.Scene.extend(function (layout)
@@ -98,7 +120,6 @@
 	var WorldMap = oui.TileMap.extend(function (size, asset, layout)
 	{
 		oui.TileMap.call(this, size, asset, layout);
-		this._name = 'world';
 		this.route = {};
 		this.marks = {};
 	});
@@ -378,6 +399,12 @@
 		var tile_w = this.image.tile_w;
 		var tile_h = this.image.tile_h;
 
+		if (this.over)
+		{
+			context.fillStyle = '#fff';
+			context.fillRect(-10, -10, this.width + 20, this.height + 20);
+		}
+
 		for (var i = 0; i < this.stacks.length; i++)
 		{
 			var stack = this.stacks[i];
@@ -459,11 +486,6 @@
 		delete this.drag_card;
 		return false;
 	});
-
-	/*HandMenu.on('mouse_over', function ()
-	{
-		console.log('asdfasdf');
-	});*/
 
 	var ActionMenu = ooo.Cell.extend(function (asset)
 	{
@@ -635,7 +657,6 @@
 			this.root.trigger('show_play');
 		}
 
-		console.log('asdf');
 		this.hide();
 		return false;
 	});
@@ -643,8 +664,6 @@
 	var CardStack = ooo.Box.extend(function (type, color, layout)
 	{
 		ooo.Box.call(this, color, layout);
-		console.log(this);
-		this._name = 'stack';
 		this.type = type;
 	});
 
@@ -658,11 +677,9 @@
 	var DrawPrompt = ooo.Scene.extend(function ()
 	{
 		ooo.Scene.call(this);
-		this._name = 'draw';
 		this.count = 0;
 
 		this.card_stacks = new ooo.Scene({horizontal: 50, width: 400, vertical:50, height: 150});
-		this.card_stacks._name = 'stacks';
 		this.card_stacks.show(new CardStack(0, '#440', {left: 0, width: 150, top: 0, height: 150}), 0);
 		this.card_stacks.show(new CardStack(1, '#044', {right: 0, width: 150, top: 0, height: 150}), 1);
 		this.show(this.card_stacks, 0);
@@ -943,11 +960,7 @@
 		}
 		else
 		{
-			var mode = prompt('mode?', 'normal');
-			var rules = JSON.parse(prompt('rules?', '[1, 32]'));
-			var names = [this.data.token[0]];
-			initGame.call(this, mode, rules, names);
-			this.send('host', [mode, rules]);
+			this.trigger('show_rules');
 		}
 	});
 
@@ -1103,6 +1116,13 @@
 		delete this.login_prompt;
 	});
 
+	Game.capture('show_rules', function ()
+	{
+		this.rule_prompt = new RulePrompt();
+		this.show(this.rule_prompt, 1);
+		delete this.logo_prompt;
+	});
+
 	Game.capture(['show_login', 'message_deny'], function ()
 	{
 		this.login_prompt = new LoginPrompt();
@@ -1115,6 +1135,14 @@
 		//getTime() for min logo show
 		this.logo_prompt = new LogoPrompt();
 		this.show(this.logo_prompt, 1);
+	});
+
+	Game.capture('host_game', function (mode, rules)
+	{
+		var names = [this.data.token[0]];
+		initGame.call(this, mode, rules, names);
+		this.send('host', [mode, rules]);
+		this.root.trigger('show_load');
 	});
 
 	window.addEventListener('load', function ()
