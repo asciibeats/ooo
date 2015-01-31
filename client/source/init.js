@@ -1,7 +1,6 @@
 'use strict';
 //Items? wie sind die im spiel integriert?
 //NEXT: HandMenu (keine Actors mehr per Card! so wie ActionMenu && MouseOver und Info)
-//THEN: MouseOver
 //THEN: KartenInfoDrawn (InfoAnsicht;Bild;Count;Gain;Title;Description)
 //THEN: aktionsmanagement (path modifikation; aktion verschieben)
 //THEN: ActionMenu (hand to menu; tile to menu; menu to menu)
@@ -46,6 +45,9 @@
 ////aber nicht alle gebäude sind jobs
 
 ////HOWTO Synergys forcieren zwischen chars
+
+//fremde charpaths werden durch avatar dargestellt der immer hin und her läuft (kann auch doppelt vorkommen)
+///mouseover hält den char an und zeigt pfad
 
 (function ()
 {
@@ -92,14 +94,11 @@
 		this.show(new ooo.Box('#227'), 0);
 		this.show(new ooo.Box('#aaa', {width: 300, height: 100}), 1);
 	});
-	//fremde charpaths werden durch avatar dargestellt der immer hin und her läuft (kann auch doppelt vorkommen)
-	///mouseover hält den char an und zeigt pfad
-
-	//WorldMap
 
 	var WorldMap = oui.TileMap.extend(function (size, asset, layout)
 	{
 		oui.TileMap.call(this, size, asset, layout);
+		this._name = 'world';
 		this.route = {};
 		this.marks = {};
 	});
@@ -580,7 +579,7 @@
 	var PlayPrompt = ooo.Scene.extend(function (layout)
 	{
 		ooo.Scene.call(this, layout);
-		this.show(new TurnButton('items', 0, {right: BORDER, width: 64, top: BORDER, height: 64}), 0);
+		//this.show(new TurnButton('items', 0, {right: BORDER, width: 64, top: BORDER, height: 64}), 0);
 		this.hand_menu = new HandMenu('items');
 		this.action_menu = new ActionMenu('items');
 		this.path_menu = new PathMenu();
@@ -644,6 +643,8 @@
 	var CardStack = ooo.Box.extend(function (type, color, layout)
 	{
 		ooo.Box.call(this, color, layout);
+		console.log(this);
+		this._name = 'stack';
 		this.type = type;
 	});
 
@@ -656,10 +657,12 @@
 
 	var DrawPrompt = ooo.Scene.extend(function ()
 	{
-		ooo.Scene.call(this, null);
+		ooo.Scene.call(this);
+		this._name = 'draw';
 		this.count = 0;
 
 		this.card_stacks = new ooo.Scene({horizontal: 50, width: 400, vertical:50, height: 150});
+		this.card_stacks._name = 'stacks';
 		this.card_stacks.show(new CardStack(0, '#440', {left: 0, width: 150, top: 0, height: 150}), 0);
 		this.card_stacks.show(new CardStack(1, '#044', {right: 0, width: 150, top: 0, height: 150}), 1);
 		this.show(this.card_stacks, 0);
@@ -667,7 +670,7 @@
 		this.card_expose = new CardExpose('#444', {horizontal: 50, width: 200, vertical:50, height: 200});
 	});
 
-	DrawPrompt.capture('show_card', function (card)
+	DrawPrompt.capture('message_card', function (card)
 	{
 		this.card_expose.card = card;
 		this.show(this.card_expose, 1);
@@ -1014,7 +1017,7 @@
 		var card = jup.cards.by_id[card_id];
 		console.log('CARD \'%s\'', card.title);
 		this.add(1, 'hand', card_id);
-		this.trigger('show_card', [card]);
+		return [card];
 	});
 
 	Game.capture('message_away', function (name)
@@ -1030,49 +1033,6 @@
 	Game.capture('message_wait', function (wait)
 	{
 		console.log(WAIT, wait);
-	});
-
-	Game.capture('show_logo', function ()
-	{
-		//getTime() for min logo show
-		this.logo_prompt = new LogoPrompt();
-		this.show(this.logo_prompt, 1);
-	});
-
-	Game.capture(['show_login', 'message_deny'], function ()
-	{
-		this.login_prompt = new LoginPrompt();
-		this.show(this.login_prompt, 1);
-		delete this.logo_prompt;
-	});
-
-	Game.capture('show_load', function ()
-	{
-		this.load_prompt = new LoadPrompt();
-		this.show(this.load_prompt, 1);
-		delete this.login_prompt;
-	});
-
-	Game.capture('show_init', function (stats)
-	{
-		//this.init_prompt.stats = stats;
-		//this.show(this.init_prompt, 1);
-	});
-
-	Game.capture('show_draw', function (count)
-	{
-		this.draw_prompt.count = count;
-		this.show(this.draw_prompt, 1);
-	});
-
-	Game.capture('show_play', function ()
-	{
-		this.show(this.play_prompt, 1);
-	});
-
-	Game.capture('show_wait', function ()
-	{
-		//this.show(this.wait_prompt, 1);
 	});
 
 	Game.capture('update_actions', function (actions)
@@ -1114,29 +1074,53 @@
 		this.put(this.data.chars, 'chars');
 	});
 
+	Game.capture('show_wait', function ()
+	{
+		//this.show(this.wait_prompt, 1);
+	});
+
+	Game.capture('show_play', function ()
+	{
+		this.show(this.play_prompt, 1);
+	});
+
+	Game.capture('show_draw', function (count)
+	{
+		this.draw_prompt.count = count;
+		this.show(this.draw_prompt, 1);
+	});
+
+	Game.capture('show_init', function (stats)
+	{
+		//this.init_prompt.stats = stats;
+		//this.show(this.init_prompt, 1);
+	});
+
+	Game.capture('show_load', function ()
+	{
+		this.load_prompt = new LoadPrompt();
+		this.show(this.load_prompt, 1);
+		delete this.login_prompt;
+	});
+
+	Game.capture(['show_login', 'message_deny'], function ()
+	{
+		this.login_prompt = new LoginPrompt();
+		this.show(this.login_prompt, 1);
+		delete this.logo_prompt;
+	});
+
+	Game.capture('show_logo', function ()
+	{
+		//getTime() for min logo show
+		this.logo_prompt = new LogoPrompt();
+		this.show(this.logo_prompt, 1);
+	});
+
 	window.addEventListener('load', function ()
 	{
 		//delete localStorage['token'];
 		var hook = document.getElementById('hook');
-		var root = new ooo.Root(hook, '#444');
-		var box = new ooo.Box('#f00', {width: 100, height: 100});
-		box.is_out = true;
-		root.show(box, 1);
-		box.events.on.mouse_click = function (button, down_x, down_y)
-		{
-			this.color = '#0f0';
-		}
-		box.events.on.mouse_in = function (down_x, down_y)
-		{
-			this.color = '#0ff';
-		}
-		box.events.on.mouse_out = function (down_x, down_y)
-		{
-			this.color = '#a0f';
-		}
-		console.log(box.hasOwnProperty('events'));
-		root.open();
-		return;
 		var client = new Game(hook, '#444');
 		client.load('steps', 'assets/steps.png', 96, 96);
 		client.load('chars', 'assets/chars.png', 64, 64);

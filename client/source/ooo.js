@@ -1,7 +1,6 @@
 'use strict';
 var ooo = {};
 //////TODO
-//hitActor verienheitlichen
 //block events globally
 //ignore mouse_drag, mouse_drop by default and automatically listen on mouse_grab
 ///ignore again on mouse_drop
@@ -84,32 +83,16 @@ var ooo = {};
 		return this;
 	});
 
-	ooo.Actor.method('hitbox', function (down_x, down_y)
-	{
-		var shift_x = down_x - this.rel_x - this.mid_x;
-		var shift_y = down_y - this.rel_y - this.mid_y;
-		var angle = -this.angle;
-		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
-		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
-
-		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
-		{
-			return false;
-		}
-		else
-		{
-			return true;
-		}
-	});
-
 	ooo.Actor.method('trigger', function (type, argv)
 	{
 		if (type in this.ignores)
 		{
 			return;
 		}
-		
-		return triggerActor.call(this, this, 'on', type, argv);
+		else
+		{
+			return triggerActor.call(this, this, 'on', type, argv);
+		}
 	});
 
 	ooo.Actor.method('hide', function ()
@@ -423,7 +406,6 @@ var ooo = {};
 		return this;
 	});
 
-	//layers komplett abschaffen? -> array also reihenfolge nicht undefined -> insert before after push, unshift//array id damit auch abschaffen
 	ooo.Scene.method('trigger', function (type, argv, topdown)
 	{
 		var retv = triggerActor.call(this, this, 'capture', type, argv);
@@ -489,25 +471,51 @@ var ooo = {};
 		return [this.width, this.height];
 	});
 
-	ooo.Scene.prepare(['mouse_down', 'mouse_click', 'mouse_grab'], function (button, down_x, down_y)
+	ooo.Scene.prepare('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
 	{
-		if (!this.hitbox(down_x, down_y))
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
 		{
 			return false;
+		}
+		else
+		{
+			return [button, down_x, down_y, drag_x, drag_y];
+		}
+	});
+
+	ooo.Scene.prepare(['mouse_down', 'mouse_click'], function (button, down_x, down_y)
+	{
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
+		{
+			return false;
+		}
+		else
+		{
+			return [button, down_x, down_y];
 		}
 	});
 
 	ooo.Scene.prepare('mouse_move', function (down_x, down_y)
 	{
-		if (this.hitbox(down_x, down_y))
-		{
-			if (!this.over)
-			{
-				this.trigger('mouse_in', [down_x, down_y], true);
-				this.over = true;
-			}
-		}
-		else
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
 		{
 			if (this.over)
 			{
@@ -515,6 +523,16 @@ var ooo = {};
 				this.over = false;
 			}
 		}
+		else
+		{
+			if (!this.over)
+			{
+				this.trigger('mouse_over', [down_x, down_y], true);
+				this.over = true;
+			}
+		}
+
+		return [down_x, down_y];
 	});
 
 	ooo.Scene.prepare('draw', function (time, context)
@@ -730,9 +748,9 @@ var ooo = {};
 
 		function on_mousedown (event)
 		{
+			down = true;
 			down_x = event.clientX;
 			down_y = event.clientY;
-			down = true;
 			that.trigger('mouse_down', [event.button, down_x, down_y], true);
 		}
 
