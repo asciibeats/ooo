@@ -1,5 +1,8 @@
 'use strict';
-//Items? wie sind die im spiel integriert?
+//das zuhause bestimmt den bonus den man jede runde bekommt
+//items sind dazu da bei schon bebauten feldern effekte zu erziehlen
+////simples drag & drop!!
+
 //NEXT: HandMenu (keine Actors mehr per Card! so wie ActionMenu && MouseOver und Info)
 //THEN: KartenInfoDrawn (InfoAnsicht;Bild;Count;Gain;Title;Description)
 //THEN: aktionsmanagement (path modifikation; aktion verschieben)
@@ -703,6 +706,42 @@
 		return false;
 	});
 
+	var WaitClock = ooo.Sprite.extend(function (asset, type, layout)
+	{
+		ooo.Sprite.call(this, asset, type, layout);
+		this.daytime = true;
+		this.rotation = 0;
+	});
+
+	WaitClock.method('setTime', function (wait, size)
+	{
+		this.rotation = (this.daytime ? 0 : Math.PI) - Math.PI * (wait / size);
+	});
+
+	/*WaitClock.on('resize', function (width, height)
+	{
+		ooo.Cell.prototype.events.on.resize.call(this, width, height);
+		this.center(this.width >>> 1, this.height >>> 1);
+	});*/
+
+	WaitClock.on('draw', function (time, context)
+	{
+		context.save();
+		context.translate(68, 68);
+		context.rotate(this.rotation);
+		context.translate(-68, -68);
+		context.drawImage(this.image, this.image.tile_x[0], this.image.tile_y[0], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		context.restore();
+		context.drawImage(this.image, this.image.tile_x[1], this.image.tile_y[1], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+	});
+
+	var WaitPrompt = ooo.Scene.extend(function (layout)
+	{
+		ooo.Scene.call(this, layout);
+		this.clock = new WaitClock('clock', 0, {width: 136, height: 136, top: 64});
+		this.show(this.clock, 0);
+	});
+
 	//Game
 	function initGame (mode, rules, names)
 	{
@@ -719,6 +758,9 @@
 		this.show(this.world_map, 0);
 		this.draw_prompt = new DrawPrompt();
 		this.play_prompt = new PlayPrompt();//mode integration bez rule semantik
+		this.wait_prompt = new WaitPrompt();//mode integration bez rule semantik
+		this.show(this.wait_prompt, 2);
+		this.wait_prompt.clock.setTime(1, 3);
 	}
 
 	//Game
@@ -1045,6 +1087,8 @@
 
 	Game.capture('message_wait', function (wait)
 	{
+		var size = ooc.size(this.players);
+		this.wait_prompt.clock.setTime(size - wait, size);
 		console.log(WAIT, wait);
 	});
 
@@ -1089,7 +1133,7 @@
 
 	Game.capture('show_wait', function ()
 	{
-		//this.show(this.wait_prompt, 1);
+		this.show(this.wait_prompt, 1);
 	});
 
 	Game.capture('show_play', function ()
@@ -1149,6 +1193,9 @@
 	{
 		//delete localStorage['token'];
 		var hook = document.getElementById('hook');
+		/*var root = new ooo.Root(hook, '#444');
+		root.open();
+		return;*/
 		var client = new Game(hook, '#444');
 		client.load('steps', 'assets/steps.png', 96, 96);
 		client.load('chars', 'assets/chars.png', 64, 64);
@@ -1159,6 +1206,7 @@
 		client.load('powers', 'assets/powers.png', 64, 64);
 		client.load('login', 'assets/login.png', 130, 30);
 		client.load('cards', 'assets/cards.png', 196, 196);
+		client.load('clock', 'assets/clock.png', 136, 136);
 		client.open(HOST);
 	});
 })();

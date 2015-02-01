@@ -63,7 +63,7 @@ var OUI_RIGHT = 39;
 		this.trigger('form_reset');
 	});
 
-	oui.Form.capture('input_press', function (time, char, key, shift)
+	oui.Form.capture('key_press', function (time, char, key, shift)
 	{
 		if (key == OUI_ENTER)
 		{
@@ -98,7 +98,7 @@ var OUI_RIGHT = 39;
 		context.textBaseline = this.baseline;
 	});
 
-	oui.Form.prepare('input_press', function (time, char, key, shift)
+	oui.Form.prepare('key_press', function (time, char, key, shift)
 	{
 		if (this.parent.focus != this)
 		{
@@ -181,7 +181,7 @@ var OUI_RIGHT = 39;
 		ooc.push(this.string, data, this.name);
 	});
 
-	oui.Field.on('input_press', function (time, char, key, shift)
+	oui.Field.on('key_press', function (time, char, key, shift)
 	{
 		if (key == OUI_BACKSPACE)
 		{
@@ -1086,7 +1086,7 @@ var OUI_RIGHT = 39;
 			}
 		}
 
-		this.trigger('input_pick', [this.coords[tile_y][tile_x], button, tile_x, tile_y]);
+		this.trigger('pick_tile', [this.coords[tile_y][tile_x], button, tile_x, tile_y]);
 		return false;
 	});
 

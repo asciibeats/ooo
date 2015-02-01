@@ -13,6 +13,28 @@ if (typeof module == 'object')
 		return Func.bind.apply(Func, [Func].concat(argv));
 	}
 
+	//ooc.count = function (array)
+	ooc.hash = function (array)
+	{
+		var object = {};
+
+		for (var i = 0; i < array.length; i++)
+		{
+			var key = array[i];
+
+			if (key in object)
+			{
+				object[key]++;
+			}
+			else
+			{
+				object[key] = 1;
+			}
+		}
+
+		return object;
+	}
+
 	ooc.addCount = function (a, b)
 	{
 		var count = ooc.clone(a);
@@ -82,27 +104,22 @@ if (typeof module == 'object')
 	{
 		return value > 0 ? value : 0;
 	}
-
-	ooc.hash = function (array)
+	
+	//ooc.hash = function (string)
+	ooc.hashString = function (string)
 	{
-		var object = {};
+		var hash = 0;
 
-		for (var i = 0; i < array.length; i++)
+		for (var i = 0; i < string.length; i++)
 		{
-			var key = array[i];
-
-			if (key in object)
-			{
-				object[key]++;
-			}
-			else
-			{
-				object[key] = 1;
-			}
+			var char = string.charCodeAt(i);
+			hash = ((hash << 5) - hash) + char;
+			hash = hash & hash;//Convert to 32 bit integer
 		}
 
-		return object;
+		return hash;
 	}
+
 
 	ooc.modify = function (func)
 	{

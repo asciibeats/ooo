@@ -113,26 +113,6 @@ var ooo = {};
 		this.root = root;
 	});
 
-	//Actor with image
-	ooo.Sprite = ooo.Actor.extend(function (asset, type)
-	{
-		ooo.Actor.call(this);
-		this.asset = asset;
-		this.type = type;
-	});
-
-	ooo.Sprite.on('show', function (root, parent)
-	{
-		ooo.Actor.prototype.events.on.show.call(this, root, parent);
-		this.image = root.images[this.asset];
-		this.resize(this.image.tile_w, this.image.tile_h);
-	});
-
-	ooo.Sprite.on('draw', function (time, context)
-	{
-		context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
-	});
-
 	//Autoadjusting Actor
 	ooo.Cell = ooo.Actor.extend(function (layout)
 	{
@@ -257,6 +237,25 @@ var ooo = {};
 	{
 		context.fillStyle = this.color;
 		context.fillRect(0, 0, this.width, this.height);
+	});
+
+	//Actor with image
+	ooo.Sprite = ooo.Cell.extend(function (asset, type, layout)
+	{
+		ooo.Cell.call(this, layout);
+		this.asset = asset;
+		this.type = type;
+	});
+
+	ooo.Sprite.on('show', function (root, parent)
+	{
+		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.asset];
+	});
+
+	ooo.Sprite.on('draw', function (time, context)
+	{
+		context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 	});
 
 	//Simple Textbox
@@ -641,6 +640,39 @@ var ooo = {};
 		}
 	}
 
+	/*EDIT FORM
+	  	CLASS
+		  type (name)
+		PARAM
+		  argv (je nach klasse; this.param = {name: ['size', 'color', 'assets'], type: [COUNT, OPTION, SWITCH, ARRAY] (corresponds to input types!)})
+	  	LAYOUT
+		  horizontal (Counter 0-100)
+		  vertical (Counter 0-100)
+		  width (Counter 1-parent.size) oder undefined
+		  height (Counter 1-parent.size) oder undefined
+		  left (0-parent.size-1)
+		  right (0-parent.size-1)
+		  top (0-parent.size-1)
+		  bottom (0-parent.size-1)
+	 	LISTENERS
+		  "on mouse_click"
+		  channel [[on], [capture, prepare, cleanup, bubble]]
+		  type
+		  func
+		METHODS
+		  "name1"
+		    func
+		  "name2"
+		    func
+		EXTEND
+		  class
+		  name
+		  param {name, type}
+		CLONE (provides possibility of having same class with different behaviour)
+		  class
+		  name
+	 */
+
 	//ROOT Stage to be embedded into html
 	ooo.Root = ooo.Stage.extend(function (hook, color)
 	{
@@ -808,7 +840,7 @@ var ooo = {};
 			if (event.keyCode < 48)
 			{
 				event.preventDefault();
-				that.trigger('input_press', [event.timeStamp, null, event.keyCode, event.shiftKey], true);
+				that.trigger('key_press', [event.timeStamp, null, event.keyCode, event.shiftKey], true);
 				//console.log('down', event.keyCode);
 			}
 
@@ -822,7 +854,7 @@ var ooo = {};
 		{
 			if (!event.ctrlKey && !event.altKey)
 			{
-				that.trigger('input_press', [event.timeStamp, String.fromCharCode(event.charCode), null, null], true);
+				that.trigger('key_press', [event.timeStamp, String.fromCharCode(event.charCode), null, null], true);
 				//console.log('press', String.fromCharCode(event.charCode));
 			}
 		}
@@ -866,6 +898,11 @@ var ooo = {};
 		window.removeEventListener('keypress', on_keypress);
 		window.removeEventListener('resize', on_resize);*/
 	});
+
+	/*ooo.Root.capture('key_press', function (time, char, key, shift)
+	{
+		console.log(time, char, key, shift);
+	});*/
 
 	ooo.Client = ooo.Root.extend(function (hook, color)
 	{

@@ -16,6 +16,10 @@
 		{
 			"name": "d",
 			"pass": "d"
+		},
+		{
+			"name": "e",
+			"pass": "f"
 		}
 	],
 	"games":
