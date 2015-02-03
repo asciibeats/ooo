@@ -125,7 +125,7 @@ var OUI_RIGHT = 39;
 		this.focused = true;
 	});
 
-	oui.Button = oui.Input.extend(function (name, asset, type, layout)
+	/*oui.Button = oui.Input.extend(function (name, asset, type, layout)
 	{
 		oui.Input.call(this, name, layout);
 		this.asset = asset;
@@ -160,15 +160,16 @@ var OUI_RIGHT = 39;
 		oui.Button.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
 		this.parent.trigger('form_submit', [this.name, {}]);
 		return false;
-	});
+	});*/
+	oui.input = {};
 
-	oui.Field = oui.Input.extend(function (name, layout)//alphabet
+	oui.input.Field = oui.Input.extend(function (name, layout)//alphabet
 	{
 		oui.Input.call(this, name, layout);
 		oui.Field.prototype.events.on.form_reset.call(this);
 	});
 
-	oui.Field.on('form_reset', function ()
+	oui.input.Field.on('form_reset', function ()
 	{
 		this.chars = [];
 		this.caret = 0;
@@ -176,12 +177,12 @@ var OUI_RIGHT = 39;
 		this.substr = '';
 	});
 
-	oui.Field.on('form_submit', function (name, data)
+	oui.input.Field.on('form_submit', function (name, data)
 	{
 		ooc.push(this.string, data, this.name);
 	});
 
-	oui.Field.on('key_press', function (time, char, key, shift)
+	oui.input.Field.on('key_press', function (time, char, key, shift)
 	{
 		if (key == OUI_BACKSPACE)
 		{
@@ -226,7 +227,7 @@ var OUI_RIGHT = 39;
 		this.substr = this.string.substr(0, this.caret);
 	});
 
-	oui.Field.on('draw', function (time, context)
+	oui.input.Field.on('draw', function (time, context)
 	{
 		context.fillText(this.string, 0, 0);
 
@@ -236,7 +237,7 @@ var OUI_RIGHT = 39;
 		}
 	});
 
-	oui.Counter = oui.Input.extend(function (name, min, max, init, layout)
+	oui.input.Counter = oui.Input.extend(function (name, min, max, init, layout)
 	{
 		oui.Input.call(this, name, layout);
 		this.min = min;
@@ -245,19 +246,19 @@ var OUI_RIGHT = 39;
 		oui.Counter.prototype.events.on.form_reset.call(this);
 	});
 
-	oui.Counter.on('form_reset', function ()
+	oui.input.Counter.on('form_reset', function ()
 	{
 		this.count = this.init;
 	});
 
-	oui.Counter.on('form_submit', function (name, data)
+	oui.input.Counter.on('form_submit', function (name, data)
 	{
 		ooc.push(this.count, data, this.name);
 	});
 
-	oui.Counter.on('mouse_click', function (button, down_x, down_y)
+	oui.input.Counter.on('mouse_click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		oui.input.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
 
 		if (down_x < (this.width >>> 1))
 		{
@@ -283,12 +284,12 @@ var OUI_RIGHT = 39;
 		}
 	});
 
-	oui.Counter.on('draw', function (time, context)
+	oui.input.Counter.on('draw', function (time, context)
 	{
 		context.fillText(this.count, 0, 0);
 	});
 
-	oui.Options = oui.Input.extend(function (name, options, init, layout)
+	oui.input.Options = oui.Input.extend(function (name, options, init, layout)
 	{
 		oui.Input.call(this, name, layout);
 		this.options = options;
@@ -296,19 +297,19 @@ var OUI_RIGHT = 39;
 		oui.Options.prototype.events.on.form_reset.call(this);
 	});
 
-	oui.Options.on('form_reset', function ()
+	oui.input.Options.on('form_reset', function ()
 	{
 		this.pick = this.init;
 	});
 
-	oui.Options.on('form_submit', function (type, data)
+	oui.input.Options.on('form_submit', function (type, data)
 	{
 		ooc.push(this.options[this.pick], data, this.name);
 	});
 
-	oui.Options.on('mouse_click', function (button, down_x, down_y)
+	oui.input.Options.on('mouse_click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		oui.input.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
 
 		if (down_x < (this.width >>> 1))
 		{
@@ -322,35 +323,35 @@ var OUI_RIGHT = 39;
 		this.pick = ooc.wrap(this.pick, this.options.length);
 	});
 
-	oui.Options.on('draw', function (time, context)
+	oui.input.Options.on('draw', function (time, context)
 	{
 		context.fillText(this.options[this.pick], 0, 0);
 	});
 
-	oui.Switch = oui.Input.extend(function (name, init, layout)
+	oui.input.Switch = oui.Input.extend(function (name, init, layout)
 	{
 		oui.Input.call(this, name, layout);
 		this.init = init;
 		oui.Switch.prototype.events.on.form_reset.call(this);
 	});
 
-	oui.Switch.method('reset', function ()
+	oui.input.Switch.method('reset', function ()
 	{
 		this.state = this.init;
 	});
 
-	oui.Switch.on('form_submit', function (name, data)
+	oui.input.Switch.on('form_submit', function (name, data)
 	{
 		ooc.push(this.state, data, this.name);
 	});
 
-	oui.Switch.on('mouse_click', function (button, down_x, down_y)
+	oui.input.Switch.on('mouse_click', function (button, down_x, down_y)
 	{
-		oui.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		oui.input.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
 		this.state = this.state ? 0 : 1;
 	});
 
-	oui.Switch.on('draw', function (time, context)
+	oui.input.Switch.on('draw', function (time, context)
 	{
 		context.fillText(this.state, 0, 0);
 	});

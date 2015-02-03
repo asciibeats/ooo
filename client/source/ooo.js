@@ -1,6 +1,7 @@
 'use strict';
 var ooo = {};
 //////TODO
+//root load with xmlhttprequests
 //block events globally
 //ignore mouse_drag, mouse_drop by default and automatically listen on mouse_grab
 ///ignore again on mouse_drop
@@ -10,13 +11,28 @@ var ooo = {};
 //////user vars in data objekt??
 //svg parser!!!!!!! ooo.Vector ooo.SVG ??
 //aufräumen!!!
-//layout/positionsangaben angle etc vereinheitlichen
 //keyboard input eingrenzen (keyset = {})
 //retrieve constructor name on error
+var OOO_BOTTOM = 1;
+var OOO_REVERSED = 2;
+var OOO_VERTICAL = 4;
+
+var OOO_ENTER = 13;
+var OOO_TAB = 9;
+var OOO_BACKSPACE = 8;
+var OOO_CTRL = 17;
+var OOO_ALT = 18;
+var OOO_LEFT = 37;
+var OOO_RIGHT = 39;
+var OOO_DELETE = 46;
 
 (function ()
 {
 	var DRAG_OFF = 3;
+
+	ooo.core = {};
+	ooo.input = {};
+	//ooo.custom = {};
 
 	//Actor
 	function triggerActor (actor, channel, type, argv)
@@ -40,7 +56,7 @@ var ooo = {};
 	}
 
 	//Base type all others are derived from (not to be used directly)
-	ooo.Actor = ooc.Class.extend(function ()
+	ooo.core.Actor = ooc.Class.extend(function ()
 	{
 		ooc.Class.call(this);
 		this.rel_x = 0;
@@ -56,34 +72,45 @@ var ooo = {};
 		this.over = false;
 	});
 
-	ooo.Actor.method('place', function (rel_x, rel_y)
+	ooo.core.Actor.method('place', function (rel_x, rel_y)
 	{
 		this.rel_x = rel_x;
 		this.rel_y = rel_y;
 		return this;
 	});
 
-	ooo.Actor.method('resize', function (width, height)
+	ooo.core.Actor.method('resize', function (width, height)
 	{
 		this.width = width;
 		this.height = height;
 		return this;
 	});
 
-	ooo.Actor.method('center', function (mid_x, mid_y)
+	ooo.core.Actor.method('center', function (mid_x, mid_y)
 	{
 		this.mid_x = mid_x;
 		this.mid_y = mid_y;
 		return this;
 	});
 
-	ooo.Actor.method('rotate', function (angle)
+	ooo.core.Actor.method('rotate', function (angle)
 	{
 		this.angle = angle / 180 * Math.PI;
 		return this;
 	});
 
-	ooo.Actor.method('trigger', function (type, argv)
+	/*ooo.core.Actor.method('rebase', function (parent_x, parent_y)
+	{
+		var shift_x = parent_x - this.rel_x - this.mid_x;
+		var shift_y = parent_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		var object = {};
+		object.rel_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		object.rel_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+		return object;
+	});*/
+
+	ooo.core.Actor.method('trigger', function (type, argv)
 	{
 		if (type in this.ignores)
 		{
@@ -95,7 +122,7 @@ var ooo = {};
 		}
 	});
 
-	ooo.Actor.method('hide', function ()
+	ooo.core.Actor.method('hide', function ()
 	{
 		if (this.parent == undefined)
 		{
@@ -108,19 +135,19 @@ var ooo = {};
 		delete this.root;
 	});
 
-	ooo.Actor.on('show', function (root, parent)
+	ooo.core.Actor.on('show', function (root, parent)
 	{
 		this.root = root;
 	});
 
 	//Autoadjusting Actor
-	ooo.Cell = ooo.Actor.extend(function (layout)
+	ooo.core.Cell = ooo.core.Actor.extend(function (layout)
 	{
-		ooo.Actor.call(this);
+		ooo.core.Actor.call(this);
 		this.layout = layout || {left: 0, right: 0, top: 0, bottom: 0};
 	});
 
-	ooo.Cell.method('arrange', function (layout)
+	ooo.core.Cell.method('arrange', function (layout)
 	{
 		this.layout = layout || {left: 0, right: 0, top: 0, bottom: 0};
 
@@ -133,7 +160,7 @@ var ooo = {};
 		return this;
 	});
 
-	ooo.Cell.on('resize', function (width, height)
+	ooo.core.Cell.on('resize', function (width, height)
 	{
 		if (this.layout.width != undefined)
 		{
@@ -227,41 +254,41 @@ var ooo = {};
 	});
 
 	//Simple colored Box for testing
-	ooo.Box = ooo.Cell.extend(function (color, layout)
+	ooo.core.Box = ooo.core.Cell.extend(function (color, layout)
 	{
-		ooo.Cell.call(this, layout);
+		ooo.core.Cell.call(this, layout);
 		this.color = color;
 	});
 
-	ooo.Box.on('draw', function (time, context)
+	ooo.core.Box.on('draw', function (time, context)
 	{
 		context.fillStyle = this.color;
 		context.fillRect(0, 0, this.width, this.height);
 	});
 
-	//Actor with image
-	ooo.Sprite = ooo.Cell.extend(function (asset, type, layout)
+	//Simple image
+	ooo.core.Sprite = ooo.core.Cell.extend(function (asset, type, layout)
 	{
-		ooo.Cell.call(this, layout);
+		ooo.core.Cell.call(this, layout);
 		this.asset = asset;
 		this.type = type;
 	});
 
-	ooo.Sprite.on('show', function (root, parent)
+	ooo.core.Sprite.on('show', function (root, parent)
 	{
-		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		ooo.core.Cell.prototype.events.on.show.call(this, root, parent);
 		this.image = root.images[this.asset];
 	});
 
-	ooo.Sprite.on('draw', function (time, context)
+	ooo.core.Sprite.on('draw', function (time, context)
 	{
 		context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 	});
 
 	//Simple Textbox
-	ooo.Text = ooo.Cell.extend(function (layout, color, font, alignment, baseline)//switch to oui.Button.extend
+	ooo.core.Text = ooo.core.Cell.extend(function (layout, color, font, alignment, baseline)//switch to ooo.core.Button.extend
 	{
-		ooo.Cell.call(this, layout);
+		ooo.core.Cell.call(this, layout);
 		this.color = color || '#f00';
 		this.font = font || '10px sans-serif';
 		this.alignment = alignment || 'start';//"start", "end", "left", "right", "center"
@@ -269,7 +296,7 @@ var ooo = {};
 		this.string = "abc123";
 	});
 
-	ooo.Text.on('draw', function (time, context)
+	ooo.core.Text.on('draw', function (time, context)
 	{
 		context.fillStyle = this.color;
 		context.font = this.font;
@@ -284,7 +311,7 @@ var ooo = {};
 		//return value of false means to skip this child (not stop all propagation)
 		var retv = triggerActor.call(this, actor, 'prepare', type, argv);
 
-		if (retv != false)
+		if ((retv != false) && (retv != true))
 		{
 			if (retv == null)
 			{
@@ -293,10 +320,6 @@ var ooo = {};
 
 			retv = actor.trigger(type, retv, topdown);
 		}
-		else
-		{
-			retv = true;
-		}
 
 		if ((triggerActor.call(this, actor, 'cleanup', type, argv) == false) || (retv == false))
 		{
@@ -304,85 +327,78 @@ var ooo = {};
 		}
 	}
 
-	//Cell containing other actors
-	ooo.Scene = ooo.Cell.extend(function (layout)
+	//Container for other actors
+	ooo.core.Scene = ooo.core.Cell.extend(function (layout)
 	{
-		ooo.Cell.call(this, layout);
+		ooo.core.Cell.call(this, layout);
 		this.children = [];
 		this.data = {};
 	});
 
-	delete ooo.Scene.on;
-	ooo.Scene.capture = ooc.addEvent('capture');
-	ooo.Scene.prepare = ooc.addEvent('prepare');
-	ooo.Scene.cleanup = ooc.addEvent('cleanup');
-	ooo.Scene.bubble = ooc.addEvent('bubble');
+	delete ooo.core.Scene.on;
+	ooo.core.Scene.capture = ooc.addEvent('capture');
+	ooo.core.Scene.prepare = ooc.addEvent('prepare');
+	ooo.core.Scene.cleanup = ooc.addEvent('cleanup');
+	ooo.core.Scene.bubble = ooc.addEvent('bubble');
 
-	ooo.Scene.method('put', function (value, key)
+	ooo.core.Scene.method('put', function (value, key)
 	{
 		Array.prototype.splice.call(arguments, 1, 0, this.data);
 		ooc.put.apply(null, arguments);
 		this.trigger('update_' + key, [this.data[key]]);
 	});
 
-	ooo.Scene.method('add', function (value, key)
+	ooo.core.Scene.method('add', function (value, key)
 	{
 		Array.prototype.splice.call(arguments, 1, 0, this.data);
 		ooc.add.apply(null, arguments);
 		this.trigger('update_' + key, [this.data[key]]);
 	});
 
-	ooo.Scene.method('push', function (value, key)
+	ooo.core.Scene.method('push', function (value, key)
 	{
 		Array.prototype.splice.call(arguments, 1, 0, this.data);
 		ooc.push.apply(null, arguments);
 		this.trigger('update_' + key, [this.data[key]]);
 	});
 
-	ooo.Scene.method('delete', function (key)
+	ooo.core.Scene.method('delete', function (key)
 	{
 		Array.prototype.unshift.call(arguments, this.data);
 		ooc.delete.apply(null, arguments);
 		this.trigger('update_' + key, [this.data[key]]);
 	});
 
-	ooo.Scene.method('pop', function (key)
+	ooo.core.Scene.method('pop', function (key)
 	{
 		Array.prototype.unshift.call(arguments, this.data);
 		ooc.pop.apply(null, arguments);
 		this.trigger('update_' + key, [this.data[key]]);
 	});
 
-	ooo.Scene.method('hideChildren', function ()
+	ooo.core.Scene.method('empty', function ()
 	{
-		for (var i = 0; i < this.layers.length; i++)
+		for (var i = 0; i < this.children.length; i++)
 		{
-			var lid = this.layers[i];
-			var layer = this.children[lid];
-
-			for (var id in layer)
-			{
-				var child = layer[id];
-				delete child.id;
-				delete child.layer;
-				delete child.parent;
-				delete child.root;
-			}
+			this.children[i].hide();
 		}
 
 		this.children = [];
-		this.layers = [];
 		return this;
 	});
 
-	ooo.Scene.method('show', function (actor, index)
+	ooo.core.Scene.method('show', function (actor, index)
 	{
-		if (actor.parent)
+		if (actor.parent != undefined)
 		{
 			actor.hide();
 		}
 
-		if (this.children[index])
+		if (index == null)
+		{
+			index = this.children.length;
+		}
+		else if (this.children[index])
 		{
 			this.children[index].hide();
 		}
@@ -405,7 +421,7 @@ var ooo = {};
 		return this;
 	});
 
-	ooo.Scene.method('trigger', function (type, argv, topdown)
+	ooo.core.Scene.method('trigger', function (type, argv, topdown)
 	{
 		var retv = triggerActor.call(this, this, 'capture', type, argv);
 
@@ -458,55 +474,29 @@ var ooo = {};
 		}
 	});
 
-	ooo.Scene.capture('show', function (root, parent)
+	ooo.core.Scene.capture('show', function (root, parent)
 	{
-		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		ooo.core.Cell.prototype.events.on.show.call(this, root, parent);
 		return [root, this];
 	});
 
-	ooo.Scene.capture('resize', function (width, height)
+	ooo.core.Scene.capture('resize', function (width, height)
 	{
-		ooo.Cell.prototype.events.on.resize.call(this, width, height);
+		ooo.core.Cell.prototype.events.on.resize.call(this, width, height);
 		return [this.width, this.height];
 	});
 
-	ooo.Scene.prepare('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
+	ooo.core.Scene.prepare('draw', function (time, context)
 	{
-		var shift_x = down_x - this.rel_x - this.mid_x;
-		var shift_y = down_y - this.rel_y - this.mid_y;
-		var angle = -this.angle;
-		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
-		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
-
-		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
-		{
-			return false;
-		}
-		else
-		{
-			return [button, down_x, down_y, drag_x, drag_y];
-		}
+		context.save();
+		context.globalAlpha = this.alpha;
+		context.scale(this.scale_x, this.scale_y);
+		context.translate(this.rel_x + this.mid_x, this.rel_y + this.mid_y);
+		context.rotate(this.angle);
+		context.translate(-this.mid_x, -this.mid_y);
 	});
 
-	ooo.Scene.prepare(['mouse_down', 'mouse_click'], function (button, down_x, down_y)
-	{
-		var shift_x = down_x - this.rel_x - this.mid_x;
-		var shift_y = down_y - this.rel_y - this.mid_y;
-		var angle = -this.angle;
-		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
-		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
-
-		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
-		{
-			return false;
-		}
-		else
-		{
-			return [button, down_x, down_y];
-		}
-	});
-
-	ooo.Scene.prepare('mouse_move', function (down_x, down_y)
+	ooo.core.Scene.prepare('mouse_move', function (down_x, down_y)
 	{
 		var shift_x = down_x - this.rel_x - this.mid_x;
 		var shift_y = down_y - this.rel_y - this.mid_y;
@@ -534,52 +524,116 @@ var ooo = {};
 		return [down_x, down_y];
 	});
 
-	ooo.Scene.prepare('draw', function (time, context)
+	ooo.core.Scene.prepare('mouse_down', function (button, down_x, down_y)
 	{
-		context.save();
-		context.globalAlpha = this.alpha;
-		context.scale(this.scale_x, this.scale_y);
-		context.translate(this.rel_x + this.mid_x, this.rel_y + this.mid_y);
-		context.rotate(this.angle);
-		context.translate(-this.mid_x, -this.mid_y);
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
+		{
+			return true;
+		}
+		else
+		{
+			return [button, down_x, down_y];
+		}
 	});
 
-	ooo.Scene.cleanup('draw', function (time, context)
+	ooo.core.Scene.prepare('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
 	{
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
+		{
+			return true;
+		}
+		else
+		{
+			return [button, down_x, down_y, drag_x, drag_y];
+		}
+	});
+
+	ooo.core.Scene.prepare('mouse_click', function (button, down_x, down_y)
+	{
+		var shift_x = down_x - this.rel_x - this.mid_x;
+		var shift_y = down_y - this.rel_y - this.mid_y;
+		var angle = -this.angle;
+		down_x = (shift_x * Math.cos(angle) - shift_y * Math.sin(angle)) + this.mid_x;
+		down_y = (shift_x * Math.sin(angle) + shift_y * Math.cos(angle)) + this.mid_y;
+
+		if ((down_x < 0) || (down_y < 0) || (down_x >= this.width) || (down_y >= this.height))
+		{
+			return true;
+		}
+		else if (this.root.modify)
+		{
+			this.root.show(new ooo.core.Box('#fff', {width: 40, height: 40}));
+			return false;
+		}
+		else
+		{
+			return [button, down_x, down_y];
+		}
+	});
+
+	ooo.core.Scene.cleanup('draw', function (time, context)
+	{
+		if (this.root.modify)
+		{
+			context.strokeRect(0, 0, this.width, this.height);
+		}
+
 		context.restore();
 	});
 
-	//STAGE Scene with own canvas
-	ooo.Stage = ooo.Scene.extend(function (layout)
+	//Scene with own canvas to draw on
+	ooo.core.Stage = ooo.core.Scene.extend(function (fill_style, layout)
 	{
-		ooo.Scene.call(this, layout);
+		ooo.core.Scene.call(this, layout);
+		this.fill_style = fill_style || '#444';
+		this.stroke_style = '#ccc';
+		this.line_width = 2;
 		this.canvas = document.createElement('canvas');
 		this.context = this.canvas.getContext('2d');
 		this.update = true;
 		this.once = false;
 	});
 
-	ooo.Stage.method('resize', function (width, height)
+	ooo.core.Stage.method('resize', function (width, height)
 	{
 		this.width = this.canvas.width = width;
 		this.height = this.canvas.height = height;
+		this.context.fillStyle = this.fill_style;
+		this.context.strokeStyle = this.stroke_style;
+		this.context.lineWidth = this.line_width;
 		return this;
 	});
 
-	ooo.Stage.method('refresh', function ()
+	ooo.core.Stage.method('clear', function ()
+	{
+		//just one method to clear the canvas (there are others)
+		this.canvas.width = this.canvas.width;
+		this.context.fillStyle = this.fill_style;
+		this.context.strokeStyle = this.stroke_style;
+		this.context.lineWidth = this.line_width;
+		return this;
+	});
+
+	ooo.core.Stage.method('refresh', function ()
 	{
 		this.update = false;
 		this.once = true;
 		return this;
 	});
 
-	ooo.Stage.method('clear', function ()
-	{
-		//just one method to clear the canvas (there are others)
-		this.canvas.width = this.canvas.width;
-	});
-
-	ooo.Stage.method('fill', function (color)
+	ooo.core.Stage.method('fill', function (color)
 	{
 		this.context.save();
 		this.context.fillStyle = color;
@@ -587,7 +641,7 @@ var ooo = {};
 		this.context.restore();
 	});
 
-	ooo.Stage.capture('draw', function (time, context)
+	ooo.core.Stage.capture('draw', function (time, context)
 	{
 		if (this.update || this.once)
 		{
@@ -600,13 +654,16 @@ var ooo = {};
 		}
 	});
 
-	ooo.Stage.bubble('draw', function (time, context)
+	ooo.core.Stage.bubble('draw', function (time, context)
 	{
 		if (context)
 		{
 			context.drawImage(this.canvas, 0, 0);
 		}
 	});
+
+	var TMPL_PARAM = ['name', 'super', 'info', 'args', 'init', 'methods', 'events'];
+	var INST_PARAM = ['name', 'template', 'argv', 'children'];
 
 	function loaded (root, asset, image)
 	{
@@ -673,31 +730,94 @@ var ooo = {};
 		  name
 	 */
 
-	//ROOT Stage to be embedded into html
-	ooo.Root = ooo.Stage.extend(function (hook, color)
+	function extendActor (template)//als actor method? oder sogar ooc.Class? (das ist nichts Actor spezifisches)
 	{
-		ooo.Stage.call(this);
+		var Parent = ooc.resolve(ooo, template.super);
+		var argv = template.args.map(function (value) { return value[1] });
+		argv.push(template.init.replace('Super', 'ooo.' + template.super));
+		var init = new (ooc.Wrap(Function, argv));
+
+		var Child = Parent.extend(function ()
+		{
+			init.apply(this, arguments);
+		});
+
+		for (var name in template.methods)
+		{
+			Child.method(name, new (ooc.Wrap(Function, template.methods[name])));
+		}
+
+		for (var channel in template.events)
+		{
+			for (var type in template.events[channel])
+			{
+				Child[channel](type, new (ooc.Wrap(Function, template.events[channel][type])));
+			}
+		}
+
+		Child.prototype.template = template;
+		var argv = template.name.split('.');
+		argv.unshift(Child, ooo);
+		ooc.put.apply(null, argv);
+	}
+
+	function cloneActor (template)
+	{
+	}
+
+	function showActors (parent, instances)
+	{
+		for (var i = 0; i < instances.length; i++)
+		{
+			var instance = ooc.map(INST_PARAM, instances[i]);
+			var func = ooc.resolve(ooo, instance.template);
+			var actor = new (ooc.Wrap(func, instance.argv));
+			actor.instance = instance;
+			parent.show(actor, i);
+
+			if (instance.children != undefined)
+			{
+				showActors(actor, instance.children);
+			}
+		}
+	}
+
+	//Stage to be embedded into html
+	ooo.core.Root = ooo.core.Stage.extend(function (hook, core, fill_style)
+	{
+		ooo.core.Stage.call(this, fill_style);
+		this.fullscreen = false;
+		this.loaded = false;
+		this.modify = false;
+		this.assets = {};
+		this.images = {};
+		this.root = this;
 		this.canvas.style.position = 'absolute';
 		this.canvas.focus();
 		this.hook = hook;
 		this.hook.style.overflow = 'hidden';
 		this.hook.appendChild(this.canvas);
 		this.resize(hook.clientWidth, hook.clientHeight);
-		this.context.fillStyle = color || '#444';
+		this.context.setLineDash([7, 7]);
+		this.context.strokeStyle = '#aaa';
+		this.context.fillStyle = this.color;
 		this.context.fillRect(0, 0, this.width, this.height);
-		this.fullscreen = false;
-		this.loaded = false;
-		this.root = this;
-		this.assets = {};
-		this.images = {};
+
+		for (var i = 0; i < core.templates.length; i++)
+		{
+			var template = ooc.map(TMPL_PARAM, core.templates[i]);
+			extendActor(template);
+		}
+
+		showActors(this, core.instances);
 	});
 
-	ooo.Root.method('load', function (name, source, width, height)
+	ooo.core.Root.method('load', function (name, source, width, height)
 	{
 		this.assets[name] = {source: source, width: width, height: height};
 	});
 
-	ooo.Root.method('open', function ()
+	ooo.core.Root.method('open', function ()
 	{
 		var toload = ooc.size(this.assets);
 
@@ -705,13 +825,28 @@ var ooo = {};
 		{
 			this.toload = toload;
 
-			for (var name in this.assets)
+			if (true)
 			{
-				var asset = this.assets[name];
-				var image = new Image();
-				image.onload = loaded(this, asset, image);
-				image.src = asset.source;
-				this.images[name] = image;
+				for (var name in this.assets)
+				{
+					var asset = this.assets[name];
+					var image = new Image();
+					image.onload = loaded(this, asset, image);
+					image.src = asset.source;
+					this.images[name] = image;
+				}
+			}
+			else if (false)
+			{
+				for (var name in this.assets)
+				{
+					var asset = this.assets[name];
+					var request = new XMLHttpRequest();
+					request.onload = loadedText(this, asset);
+					//request.responseType = "arraybuffer";//'json', 'text'
+					request.open('get', asset.source, true);
+					request.send();
+				}
 			}
 		}
 		else
@@ -722,7 +857,7 @@ var ooo = {};
 		}
 	});
 
-	ooo.Root.method('toggle', function ()
+	ooo.core.Root.method('toggle', function ()
 	{
 		if (document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement)
 		{
@@ -768,7 +903,7 @@ var ooo = {};
 		}
 	});
 
-	ooo.Root.capture('show', function (root, parent)
+	ooo.core.Root.capture('show', function (root, parent)
 	{
 		var down = false;
 		var drag = false;
@@ -859,6 +994,21 @@ var ooo = {};
 			}
 		}
 
+		function on_keyup (event)
+		{
+			if (event.keyCode < 48)
+			{
+				event.preventDefault();
+				that.trigger('key_release', [event.timeStamp, null, event.keyCode, event.shiftKey], true);
+				//console.log('down', event.keyCode);
+			}
+
+			/*if (event.keyCode == 8 || event.keyCode == 9)
+			{
+				event.preventDefault();
+			}*/
+		}
+
 		var argv = [0];
 		var requestFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame;
 
@@ -881,11 +1031,12 @@ var ooo = {};
 		this.canvas.addEventListener('mouseout', on_mouseout);
 		window.addEventListener('keydown', on_keydown);
 		window.addEventListener('keypress', on_keypress);
+		window.addEventListener('keyup', on_keyup);
 		window.addEventListener('resize', on_resize);
 		this.request_id = requestFrame(on_draw);
 	});
 
-	ooo.Root.capture('hide', function ()
+	ooo.core.Root.capture('hide', function ()
 	{
 		var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame;
 		cancel(this.request_id);
@@ -899,20 +1050,31 @@ var ooo = {};
 		window.removeEventListener('resize', on_resize);*/
 	});
 
-	/*ooo.Root.capture('key_press', function (time, char, key, shift)
+	ooo.core.Root.capture('key_press', function (time, char, key, shift)
 	{
-		console.log(time, char, key, shift);
-	});*/
+		if (key == OOO_CTRL)
+		{
+			this.modify = true;
+		}
+	});
 
-	ooo.Client = ooo.Root.extend(function (hook, color)
+	ooo.core.Root.capture('key_release', function (time, char, key, shift)
 	{
-		ooo.Root.call(this, hook, color);
+		if (key == OOO_CTRL)
+		{
+			this.modify = false;
+		}
+	});
+
+	ooo.core.Client = ooo.core.Root.extend(function (hook, color)
+	{
+		ooo.core.Root.call(this, hook, color);
 		this.connected = false;
 	});
 
-	ooo.Client.method('open', function (url)
+	ooo.core.Client.method('open', function (url)
 	{
-		ooo.Root.prototype.open.call(this);
+		ooo.core.Root.prototype.open.call(this);
 		this.sockjs = new SockJS(url);
 		var that = this;
 
@@ -944,8 +1106,1124 @@ var ooo = {};
 		}
 	});
 
-	ooo.Client.method('send', function (type, data)
+	ooo.core.Client.method('send', function (type, data)
 	{
 		this.sockjs.send(JSON.stringify(Array.prototype.slice.call(arguments)));
+	});
+
+	ooo.Form = ooo.core.Scene.extend(function (color, font, layout, align, baseline)
+	{
+		ooo.core.Scene.call(this, layout);
+		this.color = color || '#f00';
+		this.font = font || '24px sans-serif';
+		this.align = align || 'start';
+		this.baseline = baseline || 'top';
+	});
+
+	ooo.Form.method('show', function (actor, index)
+	{
+		ooo.Scene.prototype.show.call(this, actor, index);
+
+		//focus on first input added
+		if ((this.focus == undefined) && (actor instanceof ooo.Input))
+		{
+			this.focus = actor;
+			actor.focused = true;
+		}
+
+		return this;
+	});
+
+	ooo.Form.method('reset', function ()
+	{
+		this.focus.focused = false;
+		delete this.focus;
+
+		for (var index = 0; index < this.children.length; index++)
+		{
+			var actor = this.children[index];
+
+			if ((actor != undefined) && (actor instanceof ooo.Input))
+			{
+				this.focus = actor;
+				actor.focused = true;
+				break;
+			}
+		}
+
+		this.trigger('form_reset');
+	});
+
+	ooo.Form.capture('key_press', function (time, char, key, shift)
+	{
+		if (key == OOO_ENTER)
+		{
+			this.trigger('form_submit', [null, {}]);
+			return false;
+		}
+		else if (key == OOO_TAB)
+		{
+			this.focus.focused = false;
+			var index = this.focus.index;
+			var length = this.children.length;
+
+			do
+			{
+				index = ooc.wrap(shift ? index - 1 : index + 1, length);
+				this.focus = this.children[index];
+			}
+			while (!(this.focus instanceof ooo.Input))
+
+			this.focus.focused = true;
+			return false;
+		}
+	});
+
+	ooo.Form.capture('draw', function (time, context)//erzeugt komischen glitch (in firefox) beim öffnen der js-konsole (F12) (verschwindet wenn context.font auskommentiert wird
+	//ooo.Form.prepare('draw', function (time, context)
+	{
+		//ooo.Scene.prototype.events.prepare.draw.call(this, time, context);//
+		context.fillStyle = this.color;
+		context.font = this.font;
+		context.textAlign = this.align;
+		context.textBaseline = this.baseline;
+	});
+
+	ooo.Form.prepare('key_press', function (time, char, key, shift)
+	{
+		if (this.parent.focus != this)
+		{
+			return true;
+		}
+	});
+
+	ooo.Form.bubble('form_submit', function (type, data)
+	{
+		console.log('submit %s %s', type, JSON.stringify(data));
+	});
+
+	ooo.Input = ooo.core.Cell.extend(function (name, layout)//todo?: limit alphabet
+	{
+		ooo.core.Cell.call(this, layout);
+		this.name = name;
+		this.focused = false;
+	});
+
+	ooo.Input.on('mouse_click', function (button, down_x, down_y)
+	{
+		this.parent.focus.focused = false;
+		this.parent.focus = this;
+		this.focused = true;
+	});
+
+	/*ooo.Button = ooo.Input.extend(function (name, asset, type, layout)
+	{
+		ooo.Input.call(this, name, layout);
+		this.asset = asset;
+		this.type = type;
+	});
+
+	ooo.Button.on('show', function (root, parent)
+	{
+		ooo.Input.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.asset];
+	});
+
+	ooo.Button.on('draw', function (time, context)
+	{
+		if (this.focused)
+		{
+			context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		}
+		else
+		{
+			context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		}
+	});
+
+	ooo.Submit = ooo.Button.extend(function (name, asset, type, layout)
+	{
+		ooo.Button.call(this, name, asset, type, layout);
+	});
+
+	ooo.Submit.on('mouse_click', function (button, down_x, down_y)
+	{
+		ooo.Button.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		this.parent.trigger('form_submit', [this.name, {}]);
+		return false;
+	});*/
+
+	ooo.input.Field = ooo.Input.extend(function (name, layout)//alphabet
+	{
+		ooo.Input.call(this, name, layout);
+		ooo.Field.prototype.events.on.form_reset.call(this);
+	});
+
+	ooo.input.Field.on('form_reset', function ()
+	{
+		this.chars = [];
+		this.caret = 0;
+		this.string = '';
+		this.substr = '';
+	});
+
+	ooo.input.Field.on('form_submit', function (name, data)
+	{
+		ooc.push(this.string, data, this.name);
+	});
+
+	ooo.input.Field.on('key_press', function (time, char, key, shift)
+	{
+		if (key == OOO_BACKSPACE)
+		{
+			if (this.caret > 0)
+			{
+				this.caret--;
+				this.chars.splice(this.caret, 1);
+			}
+		}
+		else if (key == OOO_DELETE)
+		{
+			if (this.caret < this.chars.length)
+			{
+				this.chars.splice(this.caret, 1);
+			}
+		}
+		else if (key == OOO_LEFT)
+		{
+			if (this.caret > 0)
+			{
+				this.caret--;
+			}
+		}
+		else if (key == OOO_RIGHT)
+		{
+			if (this.caret < this.chars.length)
+			{
+				this.caret++;
+			}
+		}
+		else if (char)
+		{
+			this.chars.splice(this.caret, 0, char);
+			this.caret++;
+		}
+		else
+		{
+			return;
+		}
+
+		this.string = this.chars.join('');
+		this.substr = this.string.substr(0, this.caret);
+	});
+
+	ooo.input.Field.on('draw', function (time, context)
+	{
+		context.fillText(this.string, 0, 0);
+
+		if (this.focused && ((time % 2000) < 1300))//caret blink
+		{
+			context.fillRect(context.measureText(this.substr).width, 0, this.height >>> 3, this.height);
+		}
+	});
+
+	ooo.input.Counter = ooo.Input.extend(function (name, min, max, init, layout)
+	{
+		ooo.Input.call(this, name, layout);
+		this.min = min;
+		this.max = max;
+		this.init = init;
+		ooo.Counter.prototype.events.on.form_reset.call(this);
+	});
+
+	ooo.input.Counter.on('form_reset', function ()
+	{
+		this.count = this.init;
+	});
+
+	ooo.input.Counter.on('form_submit', function (name, data)
+	{
+		ooc.push(this.count, data, this.name);
+	});
+
+	ooo.input.Counter.on('mouse_click', function (button, down_x, down_y)
+	{
+		ooo.input.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+
+		if (down_x < (this.width >>> 1))
+		{
+			if (this.count > this.min)
+			{
+		 		this.count--;
+			}
+			else
+			{
+		 		this.count = this.max;
+			}
+		}
+		else
+		{
+			if (this.count < this.max)
+			{
+		 		this.count++;
+			}
+			else
+			{
+		 		this.count = this.min;
+			}
+		}
+	});
+
+	ooo.input.Counter.on('draw', function (time, context)
+	{
+		context.fillText(this.count, 0, 0);
+	});
+
+	ooo.input.Options = ooo.Input.extend(function (name, options, init, layout)
+	{
+		ooo.Input.call(this, name, layout);
+		this.options = options;
+		this.init = init;
+		ooo.Options.prototype.events.on.form_reset.call(this);
+	});
+
+	ooo.input.Options.on('form_reset', function ()
+	{
+		this.pick = this.init;
+	});
+
+	ooo.input.Options.on('form_submit', function (type, data)
+	{
+		ooc.push(this.options[this.pick], data, this.name);
+	});
+
+	ooo.input.Options.on('mouse_click', function (button, down_x, down_y)
+	{
+		ooo.input.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+
+		if (down_x < (this.width >>> 1))
+		{
+			this.pick--;
+		}
+		else
+		{
+			this.pick++;
+		}
+
+		this.pick = ooc.wrap(this.pick, this.options.length);
+	});
+
+	ooo.input.Options.on('draw', function (time, context)
+	{
+		context.fillText(this.options[this.pick], 0, 0);
+	});
+
+	ooo.input.Switch = ooo.Input.extend(function (name, init, layout)
+	{
+		ooo.Input.call(this, name, layout);
+		this.init = init;
+		ooo.Switch.prototype.events.on.form_reset.call(this);
+	});
+
+	ooo.input.Switch.method('reset', function ()
+	{
+		this.state = this.init;
+	});
+
+	ooo.input.Switch.on('form_submit', function (name, data)
+	{
+		ooc.push(this.state, data, this.name);
+	});
+
+	ooo.input.Switch.on('mouse_click', function (button, down_x, down_y)
+	{
+		ooo.input.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		this.state = this.state ? 0 : 1;
+	});
+
+	ooo.input.Switch.on('draw', function (time, context)
+	{
+		context.fillText(this.state, 0, 0);
+	});
+
+	//MENUS
+	ooo.Menu = ooo.core.Cell.extend(function (asset, layout, style)//switch to ooo.Button.extend
+	{
+		ooo.core.Cell.call(this, layout);
+		this.asset = asset;
+		this.style = style || 0;
+		this.data = [];
+		this.pick = {};
+	});
+
+	ooo.Menu.method('reset', function (data, pick)
+	{
+		this.data = data || [];
+		this.pick = {};
+
+		if (pick)
+		{
+			for (var i = 0; i < pick.length; i++)
+			{
+				this.pick[i] = true;
+			}
+		}
+
+		return this;
+	});
+
+	ooo.Menu.method('drawButton', function (time, context, data, pick)
+	{
+		if (pick)
+		{
+			context.fillStyle = '#f00';
+			context.fillRect(0, 0, this.image.tile_w, this.image.tile_h);
+		}
+		else
+		{
+			context.drawImage(this.image, this.image.tile_x[data], this.image.tile_y[data], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		}
+	});
+
+	ooo.Menu.method('preparePick', function (data, index)
+	{
+		return [data, index];
+	});
+
+	ooo.Menu.on('show', function (root, parent)
+	{
+		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.asset];
+	});
+
+	ooo.Menu.on('resize', function (width, height)
+	{
+		ooo.Cell.prototype.events.on.resize.call(this, width, height);
+		this.cols = Math.floor(this.width / this.image.tile_w);
+		this.rows = Math.floor(this.height / this.image.tile_h);
+
+		if (this.style & OOO_VERTICAL)
+		{
+			this.shift_x = 0;
+			this.break_y = 0;
+			this.line_br = this.rows;
+
+			if (this.style & OOO_REVERSED)
+			{
+				this.init_x = this.width - this.image.tile_w;
+				this.break_x = -this.image.tile_w;
+			}
+			else
+			{
+				this.init_x = 0;
+				this.break_x = this.image.tile_w;
+			}
+
+			if (this.style & OOO_BOTTOM)
+			{
+				this.init_y = this.height - this.image.tile_h;
+				this.shift_y = -this.image.tile_h;
+			}
+			else
+			{
+				this.init_y = 0;
+				this.shift_y = this.image.tile_h;
+			}
+		}
+		else
+		{
+			this.shift_y = 0;
+			this.break_x = 0;
+			this.line_br = this.cols;
+
+			if (this.style & OOO_REVERSED)
+			{
+				this.init_x = this.width - this.image.tile_w;
+				this.shift_x = -this.image.tile_w;
+			}
+			else
+			{
+				this.init_x = 0;
+				this.shift_x = this.image.tile_w;
+			}
+
+			if (this.style & OOO_BOTTOM)
+			{
+				this.init_y = this.height - this.image.tile_h;
+				this.break_y = -this.image.tile_h;
+			}
+			else
+			{
+				this.init_y = 0;
+				this.break_y = this.image.tile_h;
+			}
+		}
+	});
+
+	//max_lines bestimmen und bei überschreitung neue seite oder so!!!???
+	ooo.Menu.on('draw', function (time, context)
+	{
+		context.translate(this.init_x, this.init_y);
+		context.save();
+
+		for (var i = 0; i < this.data.length;)
+		{
+			context.save();
+			this.drawButton(time, context, this.data[i], this.pick[i]);
+			context.restore();
+			context.translate(this.shift_x, this.shift_y);
+			i++;
+
+			if ((i % this.line_br) == 0)
+			{
+				context.restore();
+				context.translate(this.break_x, this.break_y);
+				context.save();
+			}
+		}
+		
+		context.restore();
+	});
+
+	ooo.Menu.on('mouse_click', function (button, down_x, down_y)
+	{
+		if (this.style & OOO_BOTTOM)
+		{
+			var row = Math.floor((this.height - down_y) / this.image.tile_h);
+		}
+		else
+		{
+			var row = Math.floor(down_y / this.image.tile_h);
+		}
+
+		if (this.style & OOO_REVERSED)
+		{
+			var col = Math.floor((this.width - down_x) / this.image.tile_w);
+		}
+		else
+		{
+			var col = Math.floor(down_x / this.image.tile_w);
+		}
+
+		if (this.style & OOO_VERTICAL)
+		{
+			var index = col * this.rows + row;
+		}
+		else
+		{
+			var index = row * this.cols + col;
+		}
+
+		if ((this.data[index] != undefined) && (col < this.cols) && (row < this.rows))
+		{
+			var argv = this.preparePick(this.data[index], index);
+			this.trigger('pick_item', argv);
+			return false;
+		}
+	});
+
+	ooo.SingleMenu = ooo.Menu.extend(function (asset, layout, style)
+	{
+		ooo.Menu.call(this, asset, layout, style);
+	});
+
+	ooo.SingleMenu.method('preparePick', function (data, index)
+	{
+		this.pick = {};
+		this.pick[index] = true;
+		return [data, index];
+	});
+
+	ooo.MultiMenu = ooo.Menu.extend(function (asset, layout, style)
+	{
+		ooo.Menu.call(this, asset, layout, style);
+	});
+
+	ooo.MultiMenu.method('preparePick', function (data, index)
+	{
+		if (this.pick[index])
+		{
+			delete this.pick[index];
+		}
+		else
+		{
+			this.pick[index] = true;
+		}
+
+		var select = [];
+
+		for (var i in this.pick)
+		{
+			select.push(this.data[i]);
+		}
+
+		return [select, data, index];
+	});
+
+	var TabMenu = ooo.SingleMenu.extend(function (asset, layout, style)
+	{
+		ooo.Menu.call(this, asset, layout, style);
+	});
+
+	TabMenu.on('pick_item', function (data, index)
+	{
+		this.parent.front.mask('draw');
+		this.parent.front.mask('mouse_click');
+		this.parent.front = this.parent.tabs[index];
+		this.parent.front.unmask('draw');
+		this.parent.front.unmask('mouse_click');
+	});
+
+	ooo.Tabbed = ooo.core.Scene.extend(function (layout, asset, menu_layout, style)
+	{
+		ooo.core.Scene.call(this, layout);
+		this.menu = new TabMenu(asset, menu_layout, style);
+		this.tabs = [];
+		this.show(this.menu, 1);
+	});
+
+	ooo.Tabbed.method('open', function (type, actor)
+	{
+		if (this.tabs.length == 0)
+		{
+			this.menu.pick[0] = true;
+			this.front = actor;
+		}
+		else
+		{
+			actor.mask('draw');
+			actor.mask('mouse_click');
+		}
+
+		this.menu.data.push(type);
+		this.tabs.push(actor);
+		this.show(actor);
+	});
+
+	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+
+	ooo.TileMap = ooo.core.Cell.extend(function (size, asset, layout)
+	{
+		ooo.core.Cell.call(this, layout);
+		this.ignore('mouse_drag', 'mouse_drop');
+		this.size = size;
+		this.asset = asset;
+		this.drag_x = 0;
+		this.drag_y = 0;
+		this.drop_x = 0;
+		this.drop_y = 0;
+		this.coords = [];
+		this.tiles = [];
+
+		//create tiles
+		for (var y = 0, i = 0; y < size; y++)
+		{
+			this.coords[y] = [];
+
+			for (var x = 0; x < size; x++, i++)
+			{
+				var tile = {};
+				tile.map = this;
+				tile.i = i;
+				tile.x = x;
+				tile.y = y;
+				tile.data = this.initData(i, x, y);
+				this.coords[y][x] = tile;
+				this.tiles[i] = tile;
+			}
+		}
+
+		//connect neighbors
+		for (var y = 0; y < size; y++)
+		{
+			for (var x = 0; x < size; x++)
+			{
+				var steps = [];
+
+				for (var i in SQR_NMASK)
+				{
+					var nx = (x + SQR_NMASK[i][0] + size) % size;
+					var ny = (y + SQR_NMASK[i][1] + size) % size;
+					steps[i] = this.coords[ny][nx];
+				}
+
+				this.coords[y][x].steps = steps;
+			}
+		}
+	});
+
+	ooo.TileMap.method('initData', function (i, x, y)
+	{
+		return {type: 0};
+	});
+
+	ooo.TileMap.method('calcCost', function (data)
+	{
+		return 1;
+	});
+
+	ooo.TileMap.method('drawTile', function (tile, time, context)
+	{
+		context.drawImage(this.image, this.image.tile_x[tile.data.type], this.image.tile_y[tile.data.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+	});
+
+	ooo.TileMap.method('calcDistance', function (a, b)
+	{
+		if (a.x < b.x)
+		{
+			var min_x = Math.min(b.x - a.x, a.x - (b.x - this.size));
+		}
+		else
+		{
+			var min_x = Math.min(a.x - b.x, (b.x + this.size) - a.x);
+		}
+
+		if (a.y < b.y)
+		{
+			var min_y = Math.min(b.y - a.y, a.y - (b.y - this.size));
+		}
+		else
+		{
+			var min_y = Math.min(a.y - b.y , (b.y + this.size) - a.y);
+		}
+
+		return (min_x + min_y);
+	});
+
+	ooo.TileMap.method('findArea', function (open, range)
+	{
+		if (open.length == 0)
+		{
+			throw 'No tiles to go from';
+		}
+
+		//var g = {};
+
+		for (var i = 0; i < open.length; i++)
+		{
+			open[i] = this.tiles[open[i]];
+			open[i].g = 0;
+		}
+
+		var done = [];//sparse array
+
+		do
+		{
+			var current = open.pop();
+			done[current.i] = current.g;//muss das evtl geupdated werden falls billiger geht?
+
+			for (var i = 0; i < current.steps.length; i++)
+			{
+				var next = current.steps[i];
+
+				if (next.i in done)
+				{
+					continue;
+				}
+
+				var next_c = this.calcCost.call(this, next.data);
+
+				if (next_c == null)
+				{
+					continue;
+				}
+
+				var next_g = current.g + next_c;
+
+				if (next_g > range)
+				{
+					continue;
+				}
+
+				var tile = null;
+
+				for (var j in open)
+				{
+					if (open[j] == next)
+					{
+						tile = next;
+						break;
+					}
+				}
+
+				if (tile == null)
+				{
+					next.g = next_g;
+					open.splice(ooc.sorted_index(open, next, 'g'), 0, next);
+					continue;
+				}
+
+				if (next_g < tile.g)
+				{
+					tile.g = next_g;
+				}
+			}
+		}
+		while (open.length)
+
+		return done;
+	});
+
+	ooo.TileMap.method('findPath', function (origin, target)
+	{
+		if (origin.i == target.i)
+		{
+			return {tiles: [], steps: [], cost: 0};
+		}
+
+		var done = [];
+		var crumbs = [];
+		var open = [origin];
+		origin.g = 0;
+		origin.f = this.calcDistance.call(this, origin, target);
+
+		do
+		{
+			var current = open.pop();
+			done[current.i] = current.g;//muss das evtl geupdated werden falls billiger geht?
+
+			for (var i = 0; i < current.steps.length; i++)
+			{
+				var next = current.steps[i];
+
+				if (next.i in done)
+				{
+					continue;
+				}
+
+				var next_c = this.calcCost.call(this, next.data);
+
+				if (next_c == null)
+				{
+					continue;
+				}
+
+				var next_g = current.g + next_c;
+
+				if (next == target)
+				{
+					var tiles = [next.i];
+					var steps = [i];
+
+					while (current != origin)
+					{
+						tiles.push(current.i);
+						steps.push(crumbs[current.i][0]);
+						current = crumbs[current.i][1];
+					}
+
+					//rückgabewert prüfen/kann ich hier was mit done[] machen?
+					return {tiles: tiles.reverse(), steps: steps.reverse(), cost: next_g};
+				}
+
+				var tile = null;
+
+				for (var j in open)
+				{
+					if (open[j] == next)
+					{
+						tile = next;
+						break;
+					}
+				}
+
+				if (tile == null)
+				{
+					next.g = next_g;
+					next.f = next_g + this.calcDistance.call(this, next, target);
+					open.splice(ooc.sorted_index(open, next, 'f'), 0, next);
+					crumbs[next.i] = [i, current];
+					continue;
+				}
+
+				if (next_g < tile.g)
+				{
+					tile.g = next_g;
+					tile.f = next_g + this.calcDistance.call(this, tile, target);
+					crumbs[tile.i] = [i, current];
+				}
+			}
+		}
+		while (open.length)
+	});
+
+	ooo.TileMap.method('getTileAt', function (down_x, down_y)
+	{
+		var tile_x = Math.floor(ooc.wrap(this.drop_x - this.mid_x + down_x, this.patch_w) / this.image.tile_w);
+		var tile_y = Math.floor(ooc.wrap(this.drop_y - this.mid_y + down_y, this.patch_h) / this.image.tile_h);
+		return this.coords[tile_y][tile_x];
+	});
+
+	ooo.TileMap.method('viewTile', function (tile)
+	{
+		this.drop_x = (tile.x * this.image.tile_w) + (this.image.tile_w >>> 1);
+		this.drop_y = (tile.y * this.image.tile_h) + (this.image.tile_h >>> 1);
+	});
+
+	ooo.TileMap.on('show', function (root, parent)
+	{
+		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.asset];
+		this.patch_w = this.size * this.image.tile_w;
+		this.patch_h = this.size * this.image.tile_h;
+	});
+
+	ooo.TileMap.on('resize', function (width, height)
+	{
+		ooo.Cell.prototype.events.on.resize.call(this, width, height);
+		this.mid_x = this.width >>> 1;
+		this.mid_y = this.height >>> 1;
+	});
+
+	ooo.TileMap.on('draw', function (time, context)
+	{
+		var drop_x = ooc.wrap(this.drop_x - this.drag_x - this.mid_x, this.patch_w);
+		var drop_y = ooc.wrap(this.drop_y - this.drag_y - this.mid_y, this.patch_h);
+		var start_x = Math.floor(drop_x / this.image.tile_w);
+		var start_y = Math.floor(drop_y / this.image.tile_h);
+		var end_x = start_x + Math.ceil(this.width / this.image.tile_w);
+		var end_y = start_y + Math.ceil(this.height / this.image.tile_h);
+
+		context.translate(-(drop_x % this.image.tile_w), -(drop_y % this.image.tile_h));
+
+		for (var y = start_y; y <= end_y; y++)
+		{
+			var tile_y = y % this.size;
+			context.save();
+
+			for (var x = start_x; x <= end_x; x++)
+			{
+				var tile_x = x % this.size;
+				var tile = this.coords[tile_y][tile_x];
+				context.save();
+				this.drawTile(tile, tile.data, time, context);
+				context.restore();
+				context.translate(this.image.tile_w, 0);
+			}
+
+			context.restore();
+			context.translate(0, this.image.tile_h);
+		}
+	});
+
+	ooo.TileMap.on('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
+	{
+		this.listen('mouse_drag', 'mouse_drop');
+		this.drag_x = drag_x;
+		this.drag_y = drag_y;
+		return false;
+	});
+
+	ooo.TileMap.on('mouse_drag', function (drag_x, drag_y)
+	{
+		this.drag_x = drag_x;
+		this.drag_y = drag_y;
+		return false;
+	});
+
+	ooo.TileMap.on('mouse_drop', function (drop_x, drop_y)
+	{
+		this.ignore('mouse_drag', 'mouse_drop');
+		this.drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
+		this.drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
+		this.drag_x = 0;
+		this.drag_y = 0;
+		return false;
+	});
+
+	ooo.TileMap.on('mouse_click', function (button, down_x, down_y)
+	{
+		var tile = this.getTileAt(down_x, down_y);
+		this.trigger('pick_tile', [tile, button]);
+		return false;
+	});
+
+	var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
+
+	//HexMap
+	function wrapDist (dx, dy, dz)
+	{
+		var dist1 = Math.max(Math.abs(this.size2 + dx), this.size - dy, Math.abs(this.size2 + dz));
+		var dist2 = Math.max(Math.abs(this.size2 - dx), this.size - dy, Math.abs(this.size32 + dz));
+		var dist3 = Math.max(Math.abs(this.size - dx), dy, Math.abs(this.size + dz));
+		return Math.min(dist1, dist2, dist3);
+	}
+
+	ooo.HexMap = ooo.TileMap.extend(function (size, tile_w, tile_h, type, layout)
+	{
+		ooo.TileMap.apply(this, arguments);
+		this.tile_w2 = tile_w >>> 1;
+		this.tile_h2 = tile_h >>> 1;
+		this.tile_h4 = tile_h >>> 2;
+		this.tile_3h4 = this.tile_h2 + this.tile_h4;
+		this.patch_h = size * this.tile_3h4;
+		var hex_d = Math.sqrt(this.tile_w2 * this.tile_w2 + this.tile_3h4 * this.tile_3h4);//hex diagonale
+		this.hex_r = hex_d / 2;//radius
+		this.hex_x = this.tile_w2 / hex_d;
+		this.hex_y = this.tile_3h4 / hex_d;
+		this.size2 = size >>> 1;
+		this.size32 = size + this.size2;
+		this.coords = [];
+		this.tiles = [];
+
+		//create tiles
+		for (var y = 0, i = 0; y < size; y++)
+		{
+			this.coords[y] = [];
+
+			for (var x = 0; x < size; x++, i++)
+			{
+				var tile = {};
+				tile.i = i;
+				tile.x = x - (y >> 1);
+				tile.y = y;
+				tile.z = -tile.x - y;
+				tile.type = 0;
+				this.coords[y][x] = tile;
+				this.tiles[i] = tile;
+			}
+		}
+
+		//connect neighbors
+		for (var y = 0; y < size; y++)
+		{
+			var nmask = HEX_NMASK[y & 1];
+
+			for (var x = 0; x < size; x++)
+			{
+				var steps = [];
+
+				for (var i = 0; i < nmask.length; i++)
+				{
+					var nx = (x + nmask[i][0] + size) % size;
+					var ny = (y + nmask[i][1] + size) % size;
+					steps[i] = this.coords[ny][nx];
+				}
+
+				this.coords[y][x].steps = steps;
+			}
+		}
+	});
+
+	ooo.HexMap.method('calcDistance', function (a, b)
+	{
+		var dx = b.x - a.x;
+		var dy = b.y - a.y;
+		var dz = b.z - a.z;
+		var dist = Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz));
+
+		if (dist > this.size2)
+		{
+			if (dy == 0 || dx == dz)
+			{
+				return (this.size - dist);
+			}
+			else if (dx > dz)//rechts
+			{
+				if (dy > 0)//unten
+				{
+					var quad = wrapDist.call(this, dx, dy, dz);
+				}
+				else//oben
+				{
+					var quad = wrapDist.call(this, -dz, -dy, -dx);
+				}
+			}
+			else//links
+			{
+				if (dy > 0)//unten
+				{
+					var quad = wrapDist.call(this, dz, dy, dx);
+				}
+				else//oben
+				{
+					var quad = wrapDist.call(this, -dx, -dy, -dz);
+				}
+			}
+		}
+
+		return (dist > quad ? quad : dist);
+	});
+
+	ooo.HexMap.on('mouse_click', function (button, down_x, down_y)
+	{
+		var raw_x = (this.drop_x + down_x) % this.patch_w;
+		var raw_y = (this.drop_y + down_y) % this.patch_h;
+		var rel_x = raw_x % this.tile_w2;
+		var rel_y = raw_y % this.tile_3h4;
+		var min_x = Math.round((raw_x - rel_x) / this.tile_w2);
+		var min_y = Math.round((raw_y - rel_y) / this.tile_3h4);
+
+		if ((min_x & 1) == (min_y & 1))
+		{
+			if ((rel_x * this.hex_x + rel_y * this.hex_y) < this.hex_r)
+			{
+				var tile_x = (min_x >> 1) % this.size;
+				var tile_y = min_y % this.size;
+			}
+			else
+			{
+				var tile_x = ((min_x + 1) >> 1) % this.size;
+				var tile_y = (min_y + 1) % this.size;
+			}
+		}
+		else
+		{
+			if (((rel_x - this.tile_w2) * -this.hex_x + rel_y * this.hex_y) < this.hex_r)
+			{
+				var tile_x = ((min_x + 1) >> 1) % this.size;
+				var tile_y = min_y % this.size;
+			}
+			else
+			{
+				var tile_x = (min_x >> 1) % this.size;
+				var tile_y = (min_y + 1) % this.size;
+			}
+		}
+
+		this.trigger('pick_tile', [this.coords[tile_y][tile_x], button, tile_x, tile_y]);
+		return false;
+	});
+
+	ooo.HexMap.on('draw', function (time, context)
+	{
+		var drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
+		var drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
+		var start_x = Math.floor(drop_x / this.tile_w);
+		var start_y = Math.floor(drop_y / this.tile_3h4);
+		var end_x = start_x + Math.ceil(this.width / this.tile_w) + 1;//besser berechnen als + 1 (width + tile_w2??)
+		var end_y = start_y + Math.ceil(this.height / this.tile_3h4) + 1;
+
+		context.translate(-((drop_x % this.tile_w) + this.tile_w2), -((drop_y % this.tile_3h4) + this.tile_h2));
+		//context.translate(-((drop_x % this.tile_w)), -((drop_y % this.tile_3h4)));
+
+		for (var y = start_y; y <= end_y; y++)
+		{
+			var tile_y = y % this.size;
+			context.save();
+
+			if (y & 1)
+			{
+				context.translate(this.tile_w2, 0);
+			}
+
+			for (var x = start_x; x <= end_x; x++)
+			{
+				var tile_x = x % this.size;
+				var tile = this.coords[tile_y][tile_x];
+				context.drawImage(this.image, this.coords[tile.type][0], this.coords[tile.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
+
+				if ('mark' in tile)
+				{
+					context.drawImage(this.image, this.coords[tile.mark][0], this.coords[tile.mark][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
+				}
+
+				//context.fillText(tile.group.i, 10, 10);
+				context.translate(this.tile_w, 0);
+			}
+
+			context.restore();
+			context.translate(0, this.tile_3h4);
+		}
 	});
 })();

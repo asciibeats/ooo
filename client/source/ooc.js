@@ -13,6 +13,23 @@ if (typeof module == 'object')
 		return Func.bind.apply(Func, [Func].concat(argv));
 	}
 
+	ooc.resolve = function (object, address)
+	{
+		var steps = address.split('.');
+
+		for (var i = 0; i < steps.length; i++)
+		{
+			object = object[steps[i]];
+
+			if (object == undefined)
+			{
+				break;
+			}
+		}
+
+		return object;
+	}
+
 	//ooc.count = function (array)
 	ooc.hash = function (array)
 	{
@@ -457,12 +474,11 @@ if (typeof module == 'object')
 
 	ooc.Class.clone = function ()
 	{
-		var argv = arguments;
 		var Parent = this;
 
 		var Child = function ()
 		{
-			Parent.apply(this, argv);
+			Parent.apply(this, arguments);
 		}
 
 		inherit(Child, Parent);
@@ -471,14 +487,12 @@ if (typeof module == 'object')
 
 	ooc.Class.extend = function (func)
 	{
-		var Parent = this;
-
 		var Child = function ()
 		{
 			func.apply(this, arguments);
 		}
 
-		inherit(Child, Parent);
+		inherit(Child, this);
 		return Child;
 	}
 
