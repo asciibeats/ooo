@@ -1,6 +1,8 @@
 'use strict';
 var ooo = {};
 //////TODO
+//reset blink on input field tab jump (and on char input)
+//besseres exception handling?
 //root load with xmlhttprequests (load based on fileext?? if not recognized load as binary)
 //block events globally
 //ignore mouse_drag, mouse_drop by default and automatically listen on mouse_grab
@@ -22,6 +24,7 @@ var OOO_TAB = 9;
 var OOO_BACKSPACE = 8;
 var OOO_CTRL = 17;
 var OOO_ALT = 18;
+var OOO_SPACE = 32;
 var OOO_LEFT = 37;
 var OOO_RIGHT = 39;
 var OOO_DELETE = 46;
@@ -525,7 +528,7 @@ var OOO_DELETE = 46;
 		return [down_x, down_y];
 	});
 
-	ooo.core.Scene.prepare('mouse_down', function (button, down_x, down_y)
+	/*ooo.core.Scene.prepare('mouse_down', function (button, down_x, down_y)
 	{
 		var shift_x = down_x - this.rel_x - this.mid_x;
 		var shift_y = down_y - this.rel_y - this.mid_y;
@@ -541,7 +544,7 @@ var OOO_DELETE = 46;
 		{
 			return [button, down_x, down_y];
 		}
-	});
+	});*/
 
 	ooo.core.Scene.prepare('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
 	{
@@ -961,6 +964,7 @@ var OOO_DELETE = 46;
 		function on_mouseup (event)
 		{
 			down = false;
+			that.trigger('mouse_up', [event.button, event.clientX, event.clientY], true);
 
 			if (drag)
 			{
@@ -988,9 +992,9 @@ var OOO_DELETE = 46;
 		{
 			if (event.keyCode < 48)
 			{
+				//console.log('down', event.keyCode)
 				event.preventDefault();
 				that.trigger('key_press', [event.timeStamp, null, event.keyCode, event.shiftKey], true);
-				//console.log('down', event.keyCode);
 			}
 
 			/*if (event.keyCode == 8 || event.keyCode == 9)
@@ -1003,8 +1007,8 @@ var OOO_DELETE = 46;
 		{
 			if (!event.ctrlKey && !event.altKey)
 			{
-				that.trigger('key_press', [event.timeStamp, String.fromCharCode(event.charCode), null, null], true);
 				//console.log('press', String.fromCharCode(event.charCode));
+				that.trigger('key_press', [event.timeStamp, String.fromCharCode(event.charCode), null, null], true);
 			}
 		}
 
@@ -1128,7 +1132,7 @@ var OOO_DELETE = 46;
 	ooo.core.Form = ooo.core.Scene.extend(function (args, layout, color, font, align, baseline)
 	{
 		ooo.core.Scene.call(this, layout);
-		this.color = color || '#f00';
+		this.color = color || ['#f00', '#377'];
 		this.font = font || '18px sans-serif';
 		this.align = align || 'start';
 		this.baseline = baseline || 'top';
@@ -1148,7 +1152,7 @@ var OOO_DELETE = 46;
 		if ((this.focus == undefined) && (actor instanceof ooo.core.Input))
 		{
 			this.focus = actor;
-			actor.focused = true;
+			actor.trigger('form_focus', [true]);
 		}
 
 		return this;
@@ -1156,7 +1160,7 @@ var OOO_DELETE = 46;
 
 	ooo.core.Form.method('reset', function ()
 	{
-		this.focus.focused = false;
+		this.focus.trigger('form_focus', [false]);
 		delete this.focus;
 
 		for (var index = 0; index < this.children.length; index++)
@@ -1166,12 +1170,19 @@ var OOO_DELETE = 46;
 			if ((actor != undefined) && (actor instanceof ooo.core.Input))
 			{
 				this.focus = actor;
-				actor.focused = true;
+				actor.trigger('form_focus', [true]);
 				break;
 			}
 		}
 
 		this.trigger('form_reset');
+	});
+
+	ooo.core.Form.capture('draw', function (time, context)//erzeugt komischen glitch (in firefox) beim öffnen der js-konsole (F12) (verschwindet wenn context.font auskommentiert wird
+	{
+		context.font = this.font;
+		context.textAlign = this.align;
+		context.textBaseline = this.baseline;
 	});
 
 	ooo.core.Form.capture('key_press', function (time, char, key, shift)
@@ -1183,7 +1194,7 @@ var OOO_DELETE = 46;
 		}
 		else if (key == OOO_TAB)
 		{
-			this.focus.focused = false;
+			this.focus.trigger('form_focus', [false]);
 			var index = this.focus.index;
 			var length = this.children.length;
 
@@ -1194,17 +1205,15 @@ var OOO_DELETE = 46;
 			}
 			while (!(this.focus instanceof ooo.core.Input))
 
-			this.focus.focused = true;
+			this.focus.trigger('form_focus', [true]);
 			return false;
 		}
 	});
 
-	ooo.core.Form.capture('draw', function (time, context)//erzeugt komischen glitch (in firefox) beim öffnen der js-konsole (F12) (verschwindet wenn context.font auskommentiert wird
+	ooo.core.Form.prepare('draw', function (time, context)
 	{
-		context.fillStyle = this.color;
-		context.font = this.font;
-		context.textAlign = this.align;
-		context.textBaseline = this.baseline;
+		ooo.core.Scene.prototype.events.prepare.draw.call(this, time, context);
+		context.fillStyle = this.parent.color[this.focused ? 1 : 0];
 	});
 
 	ooo.core.Form.prepare('key_press', function (time, char, key, shift)
@@ -1229,9 +1238,14 @@ var OOO_DELETE = 46;
 
 	ooo.core.Input.on('mouse_click', function (button, down_x, down_y)
 	{
-		this.parent.focus.focused = false;
+		this.parent.focus.trigger('form_focus', [false]);
 		this.parent.focus = this;
-		this.focused = true;
+		this.trigger('form_focus', [true]);
+	});
+
+	ooo.core.Input.on('form_focus', function (focused)
+	{
+		this.focused = focused;
 	});
 
 	/*ooo.Button = ooo.core.Input.extend(function (name, asset, type, layout)
@@ -1278,6 +1292,11 @@ var OOO_DELETE = 46;
 		ooo.input.String.prototype.events.on.form_reset.call(this);
 	});
 
+	/*ooo.input.String.on('form_focus', function (focused)
+	{
+		ooo.core.Input.prototype.events.on.form_focus.call(this, focused);
+	});*/
+
 	ooo.input.String.on('form_reset', function ()
 	{
 		this.string = this.init;
@@ -1322,6 +1341,11 @@ var OOO_DELETE = 46;
 				this.caret++;
 			}
 		}
+		else if (key == OOO_SPACE)
+		{
+			this.chars.splice(this.caret, 0, ' ');
+			this.caret++;
+		}
 		else if (char)
 		{
 			this.chars.splice(this.caret, 0, char);
@@ -1334,6 +1358,7 @@ var OOO_DELETE = 46;
 
 		this.string = this.chars.join('');
 		this.substr = this.string.substr(0, this.caret);
+		this.blink = time;
 	});
 
 	ooo.input.String.on('draw', function (time, context)
@@ -1346,56 +1371,118 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.input.Counter = ooo.core.Input.extend(function (name, min, max, init, layout)
+	ooo.input.Integer = ooo.core.Input.extend(function (name, min, max, init, layout)
 	{
 		ooo.core.Input.call(this, name, layout);
 		this.min = min;
 		this.max = max;
 		this.init = init;
-		ooo.Counter.prototype.events.on.form_reset.call(this);
+		ooo.input.Integer.prototype.events.on.form_reset.call(this);
 	});
 
-	ooo.input.Counter.on('form_reset', function ()
+	ooo.input.Integer.on('form_reset', function ()
 	{
-		this.count = this.init;
+		this.value = this.init;
 	});
 
-	ooo.input.Counter.on('form_submit', function (name, data)
+	ooo.input.Integer.on('form_submit', function (name, data)
 	{
-		ooc.push(this.count, data, this.name);
+		ooc.push(this.value, data, this.name);
 	});
 
-	ooo.input.Counter.on('mouse_click', function (button, down_x, down_y)
+	ooo.input.Integer.on('mouse_click', function (button, down_x, down_y)
 	{
-		ooo.input.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		ooo.core.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
 
 		if (down_x < (this.width >>> 1))
 		{
-			if (this.count > this.min)
+			if (this.value > this.min)
 			{
-		 		this.count--;
+		 		this.value--;
 			}
 			else
 			{
-		 		this.count = this.max;
+		 		this.value = this.max;
 			}
 		}
 		else
 		{
-			if (this.count < this.max)
+			if (this.value < this.max)
 			{
-		 		this.count++;
+		 		this.value++;
 			}
 			else
 			{
-		 		this.count = this.min;
+		 		this.value = this.min;
 			}
 		}
 	});
 
-	ooo.input.Counter.on('draw', function (time, context)
+	ooo.input.Integer.on('key_press', function (time, char, key, shift)
 	{
-		context.fillText(this.count, 0, 0);
+		if (key == OOO_LEFT)
+		{
+			if (this.value > this.min)
+			{
+		 		this.value--;
+			}
+			else
+			{
+		 		this.value = this.max;
+			}
+		}
+		else if (key == OOO_RIGHT)
+		{
+			if (this.value < this.max)
+			{
+		 		this.value++;
+			}
+			else
+			{
+		 		this.value = this.min;
+			}
+		}
+	});
+
+	ooo.input.Integer.on('draw', function (time, context)
+	{
+		context.fillText(this.value, 0, 0);
+	});
+
+	ooo.input.Toggle = ooo.core.Input.extend(function (name, init, layout)
+	{
+		ooo.core.Input.call(this, name, layout);
+		this.init = init;
+		ooo.input.Toggle.prototype.events.on.form_reset.call(this);
+	});
+
+	ooo.input.Toggle.on('form_reset', function ()
+	{
+		this.state = this.init;
+	});
+
+	ooo.input.Toggle.on('form_submit', function (name, data)
+	{
+		ooc.push(this.state, data, this.name);
+	});
+
+	ooo.input.Toggle.on('mouse_click', function (button, down_x, down_y)
+	{
+		ooo.core.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		this.state = this.state ? 0 : 1;
+	});
+
+	ooo.input.Toggle.on('key_press', function (time, char, key, shift)
+	{
+		if ((key == OOO_SPACE) || (key == OOO_LEFT) || (key == OOO_RIGHT))
+		{
+			this.state = this.state ? 0 : 1;
+		}
+	});
+
+	ooo.input.Toggle.on('draw', function (time, context)
+	{
+		context.fillText(this.state, 0, 0);
 	});
 
 	ooo.input.Options = ooo.core.Input.extend(function (name, options, init, layout)
@@ -1403,7 +1490,7 @@ var OOO_DELETE = 46;
 		ooo.core.Input.call(this, name, layout);
 		this.options = options;
 		this.init = init;
-		ooo.Options.prototype.events.on.form_reset.call(this);
+		ooo.input.Options.prototype.events.on.form_reset.call(this);
 	});
 
 	ooo.input.Options.on('form_reset', function ()
@@ -1418,7 +1505,7 @@ var OOO_DELETE = 46;
 
 	ooo.input.Options.on('mouse_click', function (button, down_x, down_y)
 	{
-		ooo.input.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		ooo.core.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
 
 		if (down_x < (this.width >>> 1))
 		{
@@ -1432,38 +1519,77 @@ var OOO_DELETE = 46;
 		this.pick = ooc.wrap(this.pick, this.options.length);
 	});
 
+	ooo.input.Options.on('key_press', function (time, char, key, shift)
+	{
+		if (key == OOO_LEFT)
+		{
+			this.pick--;
+		}
+		else if (key == OOO_RIGHT)
+		{
+			this.pick++;
+		}
+
+		this.pick = ooc.wrap(this.pick, this.options.length);
+	});
+
 	ooo.input.Options.on('draw', function (time, context)
 	{
 		context.fillText(this.options[this.pick], 0, 0);
 	});
 
-	ooo.input.Switch = ooo.core.Input.extend(function (name, init, layout)
+	/*ooo.input.Layout = ooo.core.Input.extend(function (name, options, init, layout)
 	{
 		ooo.core.Input.call(this, name, layout);
+		this.options = options;
 		this.init = init;
-		ooo.Switch.prototype.events.on.form_reset.call(this);
+		ooo.input.Layout.prototype.events.on.form_reset.call(this);
 	});
 
-	ooo.input.Switch.method('reset', function ()
+	ooo.input.Layout.on('form_reset', function ()
 	{
-		this.state = this.init;
+		this.pick = this.init;
 	});
 
-	ooo.input.Switch.on('form_submit', function (name, data)
+	ooo.input.Layout.on('form_submit', function (type, data)
 	{
-		ooc.push(this.state, data, this.name);
+		ooc.push(this.options[this.pick], data, this.name);
 	});
 
-	ooo.input.Switch.on('mouse_click', function (button, down_x, down_y)
+	ooo.input.Layout.on('mouse_click', function (button, down_x, down_y)
 	{
-		ooo.input.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
-		this.state = this.state ? 0 : 1;
+		ooo.core.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+
+		if (down_x < (this.width >>> 1))
+		{
+			this.pick--;
+		}
+		else
+		{
+			this.pick++;
+		}
+
+		this.pick = ooc.wrap(this.pick, this.options.length);
 	});
 
-	ooo.input.Switch.on('draw', function (time, context)
+	ooo.input.Layout.on('key_press', function (time, char, key, shift)
 	{
-		context.fillText(this.state, 0, 0);
+		if (key == OOO_LEFT)
+		{
+			this.pick--;
+		}
+		else if (key == OOO_RIGHT)
+		{
+			this.pick++;
+		}
+
+		this.pick = ooc.wrap(this.pick, this.options.length);
 	});
+
+	ooo.input.Layout.on('draw', function (time, context)
+	{
+		context.fillText(this.options[this.pick], 0, 0);
+	});*/
 
 	//MENUS
 	ooo.Menu = ooo.core.Cell.extend(function (asset, data, layout, style)
