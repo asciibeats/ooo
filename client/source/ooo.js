@@ -1,7 +1,7 @@
 'use strict';
 var ooo = {};
 //////TODO
-//root load with xmlhttprequests
+//root load with xmlhttprequests (load based on fileext?? if not recognized load as binary)
 //block events globally
 //ignore mouse_drag, mouse_drop by default and automatically listen on mouse_grab
 ///ignore again on mouse_drop
@@ -494,6 +494,7 @@ var OOO_DELETE = 46;
 		context.translate(this.rel_x + this.mid_x, this.rel_y + this.mid_y);
 		context.rotate(this.angle);
 		context.translate(-this.mid_x, -this.mid_y);
+		context.save();
 	});
 
 	ooo.core.Scene.prepare('mouse_move', function (down_x, down_y)
@@ -574,7 +575,8 @@ var OOO_DELETE = 46;
 		}
 		else if (this.root.modify)
 		{
-			this.root.show(new ooo.core.Box('#fff', {width: 40, height: 40}));
+			//this.root.show(this.root.edit_menu);
+			console.log('MENU_MAIN');
 			return false;
 		}
 		else
@@ -585,8 +587,15 @@ var OOO_DELETE = 46;
 
 	ooo.core.Scene.cleanup('draw', function (time, context)
 	{
+		context.restore();
+
 		if (this.root.modify)
 		{
+			/*if (this.over)
+			{
+				context.strokeStyle = '#f00';
+			}*/
+
 			context.strokeRect(0, 0, this.width, this.height);
 		}
 
@@ -802,6 +811,11 @@ var OOO_DELETE = 46;
 		this.context.strokeStyle = '#aaa';
 		this.context.fillStyle = this.color;
 		this.context.fillRect(0, 0, this.width, this.height);
+
+		for (var i = 0; i < core.assets.length; i++)
+		{
+			this.load.apply(this, core.assets[i]);
+		}
 
 		for (var i = 0; i < core.templates.length; i++)
 		{
@@ -1111,21 +1125,27 @@ var OOO_DELETE = 46;
 		this.sockjs.send(JSON.stringify(Array.prototype.slice.call(arguments)));
 	});
 
-	ooo.Form = ooo.core.Scene.extend(function (color, font, layout, align, baseline)
+	ooo.core.Form = ooo.core.Scene.extend(function (args, layout, color, font, align, baseline)
 	{
 		ooo.core.Scene.call(this, layout);
 		this.color = color || '#f00';
-		this.font = font || '24px sans-serif';
+		this.font = font || '18px sans-serif';
 		this.align = align || 'start';
 		this.baseline = baseline || 'top';
+
+		for (var i = 0; i < args.length; i++)
+		{
+			var actor = new (ooc.Wrap(ooo.input[args[i][0]], args[i][1]));
+			this.show(actor);
+		}
 	});
 
-	ooo.Form.method('show', function (actor, index)
+	ooo.core.Form.method('show', function (actor, index)
 	{
-		ooo.Scene.prototype.show.call(this, actor, index);
+		ooo.core.Scene.prototype.show.call(this, actor, index);
 
 		//focus on first input added
-		if ((this.focus == undefined) && (actor instanceof ooo.Input))
+		if ((this.focus == undefined) && (actor instanceof ooo.core.Input))
 		{
 			this.focus = actor;
 			actor.focused = true;
@@ -1134,7 +1154,7 @@ var OOO_DELETE = 46;
 		return this;
 	});
 
-	ooo.Form.method('reset', function ()
+	ooo.core.Form.method('reset', function ()
 	{
 		this.focus.focused = false;
 		delete this.focus;
@@ -1143,7 +1163,7 @@ var OOO_DELETE = 46;
 		{
 			var actor = this.children[index];
 
-			if ((actor != undefined) && (actor instanceof ooo.Input))
+			if ((actor != undefined) && (actor instanceof ooo.core.Input))
 			{
 				this.focus = actor;
 				actor.focused = true;
@@ -1154,7 +1174,7 @@ var OOO_DELETE = 46;
 		this.trigger('form_reset');
 	});
 
-	ooo.Form.capture('key_press', function (time, char, key, shift)
+	ooo.core.Form.capture('key_press', function (time, char, key, shift)
 	{
 		if (key == OOO_ENTER)
 		{
@@ -1172,24 +1192,22 @@ var OOO_DELETE = 46;
 				index = ooc.wrap(shift ? index - 1 : index + 1, length);
 				this.focus = this.children[index];
 			}
-			while (!(this.focus instanceof ooo.Input))
+			while (!(this.focus instanceof ooo.core.Input))
 
 			this.focus.focused = true;
 			return false;
 		}
 	});
 
-	ooo.Form.capture('draw', function (time, context)//erzeugt komischen glitch (in firefox) beim öffnen der js-konsole (F12) (verschwindet wenn context.font auskommentiert wird
-	//ooo.Form.prepare('draw', function (time, context)
+	ooo.core.Form.capture('draw', function (time, context)//erzeugt komischen glitch (in firefox) beim öffnen der js-konsole (F12) (verschwindet wenn context.font auskommentiert wird
 	{
-		//ooo.Scene.prototype.events.prepare.draw.call(this, time, context);//
 		context.fillStyle = this.color;
 		context.font = this.font;
 		context.textAlign = this.align;
 		context.textBaseline = this.baseline;
 	});
 
-	ooo.Form.prepare('key_press', function (time, char, key, shift)
+	ooo.core.Form.prepare('key_press', function (time, char, key, shift)
 	{
 		if (this.parent.focus != this)
 		{
@@ -1197,35 +1215,35 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.Form.bubble('form_submit', function (type, data)
+	ooo.core.Form.bubble('form_submit', function (type, data)
 	{
-		console.log('submit %s %s', type, JSON.stringify(data));
+		console.log('EVENT: form_submit %s %s', type, JSON.stringify(data));
 	});
 
-	ooo.Input = ooo.core.Cell.extend(function (name, layout)//todo?: limit alphabet
+	ooo.core.Input = ooo.core.Cell.extend(function (name, layout)
 	{
 		ooo.core.Cell.call(this, layout);
 		this.name = name;
 		this.focused = false;
 	});
 
-	ooo.Input.on('mouse_click', function (button, down_x, down_y)
+	ooo.core.Input.on('mouse_click', function (button, down_x, down_y)
 	{
 		this.parent.focus.focused = false;
 		this.parent.focus = this;
 		this.focused = true;
 	});
 
-	/*ooo.Button = ooo.Input.extend(function (name, asset, type, layout)
+	/*ooo.Button = ooo.core.Input.extend(function (name, asset, type, layout)
 	{
-		ooo.Input.call(this, name, layout);
+		ooo.core.Input.call(this, name, layout);
 		this.asset = asset;
 		this.type = type;
 	});
 
 	ooo.Button.on('show', function (root, parent)
 	{
-		ooo.Input.prototype.events.on.show.call(this, root, parent);
+		ooo.core.Input.prototype.events.on.show.call(this, root, parent);
 		this.image = root.images[this.asset];
 	});
 
@@ -1253,26 +1271,27 @@ var OOO_DELETE = 46;
 		return false;
 	});*/
 
-	ooo.input.Field = ooo.Input.extend(function (name, layout)//alphabet
+	ooo.input.String = ooo.core.Input.extend(function (name, init, layout)//alphabet
 	{
-		ooo.Input.call(this, name, layout);
-		ooo.Field.prototype.events.on.form_reset.call(this);
+		ooo.core.Input.call(this, name, layout);
+		this.init = init;
+		ooo.input.String.prototype.events.on.form_reset.call(this);
 	});
 
-	ooo.input.Field.on('form_reset', function ()
+	ooo.input.String.on('form_reset', function ()
 	{
-		this.chars = [];
-		this.caret = 0;
-		this.string = '';
-		this.substr = '';
+		this.string = this.init;
+		this.caret = this.string.length;
+		this.chars = this.string.split('');
+		this.substr = this.string.substr(0, this.caret);
 	});
 
-	ooo.input.Field.on('form_submit', function (name, data)
+	ooo.input.String.on('form_submit', function (name, data)
 	{
 		ooc.push(this.string, data, this.name);
 	});
 
-	ooo.input.Field.on('key_press', function (time, char, key, shift)
+	ooo.input.String.on('key_press', function (time, char, key, shift)
 	{
 		if (key == OOO_BACKSPACE)
 		{
@@ -1317,7 +1336,7 @@ var OOO_DELETE = 46;
 		this.substr = this.string.substr(0, this.caret);
 	});
 
-	ooo.input.Field.on('draw', function (time, context)
+	ooo.input.String.on('draw', function (time, context)
 	{
 		context.fillText(this.string, 0, 0);
 
@@ -1327,9 +1346,9 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.input.Counter = ooo.Input.extend(function (name, min, max, init, layout)
+	ooo.input.Counter = ooo.core.Input.extend(function (name, min, max, init, layout)
 	{
-		ooo.Input.call(this, name, layout);
+		ooo.core.Input.call(this, name, layout);
 		this.min = min;
 		this.max = max;
 		this.init = init;
@@ -1379,9 +1398,9 @@ var OOO_DELETE = 46;
 		context.fillText(this.count, 0, 0);
 	});
 
-	ooo.input.Options = ooo.Input.extend(function (name, options, init, layout)
+	ooo.input.Options = ooo.core.Input.extend(function (name, options, init, layout)
 	{
-		ooo.Input.call(this, name, layout);
+		ooo.core.Input.call(this, name, layout);
 		this.options = options;
 		this.init = init;
 		ooo.Options.prototype.events.on.form_reset.call(this);
@@ -1418,9 +1437,9 @@ var OOO_DELETE = 46;
 		context.fillText(this.options[this.pick], 0, 0);
 	});
 
-	ooo.input.Switch = ooo.Input.extend(function (name, init, layout)
+	ooo.input.Switch = ooo.core.Input.extend(function (name, init, layout)
 	{
-		ooo.Input.call(this, name, layout);
+		ooo.core.Input.call(this, name, layout);
 		this.init = init;
 		ooo.Switch.prototype.events.on.form_reset.call(this);
 	});
@@ -1447,18 +1466,18 @@ var OOO_DELETE = 46;
 	});
 
 	//MENUS
-	ooo.Menu = ooo.core.Cell.extend(function (asset, layout, style)//switch to ooo.Button.extend
+	ooo.Menu = ooo.core.Cell.extend(function (asset, data, layout, style)
 	{
 		ooo.core.Cell.call(this, layout);
 		this.asset = asset;
+		this.data = data;
 		this.style = style || 0;
-		this.data = [];
 		this.pick = {};
 	});
 
 	ooo.Menu.method('reset', function (data, pick)
 	{
-		this.data = data || [];
+		this.data = data;
 		this.pick = {};
 
 		if (pick)
@@ -1492,13 +1511,13 @@ var OOO_DELETE = 46;
 
 	ooo.Menu.on('show', function (root, parent)
 	{
-		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		ooo.core.Cell.prototype.events.on.show.call(this, root, parent);
 		this.image = root.images[this.asset];
 	});
 
 	ooo.Menu.on('resize', function (width, height)
 	{
-		ooo.Cell.prototype.events.on.resize.call(this, width, height);
+		ooo.core.Cell.prototype.events.on.resize.call(this, width, height);
 		this.cols = Math.floor(this.width / this.image.tile_w);
 		this.rows = Math.floor(this.height / this.image.tile_h);
 
