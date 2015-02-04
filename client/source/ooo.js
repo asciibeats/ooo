@@ -1,6 +1,7 @@
 'use strict';
 var ooo = {};
 //////TODO
+//removeEvents in root.hide()
 //reset blink on input field tab jump (and on char input)
 //besseres exception handling?
 //root load with xmlhttprequests (load based on fileext?? if not recognized load as binary)
@@ -35,6 +36,7 @@ var OOO_DELETE = 46;
 
 	ooo.core = {};
 	ooo.input = {};
+	ooo.extra = {};
 	//ooo.custom = {};
 
 	//Actor
@@ -1129,6 +1131,181 @@ var OOO_DELETE = 46;
 		this.sockjs.send(JSON.stringify(Array.prototype.slice.call(arguments)));
 	});
 
+	ooo.core.Menu = ooo.core.Cell.extend(function (asset, data, layout, style)
+	{
+		ooo.core.Cell.call(this, layout);
+		this.asset = asset;
+		this.data = data;
+		this.style = style || 0;
+		this.pick = {};
+	});
+
+	ooo.core.Menu.method('reset', function (data, pick)
+	{
+		this.data = data;
+		this.pick = {};
+
+		if (pick)
+		{
+			for (var i = 0; i < pick.length; i++)
+			{
+				this.pick[i] = true;
+			}
+		}
+
+		return this;
+	});
+
+	ooo.core.Menu.method('drawButton', function (time, context, data, pick)
+	{
+		if (pick)
+		{
+			context.fillStyle = '#f00';
+			context.fillRect(0, 0, this.image.tile_w, this.image.tile_h);
+		}
+		else
+		{
+			context.drawImage(this.image, this.image.tile_x[data], this.image.tile_y[data], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		}
+	});
+
+	ooo.core.Menu.method('preparePick', function (data, index)
+	{
+		return [data, index];
+	});
+
+	ooo.core.Menu.on('show', function (root, parent)
+	{
+		ooo.core.Cell.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.asset];
+	});
+
+	ooo.core.Menu.on('resize', function (width, height)
+	{
+		ooo.core.Cell.prototype.events.on.resize.call(this, width, height);
+		this.cols = Math.floor(this.width / this.image.tile_w);
+		this.rows = Math.floor(this.height / this.image.tile_h);
+
+		if (this.style & OOO_VERTICAL)
+		{
+			this.shift_x = 0;
+			this.break_y = 0;
+			this.line_br = this.rows;
+
+			if (this.style & OOO_REVERSED)
+			{
+				this.init_x = this.width - this.image.tile_w;
+				this.break_x = -this.image.tile_w;
+			}
+			else
+			{
+				this.init_x = 0;
+				this.break_x = this.image.tile_w;
+			}
+
+			if (this.style & OOO_BOTTOM)
+			{
+				this.init_y = this.height - this.image.tile_h;
+				this.shift_y = -this.image.tile_h;
+			}
+			else
+			{
+				this.init_y = 0;
+				this.shift_y = this.image.tile_h;
+			}
+		}
+		else
+		{
+			this.shift_y = 0;
+			this.break_x = 0;
+			this.line_br = this.cols;
+
+			if (this.style & OOO_REVERSED)
+			{
+				this.init_x = this.width - this.image.tile_w;
+				this.shift_x = -this.image.tile_w;
+			}
+			else
+			{
+				this.init_x = 0;
+				this.shift_x = this.image.tile_w;
+			}
+
+			if (this.style & OOO_BOTTOM)
+			{
+				this.init_y = this.height - this.image.tile_h;
+				this.break_y = -this.image.tile_h;
+			}
+			else
+			{
+				this.init_y = 0;
+				this.break_y = this.image.tile_h;
+			}
+		}
+	});
+
+	//max_lines bestimmen und bei überschreitung neue seite oder so!!!???
+	ooo.core.Menu.on('draw', function (time, context)
+	{
+		context.translate(this.init_x, this.init_y);
+		context.save();
+
+		for (var i = 0; i < this.data.length;)
+		{
+			context.save();
+			this.drawButton(time, context, this.data[i], this.pick[i]);
+			context.restore();
+			context.translate(this.shift_x, this.shift_y);
+			i++;
+
+			if ((i % this.line_br) == 0)
+			{
+				context.restore();
+				context.translate(this.break_x, this.break_y);
+				context.save();
+			}
+		}
+		
+		context.restore();
+	});
+
+	ooo.core.Menu.on('mouse_click', function (button, down_x, down_y)
+	{
+		if (this.style & OOO_BOTTOM)
+		{
+			var row = Math.floor((this.height - down_y) / this.image.tile_h);
+		}
+		else
+		{
+			var row = Math.floor(down_y / this.image.tile_h);
+		}
+
+		if (this.style & OOO_REVERSED)
+		{
+			var col = Math.floor((this.width - down_x) / this.image.tile_w);
+		}
+		else
+		{
+			var col = Math.floor(down_x / this.image.tile_w);
+		}
+
+		if (this.style & OOO_VERTICAL)
+		{
+			var index = col * this.rows + row;
+		}
+		else
+		{
+			var index = row * this.cols + col;
+		}
+
+		if ((this.data[index] != undefined) && (col < this.cols) && (row < this.rows))
+		{
+			var argv = this.preparePick(this.data[index], index);
+			this.trigger('pick_item', argv);
+			return false;
+		}
+	});
+
 	ooo.core.Form = ooo.core.Scene.extend(function (args, layout, color, font, align, baseline)
 	{
 		ooo.core.Scene.call(this, layout);
@@ -1248,20 +1425,20 @@ var OOO_DELETE = 46;
 		this.focused = focused;
 	});
 
-	/*ooo.Button = ooo.core.Input.extend(function (name, asset, type, layout)
+	ooo.input.Button = ooo.core.Input.extend(function (name, asset, type, layout)
 	{
 		ooo.core.Input.call(this, name, layout);
 		this.asset = asset;
 		this.type = type;
 	});
 
-	ooo.Button.on('show', function (root, parent)
+	ooo.input.Button.on('show', function (root, parent)
 	{
 		ooo.core.Input.prototype.events.on.show.call(this, root, parent);
 		this.image = root.images[this.asset];
 	});
 
-	ooo.Button.on('draw', function (time, context)
+	ooo.input.Button.on('draw', function (time, context)
 	{
 		if (this.focused)
 		{
@@ -1273,17 +1450,23 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.Submit = ooo.Button.extend(function (name, asset, type, layout)
+	ooo.input.Reset = ooo.input.Button.clone();
+
+	ooo.input.Reset.on('mouse_click', function (button, down_x, down_y)
 	{
-		ooo.Button.call(this, name, asset, type, layout);
+		ooo.input.Button.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		this.parent.trigger('form_reset', [this.name]);
+		return false;
 	});
 
-	ooo.Submit.on('mouse_click', function (button, down_x, down_y)
+	ooo.input.Submit = ooo.input.Button.clone();
+
+	ooo.input.Submit.on('mouse_click', function (button, down_x, down_y)
 	{
-		ooo.Button.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
+		ooo.input.Button.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
 		this.parent.trigger('form_submit', [this.name, {}]);
 		return false;
-	});*/
+	});
 
 	ooo.input.String = ooo.core.Input.extend(function (name, init, layout)//alphabet
 	{
@@ -1449,42 +1632,6 @@ var OOO_DELETE = 46;
 		context.fillText(this.value, 0, 0);
 	});
 
-	ooo.input.Toggle = ooo.core.Input.extend(function (name, init, layout)
-	{
-		ooo.core.Input.call(this, name, layout);
-		this.init = init;
-		ooo.input.Toggle.prototype.events.on.form_reset.call(this);
-	});
-
-	ooo.input.Toggle.on('form_reset', function ()
-	{
-		this.state = this.init;
-	});
-
-	ooo.input.Toggle.on('form_submit', function (name, data)
-	{
-		ooc.push(this.state, data, this.name);
-	});
-
-	ooo.input.Toggle.on('mouse_click', function (button, down_x, down_y)
-	{
-		ooo.core.Input.prototype.events.on.mouse_click.call(this, button, down_x, down_y);
-		this.state = this.state ? 0 : 1;
-	});
-
-	ooo.input.Toggle.on('key_press', function (time, char, key, shift)
-	{
-		if ((key == OOO_SPACE) || (key == OOO_LEFT) || (key == OOO_RIGHT))
-		{
-			this.state = this.state ? 0 : 1;
-		}
-	});
-
-	ooo.input.Toggle.on('draw', function (time, context)
-	{
-		context.fillText(this.state, 0, 0);
-	});
-
 	ooo.input.Options = ooo.core.Input.extend(function (name, options, init, layout)
 	{
 		ooo.core.Input.call(this, name, layout);
@@ -1525,7 +1672,7 @@ var OOO_DELETE = 46;
 		{
 			this.pick--;
 		}
-		else if (key == OOO_RIGHT)
+		else if ((key == OOO_RIGHT) || (key == OOO_SPACE))
 		{
 			this.pick++;
 		}
@@ -1591,183 +1738,7 @@ var OOO_DELETE = 46;
 		context.fillText(this.options[this.pick], 0, 0);
 	});*/
 
-	//MENUS
-	ooo.Menu = ooo.core.Cell.extend(function (asset, data, layout, style)
-	{
-		ooo.core.Cell.call(this, layout);
-		this.asset = asset;
-		this.data = data;
-		this.style = style || 0;
-		this.pick = {};
-	});
-
-	ooo.Menu.method('reset', function (data, pick)
-	{
-		this.data = data;
-		this.pick = {};
-
-		if (pick)
-		{
-			for (var i = 0; i < pick.length; i++)
-			{
-				this.pick[i] = true;
-			}
-		}
-
-		return this;
-	});
-
-	ooo.Menu.method('drawButton', function (time, context, data, pick)
-	{
-		if (pick)
-		{
-			context.fillStyle = '#f00';
-			context.fillRect(0, 0, this.image.tile_w, this.image.tile_h);
-		}
-		else
-		{
-			context.drawImage(this.image, this.image.tile_x[data], this.image.tile_y[data], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
-		}
-	});
-
-	ooo.Menu.method('preparePick', function (data, index)
-	{
-		return [data, index];
-	});
-
-	ooo.Menu.on('show', function (root, parent)
-	{
-		ooo.core.Cell.prototype.events.on.show.call(this, root, parent);
-		this.image = root.images[this.asset];
-	});
-
-	ooo.Menu.on('resize', function (width, height)
-	{
-		ooo.core.Cell.prototype.events.on.resize.call(this, width, height);
-		this.cols = Math.floor(this.width / this.image.tile_w);
-		this.rows = Math.floor(this.height / this.image.tile_h);
-
-		if (this.style & OOO_VERTICAL)
-		{
-			this.shift_x = 0;
-			this.break_y = 0;
-			this.line_br = this.rows;
-
-			if (this.style & OOO_REVERSED)
-			{
-				this.init_x = this.width - this.image.tile_w;
-				this.break_x = -this.image.tile_w;
-			}
-			else
-			{
-				this.init_x = 0;
-				this.break_x = this.image.tile_w;
-			}
-
-			if (this.style & OOO_BOTTOM)
-			{
-				this.init_y = this.height - this.image.tile_h;
-				this.shift_y = -this.image.tile_h;
-			}
-			else
-			{
-				this.init_y = 0;
-				this.shift_y = this.image.tile_h;
-			}
-		}
-		else
-		{
-			this.shift_y = 0;
-			this.break_x = 0;
-			this.line_br = this.cols;
-
-			if (this.style & OOO_REVERSED)
-			{
-				this.init_x = this.width - this.image.tile_w;
-				this.shift_x = -this.image.tile_w;
-			}
-			else
-			{
-				this.init_x = 0;
-				this.shift_x = this.image.tile_w;
-			}
-
-			if (this.style & OOO_BOTTOM)
-			{
-				this.init_y = this.height - this.image.tile_h;
-				this.break_y = -this.image.tile_h;
-			}
-			else
-			{
-				this.init_y = 0;
-				this.break_y = this.image.tile_h;
-			}
-		}
-	});
-
-	//max_lines bestimmen und bei überschreitung neue seite oder so!!!???
-	ooo.Menu.on('draw', function (time, context)
-	{
-		context.translate(this.init_x, this.init_y);
-		context.save();
-
-		for (var i = 0; i < this.data.length;)
-		{
-			context.save();
-			this.drawButton(time, context, this.data[i], this.pick[i]);
-			context.restore();
-			context.translate(this.shift_x, this.shift_y);
-			i++;
-
-			if ((i % this.line_br) == 0)
-			{
-				context.restore();
-				context.translate(this.break_x, this.break_y);
-				context.save();
-			}
-		}
-		
-		context.restore();
-	});
-
-	ooo.Menu.on('mouse_click', function (button, down_x, down_y)
-	{
-		if (this.style & OOO_BOTTOM)
-		{
-			var row = Math.floor((this.height - down_y) / this.image.tile_h);
-		}
-		else
-		{
-			var row = Math.floor(down_y / this.image.tile_h);
-		}
-
-		if (this.style & OOO_REVERSED)
-		{
-			var col = Math.floor((this.width - down_x) / this.image.tile_w);
-		}
-		else
-		{
-			var col = Math.floor(down_x / this.image.tile_w);
-		}
-
-		if (this.style & OOO_VERTICAL)
-		{
-			var index = col * this.rows + row;
-		}
-		else
-		{
-			var index = row * this.cols + col;
-		}
-
-		if ((this.data[index] != undefined) && (col < this.cols) && (row < this.rows))
-		{
-			var argv = this.preparePick(this.data[index], index);
-			this.trigger('pick_item', argv);
-			return false;
-		}
-	});
-
-	ooo.SingleMenu = ooo.Menu.extend(function (asset, layout, style)
+	/*ooo.SingleMenu = ooo.Menu.extend(function (asset, layout, style)
 	{
 		ooo.Menu.call(this, asset, layout, style);
 	});
@@ -1843,11 +1814,11 @@ var OOO_DELETE = 46;
 		this.menu.data.push(type);
 		this.tabs.push(actor);
 		this.show(actor);
-	});
+	});*/
 
 	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
-	ooo.TileMap = ooo.core.Cell.extend(function (size, asset, layout)
+	ooo.extra.TileMap = ooo.core.Cell.extend(function (size, asset, layout)
 	{
 		ooo.core.Cell.call(this, layout);
 		this.ignore('mouse_drag', 'mouse_drop');
@@ -1897,22 +1868,22 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.TileMap.method('initData', function (i, x, y)
+	ooo.extra.TileMap.method('initData', function (i, x, y)
 	{
 		return {type: 0};
 	});
 
-	ooo.TileMap.method('calcCost', function (data)
+	ooo.extra.TileMap.method('calcCost', function (data)
 	{
 		return 1;
 	});
 
-	ooo.TileMap.method('drawTile', function (tile, time, context)
+	ooo.extra.TileMap.method('drawTile', function (tile, time, context)
 	{
 		context.drawImage(this.image, this.image.tile_x[tile.data.type], this.image.tile_y[tile.data.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 	});
 
-	ooo.TileMap.method('calcDistance', function (a, b)
+	ooo.extra.TileMap.method('calcDistance', function (a, b)
 	{
 		if (a.x < b.x)
 		{
@@ -1935,7 +1906,7 @@ var OOO_DELETE = 46;
 		return (min_x + min_y);
 	});
 
-	ooo.TileMap.method('findArea', function (open, range)
+	ooo.extra.TileMap.method('findArea', function (open, range)
 	{
 		if (open.length == 0)
 		{
@@ -2009,7 +1980,7 @@ var OOO_DELETE = 46;
 		return done;
 	});
 
-	ooo.TileMap.method('findPath', function (origin, target)
+	ooo.extra.TileMap.method('findPath', function (origin, target)
 	{
 		if (origin.i == target.i)
 		{
@@ -2092,35 +2063,35 @@ var OOO_DELETE = 46;
 		while (open.length)
 	});
 
-	ooo.TileMap.method('getTileAt', function (down_x, down_y)
+	ooo.extra.TileMap.method('getTileAt', function (down_x, down_y)
 	{
 		var tile_x = Math.floor(ooc.wrap(this.drop_x - this.mid_x + down_x, this.patch_w) / this.image.tile_w);
 		var tile_y = Math.floor(ooc.wrap(this.drop_y - this.mid_y + down_y, this.patch_h) / this.image.tile_h);
 		return this.coords[tile_y][tile_x];
 	});
 
-	ooo.TileMap.method('viewTile', function (tile)
+	ooo.extra.TileMap.method('viewTile', function (tile)
 	{
 		this.drop_x = (tile.x * this.image.tile_w) + (this.image.tile_w >>> 1);
 		this.drop_y = (tile.y * this.image.tile_h) + (this.image.tile_h >>> 1);
 	});
 
-	ooo.TileMap.on('show', function (root, parent)
+	ooo.extra.TileMap.on('show', function (root, parent)
 	{
-		ooo.Cell.prototype.events.on.show.call(this, root, parent);
+		ooo.core.Cell.prototype.events.on.show.call(this, root, parent);
 		this.image = root.images[this.asset];
 		this.patch_w = this.size * this.image.tile_w;
 		this.patch_h = this.size * this.image.tile_h;
 	});
 
-	ooo.TileMap.on('resize', function (width, height)
+	ooo.extra.TileMap.on('resize', function (width, height)
 	{
-		ooo.Cell.prototype.events.on.resize.call(this, width, height);
+		ooo.core.Cell.prototype.events.on.resize.call(this, width, height);
 		this.mid_x = this.width >>> 1;
 		this.mid_y = this.height >>> 1;
 	});
 
-	ooo.TileMap.on('draw', function (time, context)
+	ooo.extra.TileMap.on('draw', function (time, context)
 	{
 		var drop_x = ooc.wrap(this.drop_x - this.drag_x - this.mid_x, this.patch_w);
 		var drop_y = ooc.wrap(this.drop_y - this.drag_y - this.mid_y, this.patch_h);
@@ -2151,7 +2122,7 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.TileMap.on('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
+	ooo.extra.TileMap.on('mouse_grab', function (button, down_x, down_y, drag_x, drag_y)
 	{
 		this.listen('mouse_drag', 'mouse_drop');
 		this.drag_x = drag_x;
@@ -2159,14 +2130,14 @@ var OOO_DELETE = 46;
 		return false;
 	});
 
-	ooo.TileMap.on('mouse_drag', function (drag_x, drag_y)
+	ooo.extra.TileMap.on('mouse_drag', function (drag_x, drag_y)
 	{
 		this.drag_x = drag_x;
 		this.drag_y = drag_y;
 		return false;
 	});
 
-	ooo.TileMap.on('mouse_drop', function (drop_x, drop_y)
+	ooo.extra.TileMap.on('mouse_drop', function (drop_x, drop_y)
 	{
 		this.ignore('mouse_drag', 'mouse_drop');
 		this.drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
@@ -2176,7 +2147,7 @@ var OOO_DELETE = 46;
 		return false;
 	});
 
-	ooo.TileMap.on('mouse_click', function (button, down_x, down_y)
+	ooo.extra.TileMap.on('mouse_click', function (button, down_x, down_y)
 	{
 		var tile = this.getTileAt(down_x, down_y);
 		this.trigger('pick_tile', [tile, button]);
@@ -2194,9 +2165,9 @@ var OOO_DELETE = 46;
 		return Math.min(dist1, dist2, dist3);
 	}
 
-	ooo.HexMap = ooo.TileMap.extend(function (size, tile_w, tile_h, type, layout)
+	ooo.extra.HexMap = ooo.extra.TileMap.extend(function (size, tile_w, tile_h, type, layout)
 	{
-		ooo.TileMap.apply(this, arguments);
+		ooo.extra.TileMap.apply(this, arguments);
 		this.tile_w2 = tile_w >>> 1;
 		this.tile_h2 = tile_h >>> 1;
 		this.tile_h4 = tile_h >>> 2;
@@ -2250,7 +2221,7 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.HexMap.method('calcDistance', function (a, b)
+	ooo.extra.HexMap.method('calcDistance', function (a, b)
 	{
 		var dx = b.x - a.x;
 		var dy = b.y - a.y;
@@ -2290,7 +2261,7 @@ var OOO_DELETE = 46;
 		return (dist > quad ? quad : dist);
 	});
 
-	ooo.HexMap.on('mouse_click', function (button, down_x, down_y)
+	ooo.extra.HexMap.on('mouse_click', function (button, down_x, down_y)
 	{
 		var raw_x = (this.drop_x + down_x) % this.patch_w;
 		var raw_y = (this.drop_y + down_y) % this.patch_h;
@@ -2330,7 +2301,7 @@ var OOO_DELETE = 46;
 		return false;
 	});
 
-	ooo.HexMap.on('draw', function (time, context)
+	ooo.extra.HexMap.on('draw', function (time, context)
 	{
 		var drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
 		var drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
