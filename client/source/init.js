@@ -24,8 +24,7 @@
 		var hook = document.getElementById('hook');
 		var root = new ooo.core.Root(hook, core);
 		root.open();
-
 		//var editor = new Editor();
-		root.show(ooo.util.create(login_prompt));
+		//root.show(ooo.util.create(login_prompt));
 	});
 })();
