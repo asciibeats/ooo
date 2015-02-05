@@ -16,6 +16,8 @@ var ooo = {};
 //aufräumen!!!
 //keyboard input eingrenzen (keyset = {})
 //retrieve constructor name on error
+//core.Menu: max_lines bestimmen und bei überschreitung neue seite oder so!!!???
+var OOO_TOP = 0;
 var OOO_BOTTOM = 1;
 var OOO_REVERSED = 2;
 var OOO_VERTICAL = 4;
@@ -37,7 +39,68 @@ var OOO_DELETE = 46;
 	ooo.core = {};
 	ooo.input = {};
 	ooo.extra = {};
-	//ooo.custom = {};
+	ooo.custom = {};
+	ooo.util = {};
+
+	ooo.register = function (name, Actor)
+	{
+		var argv = name.split('.');
+		argv.unshift(Actor, this);
+		ooc.put.apply(null, argv);
+	}
+
+	ooo.util.extend = function (template)
+	{
+		template = ooc.map(TMPL_PARAM, template);
+		var Parent = ooc.resolve(ooo, template.super);
+		var argv = template.args.map(function (value) { return value[1] });
+		argv.push(template.init.replace('Super', 'ooo.' + template.super));
+		var init = new (ooc.Wrap(Function, argv));
+
+		var Child = Parent.extend(function ()
+		{
+			init.apply(this, arguments);
+		});
+
+		for (var name in template.methods)
+		{
+			var argv = template.methods[name];
+			argv[2] = argv[2].replace('Super', 'ooo.' + template.super);
+			Child.method(name, new (ooc.Wrap(Function, argv)));
+		}
+
+		for (var channel in template.events)
+		{
+			for (var type in template.events[channel])
+			{
+				var argv = template.events[channel][type];
+				argv[2] = argv[2].replace('Super', 'ooo.' + template.super);
+				Child[channel](type, new (ooc.Wrap(Function, argv)));
+			}
+		}
+
+		Child.prototype.template = template;
+		return Child;
+	}
+
+	ooo.util.create = function (instance)
+	{
+		instance = ooc.map(INST_PARAM, instance);
+		var func = ooc.resolve(ooo, instance.template);
+		var actor = new (ooc.Wrap(func, instance.argv));
+		actor.instance = instance;
+
+		if (instance.children != undefined)
+		{
+			for (var i = 0; i < instance.children.length; i++)
+			{
+				var child = ooo.util.create(instance.children[i]);
+				actor.show(child, i);
+			}
+		}
+
+		return actor;
+	}
 
 	//Actor
 	function triggerActor (actor, channel, type, argv)
@@ -580,8 +643,8 @@ var OOO_DELETE = 46;
 		}
 		else if (this.root.modify)
 		{
-			//this.root.show(this.root.edit_menu);
-			console.log('MENU_MAIN');
+			this.root.editor.setActor(this);
+			this.root.show(this.root.editor);
 			return false;
 		}
 		else
@@ -712,6 +775,15 @@ var OOO_DELETE = 46;
 	}
 
 	/*EDIT FORM
+
+	  //TABS
+	  	  //per actor
+		  0 INSTANCE (MODIFY)
+		  1 CHILDREN (ADD/REMOVE)
+		  //global
+		  2 CLASSES (EXTEND)
+		  3 ASSETS (ADD/REMOVE/VIEW)
+
 	  	CLASS
 		  type (name)
 		PARAM
@@ -744,58 +816,6 @@ var OOO_DELETE = 46;
 		  name
 	 */
 
-	function extendActor (template)//als actor method? oder sogar ooc.Class? (das ist nichts Actor spezifisches)
-	{
-		var Parent = ooc.resolve(ooo, template.super);
-		var argv = template.args.map(function (value) { return value[1] });
-		argv.push(template.init.replace('Super', 'ooo.' + template.super));
-		var init = new (ooc.Wrap(Function, argv));
-
-		var Child = Parent.extend(function ()
-		{
-			init.apply(this, arguments);
-		});
-
-		for (var name in template.methods)
-		{
-			Child.method(name, new (ooc.Wrap(Function, template.methods[name])));
-		}
-
-		for (var channel in template.events)
-		{
-			for (var type in template.events[channel])
-			{
-				Child[channel](type, new (ooc.Wrap(Function, template.events[channel][type])));
-			}
-		}
-
-		Child.prototype.template = template;
-		var argv = template.name.split('.');
-		argv.unshift(Child, ooo);
-		ooc.put.apply(null, argv);
-	}
-
-	function cloneActor (template)
-	{
-	}
-
-	function showActors (parent, instances)
-	{
-		for (var i = 0; i < instances.length; i++)
-		{
-			var instance = ooc.map(INST_PARAM, instances[i]);
-			var func = ooc.resolve(ooo, instance.template);
-			var actor = new (ooc.Wrap(func, instance.argv));
-			actor.instance = instance;
-			parent.show(actor, i);
-
-			if (instance.children != undefined)
-			{
-				showActors(actor, instance.children);
-			}
-		}
-	}
-
 	//Stage to be embedded into html
 	ooo.core.Root = ooo.core.Stage.extend(function (hook, core, fill_style)
 	{
@@ -824,11 +844,15 @@ var OOO_DELETE = 46;
 
 		for (var i = 0; i < core.templates.length; i++)
 		{
-			var template = ooc.map(TMPL_PARAM, core.templates[i]);
-			extendActor(template);
+			var Actor = ooo.util.extend(core.templates[i]);
+			ooo.register(Actor.prototype.template.name, Actor);
 		}
 
-		showActors(this, core.instances);
+		for (var i = 0; i < core.instances.length; i++)
+		{
+			var actor = ooo.util.create(core.instances[i]);
+			this.show(actor, i);
+		}
 	});
 
 	ooo.core.Root.method('load', function (name, source, width, height)
@@ -1131,12 +1155,12 @@ var OOO_DELETE = 46;
 		this.sockjs.send(JSON.stringify(Array.prototype.slice.call(arguments)));
 	});
 
-	ooo.core.Menu = ooo.core.Cell.extend(function (asset, data, layout, style)
+	ooo.core.Menu = ooo.core.Cell.extend(function (asset, style, data, layout)
 	{
 		ooo.core.Cell.call(this, layout);
 		this.asset = asset;
-		this.data = data;
-		this.style = style || 0;
+		this.style = style;
+		this.data = data || [];
 		this.pick = {};
 	});
 
@@ -1244,7 +1268,6 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	//max_lines bestimmen und bei überschreitung neue seite oder so!!!???
 	ooo.core.Menu.on('draw', function (time, context)
 	{
 		context.translate(this.init_x, this.init_y);
@@ -1306,14 +1329,19 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.core.Form = ooo.core.Scene.extend(function (args, layout, color, font, align, baseline)
+	ooo.core.Form = ooo.core.Scene.extend(function (args, layout, fill_style, font_size, font_face, text_align, text_baseline)
 	{
 		ooo.core.Scene.call(this, layout);
-		this.color = color || ['#f00', '#377'];
-		this.font = font || '18px sans-serif';
-		this.align = align || 'start';
-		this.baseline = baseline || 'top';
+		this.fill_style = fill_style || ['#f00', '#377'];
+		this.font_size = font_size || 18;
+		this.font_face = font_face || 'sans-serif';
+		this.text_align = text_align || 'start';
+		this.text_baseline = text_baseline || 'top';
+		this.content(args);
+	});
 
+	ooo.core.Form.method('content', function (args)
+	{
 		for (var i = 0; i < args.length; i++)
 		{
 			var actor = new (ooc.Wrap(ooo.input[args[i][0]], args[i][1]));
@@ -1357,9 +1385,9 @@ var OOO_DELETE = 46;
 
 	ooo.core.Form.capture('draw', function (time, context)//erzeugt komischen glitch (in firefox) beim öffnen der js-konsole (F12) (verschwindet wenn context.font auskommentiert wird
 	{
-		context.font = this.font;
-		context.textAlign = this.align;
-		context.textBaseline = this.baseline;
+		context.font = this.font_size + 'px ' + this.font_face;
+		context.textAlign = this.text_align;
+		context.textBaseline = this.text_baseline;
 	});
 
 	ooo.core.Form.capture('key_press', function (time, char, key, shift)
@@ -1390,7 +1418,7 @@ var OOO_DELETE = 46;
 	ooo.core.Form.prepare('draw', function (time, context)
 	{
 		ooo.core.Scene.prototype.events.prepare.draw.call(this, time, context);
-		context.fillStyle = this.parent.color[this.focused ? 1 : 0];
+		context.fillStyle = this.parent.fill_style[this.focused ? 1 : 0];
 	});
 
 	ooo.core.Form.prepare('key_press', function (time, char, key, shift)
@@ -1450,7 +1478,7 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.input.Reset = ooo.input.Button.clone();
+	ooo.input.Reset = ooo.input.Button.extend();
 
 	ooo.input.Reset.on('mouse_click', function (button, down_x, down_y)
 	{
@@ -1459,7 +1487,7 @@ var OOO_DELETE = 46;
 		return false;
 	});
 
-	ooo.input.Submit = ooo.input.Button.clone();
+	ooo.input.Submit = ooo.input.Button.extend();
 
 	ooo.input.Submit.on('mouse_click', function (button, down_x, down_y)
 	{
@@ -1475,10 +1503,10 @@ var OOO_DELETE = 46;
 		ooo.input.String.prototype.events.on.form_reset.call(this);
 	});
 
-	/*ooo.input.String.on('form_focus', function (focused)
+	ooo.input.String.on('form_focus', function (focused)
 	{
 		ooo.core.Input.prototype.events.on.form_focus.call(this, focused);
-	});*/
+	});
 
 	ooo.input.String.on('form_reset', function ()
 	{
@@ -1550,7 +1578,7 @@ var OOO_DELETE = 46;
 
 		if (this.focused && ((time % 2000) < 1300))//caret blink
 		{
-			context.fillRect(context.measureText(this.substr).width, 0, this.height >>> 3, this.height);
+			context.fillRect(context.measureText(this.substr).width, 0, this.parent.font_size >>> 3, this.parent.font_size);
 		}
 	});
 
@@ -1738,24 +1766,18 @@ var OOO_DELETE = 46;
 		context.fillText(this.options[this.pick], 0, 0);
 	});*/
 
-	/*ooo.SingleMenu = ooo.Menu.extend(function (asset, layout, style)
-	{
-		ooo.Menu.call(this, asset, layout, style);
-	});
+	ooo.extra.SingleMenu = ooo.core.Menu.extend();
 
-	ooo.SingleMenu.method('preparePick', function (data, index)
+	ooo.extra.SingleMenu.method('preparePick', function (data, index)
 	{
 		this.pick = {};
 		this.pick[index] = true;
 		return [data, index];
 	});
 
-	ooo.MultiMenu = ooo.Menu.extend(function (asset, layout, style)
-	{
-		ooo.Menu.call(this, asset, layout, style);
-	});
+	ooo.extra.MultiMenu = ooo.core.Menu.extend();
 
-	ooo.MultiMenu.method('preparePick', function (data, index)
+	ooo.extra.MultiMenu.method('preparePick', function (data, index)
 	{
 		if (this.pick[index])
 		{
@@ -1776,45 +1798,58 @@ var OOO_DELETE = 46;
 		return [select, data, index];
 	});
 
-	var TabMenu = ooo.SingleMenu.extend(function (asset, layout, style)
+	ooo.extra.TabMenu = ooo.core.Menu.extend(function (target, layer, asset, style, layout)
 	{
-		ooo.Menu.call(this, asset, layout, style);
+		ooo.core.Menu.call(this, asset, style, [], layout);
+		this.target = target;
+		this.layer = layer;
 	});
 
-	TabMenu.on('pick_item', function (data, index)
+	ooo.extra.TabMenu.method('drawButton', function (time, context, data, pick)
 	{
-		this.parent.front.mask('draw');
-		this.parent.front.mask('mouse_click');
-		this.parent.front = this.parent.tabs[index];
-		this.parent.front.unmask('draw');
-		this.parent.front.unmask('mouse_click');
-	});
-
-	ooo.Tabbed = ooo.core.Scene.extend(function (layout, asset, menu_layout, style)
-	{
-		ooo.core.Scene.call(this, layout);
-		this.menu = new TabMenu(asset, menu_layout, style);
-		this.tabs = [];
-		this.show(this.menu, 1);
-	});
-
-	ooo.Tabbed.method('open', function (type, actor)
-	{
-		if (this.tabs.length == 0)
+		if (pick)
 		{
-			this.menu.pick[0] = true;
-			this.front = actor;
+			context.fillStyle = '#f00';
+			context.fillRect(0, 0, this.image.tile_w, this.image.tile_h);
 		}
 		else
 		{
-			actor.mask('draw');
-			actor.mask('mouse_click');
+			context.drawImage(this.image, this.image.tile_x[data[0]], this.image.tile_y[data[0]], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		}
+	});
+
+	ooo.extra.TabMenu.method('preparePick', function (data, index)
+	{
+		this.pick = {};
+		this.pick[index] = true;
+		this.target.show(data[1], this.layer);
+		return [data, index];
+	});
+
+	ooo.extra.TabMenu.method('open', function (type, actor)
+	{
+		if (this.data.length == 0)
+		{
+			this.pick = {0: true};
+			this.target.show(actor, this.layer);
 		}
 
-		this.menu.data.push(type);
-		this.tabs.push(actor);
-		this.show(actor);
-	});*/
+		this.data.push([type, actor]);
+	});
+
+	ooo.extra.TabMenu.method('close', function (index)
+	{
+		if (this.data.length > 1)
+		{
+			this.target.show(this.data[0][1], this.layer);
+		}
+		else
+		{
+			this.data[index][1].hide();
+		}
+
+		this.data.splice(index, 1);
+	});
 
 	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 

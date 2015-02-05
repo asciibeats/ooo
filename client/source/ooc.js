@@ -472,27 +472,23 @@ if (typeof module == 'object')
 
 	ooc.Class.on = ooc.addEvent('on');
 
-	ooc.Class.clone = function ()
+	ooc.Class.extend = function (func)
 	{
 		var Parent = this;
 
 		var Child = function ()
 		{
-			Parent.apply(this, arguments);
+			if (func != null)
+			{
+				func.apply(this, arguments);
+			}
+			else
+			{
+				Parent.apply(this, arguments);
+			}
 		}
 
 		inherit(Child, Parent);
-		return Child;
-	}
-
-	ooc.Class.extend = function (func)
-	{
-		var Child = function ()
-		{
-			func.apply(this, arguments);
-		}
-
-		inherit(Child, this);
 		return Child;
 	}
 
