@@ -40,16 +40,9 @@ var OOO_DELETE = 46;
 	ooo.input = {};
 	ooo.extra = {};
 	ooo.custom = {};
-	ooo.util = {};
+	//ooo.util = {};
 
-	ooo.register = function (name, Actor)
-	{
-		var argv = name.split('.');
-		argv.unshift(Actor, this);
-		ooc.put.apply(null, argv);
-	}
-
-	ooo.util.extend = function (template)
+	ooo.extend = function (template)
 	{
 		template = ooc.map(TMPL_PARAM, template);
 		var Parent = ooc.resolve(ooo, template.super);
@@ -83,7 +76,7 @@ var OOO_DELETE = 46;
 		return Child;
 	}
 
-	ooo.util.create = function (instance)
+	ooo.create = function (instance)
 	{
 		instance = ooc.map(INST_PARAM, instance);
 		var func = ooc.resolve(ooo, instance.template);
@@ -94,12 +87,19 @@ var OOO_DELETE = 46;
 		{
 			for (var i = 0; i < instance.children.length; i++)
 			{
-				var child = ooo.util.create(instance.children[i]);
+				var child = ooo.create(instance.children[i]);
 				actor.show(child, i);
 			}
 		}
 
 		return actor;
+	}
+
+	ooo.register = function (name, Actor)
+	{
+		var argv = name.split('.');
+		argv.unshift(Actor, this);
+		ooc.put.apply(null, argv);
 	}
 
 	//Actor
@@ -844,13 +844,13 @@ var OOO_DELETE = 46;
 
 		for (var i = 0; i < core.templates.length; i++)
 		{
-			var Actor = ooo.util.extend(core.templates[i]);
+			var Actor = ooo.extend(core.templates[i]);
 			ooo.register(Actor.prototype.template.name, Actor);
 		}
 
 		for (var i = 0; i < core.instances.length; i++)
 		{
-			var actor = ooo.util.create(core.instances[i]);
+			var actor = ooo.create(core.instances[i]);
 			this.show(actor, i);
 		}
 	});
@@ -1110,9 +1110,9 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.core.Client = ooo.core.Root.extend(function (hook, color)
+	ooo.core.Client = ooo.core.Root.extend(function (hook, core, fill_style)
 	{
-		ooo.core.Root.call(this, hook, color);
+		ooo.core.Root.call(this, hook, core, fill_style);
 		this.connected = false;
 	});
 
