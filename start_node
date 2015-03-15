@@ -1,8 +1,0 @@
-#!/bin/sh -m
-while true
-do
-	node server/init.js
-	echo -e "\npress ENTER to restart"
-	read
-	clear
-done

@@ -2,6 +2,7 @@ var ooo = {};
 module.exports = ooo;
 
 var http = require('http');
+var node_static = require('node-static');
 var sockjs = require('sockjs');
 var ooc = require('../client/source/ooc.js');
 
@@ -291,18 +292,24 @@ ooo.Client.method('trigger', function (type, argv)
 	}
 });
 
-ooo.Server = ooc.Class.extend(function (Client, port)
+ooo.Server = ooc.Class.extend(function (Client, static_port, socket_port)
 {
-	console.log('OPEN %d', port);
+	console.log('OPEN %d %d', static_port, socket_port);
 	ooc.Class.call(this);
-	this.http = http.createServer();
-	this.http.listen(port);//, '0.0.0.0'
-	this.sockjs = sockjs.createServer({'log': function (type, message) { if (type != 'info') { console.log(type, message) }}});
-	this.sockjs.installHandlers(this.http);//, {prefix: '/player'}
 	this.clients = {};
 	var that = this;
 
-	this.sockjs.on('connection', function (socket)
+	var static_server = http.createServer();
+	var static_dir = new node_static.Server('client/');
+	static_server.addListener('request', function (req, res) { static_dir.serve(req, res) });
+	static_server.listen(static_port, '0.0.0.0');
+
+	var socket_server = http.createServer();
+	var sockjs_server = sockjs.createServer({'log': function (type, message) { if (type != 'info') { console.log(type, message) }}});
+	sockjs_server.installHandlers(socket_server);//, {prefix: '/player'}
+	socket_server.listen(socket_port, '0.0.0.0');
+
+	sockjs_server.on('connection', function (socket)
 	{
 		var client = new Client(that, socket);
 		client.id = ooc.fill(client, that.clients);
