@@ -1,9 +1,11 @@
 {
-	"name": "ooo",
-	"window":
-	{
-		"toolbar": false
-	},
-	"single-instance": false,
-	"main": "client/index.html"
+  "name": "ooo",
+  "window": {
+    "toolbar": false
+  },
+  "single-instance": false,
+  "main": "client/index.html",
+  "dependencies": {
+    "sockjs": "^0.3.15"
+  }
 }
