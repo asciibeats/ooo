@@ -6,6 +6,7 @@
   "single-instance": false,
   "main": "client/index.html",
   "dependencies": {
+    "node-static": "^0.7.6",
     "sockjs": "^0.3.15"
   }
 }

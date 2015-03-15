@@ -1,5 +1,7 @@
 var ooo = require('./ooo.js');
 var ooc = require('../client/source/ooc.js');
+var http = require('http');
+var node_static = require('node-static');
 
 var WorldMap = ooo.TileMap.extend(function ()
 {
@@ -18,6 +20,14 @@ var WorldMap = ooo.TileMap.extend(function ()
 		this.tiles[i].data.type = this.terrain[i];
 	}
 });
+
+// serve client
+var static_directory = new node_static.Server('client/');
+var static_server = http.createServer();
+static_server.addListener('request', function(req, res) {
+	static_directory.serve(req, res);
+});
+static_server.listen(11155, '0.0.0.0');
 
 //connection object (non persistent)
 var Client = ooo.Client.extend(function (server, socket)
