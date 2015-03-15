@@ -4,7 +4,6 @@
 	{
 		"toolbar": false
 	},
-	//"node-main": "server/init.js",
 	"single-instance": false,
 	"main": "client/index.html"
 }
