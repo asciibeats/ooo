@@ -157,7 +157,6 @@
 	{
 		var hook = document.getElementById('hook');
 		var root = new Game(hook, core);
-		//root.open('http://' + window.location.hostname + ':11133');
-		root.open('http://192.168.178.35:11133');
+		root.open('http://' + window.location.hostname + ':11133');
 	});
 })();

@@ -1,6 +1,4 @@
 #!/bin/sh -m
-#cd $(dirname $0)/server
-
 while true
 do
 	node server/init.js

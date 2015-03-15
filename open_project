@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 DIR=$(dirname $0)
 urxvt -title wmtag_1 -e $EDITOR $DIR/client/source/ooo.js &
 urxvt -title wmtag_1 -e $EDITOR $DIR/server/ooo.js &

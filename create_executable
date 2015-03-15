@@ -1,4 +1,5 @@
 #!/bin/sh
+nodewk=/usr/lib/node-webkit
 cd $(dirname $0)
 name=${PWD##*/}
 folder=build/linux
@@ -7,7 +8,7 @@ mkdir -p $folder
 zip -r $folder/${name}.zip package.json client server node_modules
 cat /usr/bin/nw $folder/${name}.zip > $folder/$name
 chmod +x $folder/$name
-cp /usr/lib/node-webkit/nw.pak $folder
-cp /usr/lib/node-webkit/icudtl.dat $folder
+cp $nodewk/nw.pak $folder
+cp $nodewk/icudtl.dat $folder
 rm $folder/${name}.zip
 #copy /b nw.exe+name.zip app.exe
