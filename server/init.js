@@ -28,8 +28,7 @@ var Client = ooo.Client.extend(function (server, socket)
 Client.on('socket_open', function ()
 {
 	console.log('OPEN %d', this.id);
-	//var home = Math.floor(Math.random() * world.size);
-	var home = 28;
+	var home = (this.id == 0) ? 28 : (this.id == 1) ? 20 : 27;
 	var spawns = ooc.propArray(server.clients, 'home');
 	this.home = home;
 
