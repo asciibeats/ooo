@@ -1,9 +1,9 @@
-#!/bin/sh
-cd $(dirname $0)/server
+#!/bin/sh -m
+#cd $(dirname $0)/server
 
 while true
 do
-	node init.js
+	node server/init.js
 	echo -e "\npress ENTER to restart"
 	read
 	clear

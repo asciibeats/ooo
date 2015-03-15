@@ -234,6 +234,21 @@ ooo.Client.method('send', function (type, data)
 	return this;
 });
 
+ooo.Client.method('shout', function (type, data)
+{
+	for (var id in this.server.clients)
+	{
+		if (id == this.id)
+		{
+			continue;
+		}
+
+		this.server.clients[id].send(type, data);
+	}
+
+	return this;
+});
+
 ooo.Client.method('close', function (code)
 {
 	this.socket.close(code);
@@ -241,6 +256,8 @@ ooo.Client.method('close', function (code)
 
 ooo.Client.method('expect', function ()
 {
+	this.expected = {};
+
 	for (var i in arguments)
 	{
 		this.expected[arguments[i]] = true;
@@ -288,8 +305,8 @@ ooo.Server = ooc.Class.extend(function (Client, port)
 	this.sockjs.on('connection', function (socket)
 	{
 		var client = new Client(that, socket);
-		client.id = ooc.fill(that.clients, client);
-		//client.trigger('socket:open');
+		client.id = ooc.fill(client, that.clients);
+		client.trigger('socket_open');
 
 		socket.on('data', function (string)
 		{

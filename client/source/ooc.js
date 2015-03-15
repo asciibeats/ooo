@@ -137,7 +137,6 @@ if (typeof module == 'object')
 		return hash;
 	}
 
-
 	ooc.modify = function (func)
 	{
 		return function (value, object)
@@ -178,6 +177,18 @@ if (typeof module == 'object')
 			object[key] = value;
 		}
 	});
+
+	/*ooc.invert = function (object)
+	{
+		var array = [];
+
+		for (var key in object)
+		{
+			array[object[key]] = key;
+		}
+
+		return array;
+	}*/
 
 	ooc.total = function (object)
 	{
@@ -353,6 +364,21 @@ if (typeof module == 'object')
 	ooc.minKeyValue = function (object)
 	{
 		return object[Math.min.apply(null, ooc.intkeys(object))];
+	}
+
+	ooc.propArray = function (objects, name)
+	{
+		var values = {};
+
+		for (var id in objects)
+		{
+			if (name in objects[id])
+			{
+				values[id] = objects[id][name];
+			}
+		}
+
+		return values;
 	}
 
 	ooc.intkeys = function (object)

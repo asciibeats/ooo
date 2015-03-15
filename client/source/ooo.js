@@ -16,7 +16,7 @@ var ooo = {};
 //aufräumen!!!
 //keyboard input eingrenzen (keyset = {})
 //retrieve constructor name on error
-//core.Menu: max_lines bestimmen und bei überschreitung neue seite oder so!!!???
+//core.Pool: max_lines bestimmen und bei überschreitung neue seite oder so!!!???
 var OOO_TOP = 0;
 var OOO_BOTTOM = 1;
 var OOO_REVERSED = 2;
@@ -34,7 +34,7 @@ var OOO_DELETE = 46;
 
 (function ()
 {
-	var DRAG_OFF = 3;
+	var DRAG_OFF = 4;
 
 	ooo.core = {};
 	ooo.input = {};
@@ -350,26 +350,27 @@ var OOO_DELETE = 46;
 
 	ooo.core.Sprite.on('draw', function (time, context)
 	{
-		context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.width, this.height);
 	});
 
 	//Simple Textbox
-	ooo.core.Text = ooo.core.Cell.extend(function (layout, color, font, alignment, baseline)//switch to ooo.core.Button.extend
+	ooo.core.Text = ooo.core.Cell.extend(function (layout, fill_style, font_size, font_face, text_align, text_baseline)//switch to ooo.core.Button.extend
 	{
 		ooo.core.Cell.call(this, layout);
-		this.color = color || '#f00';
-		this.font = font || '10px sans-serif';
-		this.alignment = alignment || 'start';//"start", "end", "left", "right", "center"
-		this.baseline = baseline || 'top';//"top", "hanging", "middle", "alphabetic", "ideographic", "bottom"
+		this.fill_style = fill_style || '#000';
+		this.font_size = font_size || 18;
+		this.font_face = font_face || 'sans-serif';
+		this.text_align = text_align || 'start';//"start", "end", "left", "right", "center"
+		this.text_baseline = text_baseline || 'top';//"top", "hanging", "middle", "alphabetic", "ideographic", "bottom"
 		this.string = "abc123";
 	});
 
 	ooo.core.Text.on('draw', function (time, context)
 	{
-		context.fillStyle = this.color;
-		context.font = this.font;
-		context.textAlign = this.alignment;
-		context.textBaseline = this.baseline;
+		context.fillStyle = this.fill_style;
+		context.font = this.font_size + 'px ' + this.font_face;
+		context.textAlign = this.text_align;
+		context.textBaseline = this.text_baseline;
 		context.fillText(this.string, 0, 0);
 	});
 
@@ -444,6 +445,11 @@ var OOO_DELETE = 46;
 		this.trigger('update_' + key, [this.data[key]]);
 	});
 
+	ooo.core.Scene.method('touch', function (key)
+	{
+		this.trigger('update_' + key, [this.data[key]]);
+	});
+
 	ooo.core.Scene.method('empty', function ()
 	{
 		for (var i = 0; i < this.children.length; i++)
@@ -480,9 +486,9 @@ var OOO_DELETE = 46;
 			actor.trigger('show', [this.root, this]);
 			actor.trigger('resize', [this.width, this.height]);
 
-			for (var key in this.data)
+			for (var key in this.root.data)
 			{
-				this.trigger('update_' + key, [this.data[key]]);
+				actor.trigger('update_' + key, [this.root.data[key]]);
 			}
 		}
 
@@ -554,6 +560,11 @@ var OOO_DELETE = 46;
 		return [this.width, this.height];
 	});
 
+	ooo.core.Scene.capture(['mouse_over', 'mouse_out'], function (over_x, over_y)
+	{
+		return false;
+	});
+
 	ooo.core.Scene.prepare('draw', function (time, context)
 	{
 		context.save();
@@ -577,16 +588,16 @@ var OOO_DELETE = 46;
 		{
 			if (this.over)
 			{
-				this.trigger('mouse_out', [down_x, down_y], true);
 				this.over = false;
+				this.trigger('mouse_out', [down_x, down_y], true);
 			}
 		}
 		else
 		{
 			if (!this.over)
 			{
-				this.trigger('mouse_over', [down_x, down_y], true);
 				this.over = true;
+				this.trigger('mouse_over', [down_x, down_y], true);
 			}
 		}
 
@@ -827,6 +838,8 @@ var OOO_DELETE = 46;
 		this.images = {};
 		this.root = this;
 		this.canvas.style.position = 'absolute';
+		//this.canvas.style.cursor = 'url(assets/cursor.cur), none';
+		//this.canvas.style.cursor = 'pointer';
 		this.canvas.focus();
 		this.hook = hook;
 		this.hook.style.overflow = 'hidden';
@@ -969,6 +982,8 @@ var OOO_DELETE = 46;
 			var move_x = event.clientX;
 			var move_y = event.clientY;
 			that.trigger('mouse_move', [move_x, move_y], true);
+			//that.trigger('mouse_over', [move_x, move_y], true);
+			//that.trigger('mouse_out', [move_x, move_y], true);
 
 			if (down)
 			{
@@ -1155,7 +1170,7 @@ var OOO_DELETE = 46;
 		this.sockjs.send(JSON.stringify(Array.prototype.slice.call(arguments)));
 	});
 
-	ooo.core.Menu = ooo.core.Cell.extend(function (asset, style, data, layout)
+	ooo.core.Pool = ooo.core.Cell.extend(function (asset, style, data, layout)
 	{
 		ooo.core.Cell.call(this, layout);
 		this.asset = asset;
@@ -1164,7 +1179,7 @@ var OOO_DELETE = 46;
 		this.pick = {};
 	});
 
-	ooo.core.Menu.method('reset', function (data, pick)
+	ooo.core.Pool.method('reset', function (data, pick)
 	{
 		this.data = data;
 		this.pick = {};
@@ -1180,7 +1195,7 @@ var OOO_DELETE = 46;
 		return this;
 	});
 
-	ooo.core.Menu.method('drawButton', function (time, context, data, pick)
+	ooo.core.Pool.method('drawItem', function (time, context, data, pick)
 	{
 		if (pick)
 		{
@@ -1193,18 +1208,63 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.core.Menu.method('preparePick', function (data, index)
+	ooo.core.Pool.method('preparePick', function (data, index)
 	{
 		return [data, index];
 	});
 
-	ooo.core.Menu.on('show', function (root, parent)
+	ooo.core.Pool.method('getIndexAt', function (down_x, down_y)
+	{
+		if (this.style & OOO_BOTTOM)
+		{
+			var row = Math.floor((this.height - down_y) / this.image.tile_h);
+		}
+		else
+		{
+			var row = Math.floor(down_y / this.image.tile_h);
+		}
+
+		if (this.style & OOO_REVERSED)
+		{
+			var col = Math.floor((this.width - down_x) / this.image.tile_w);
+		}
+		else
+		{
+			var col = Math.floor(down_x / this.image.tile_w);
+		}
+
+		if (this.style & OOO_VERTICAL)
+		{
+			var index = col * this.rows + row;
+		}
+		else
+		{
+			var index = row * this.cols + col;
+		}
+ 		
+		if ((col < this.cols) && (row < this.rows))
+		{
+			return index;
+		}
+	});
+
+	ooo.core.Pool.method('getDataAt', function (down_x, down_y)
+	{
+		var index = this.getIndexAt(down_x, down_y);
+
+		if ((index != null) && (this.data[index] != undefined))
+		{
+			return this.data[index];
+		}
+	});
+
+	ooo.core.Pool.on('show', function (root, parent)
 	{
 		ooo.core.Cell.prototype.events.on.show.call(this, root, parent);
 		this.image = root.images[this.asset];
 	});
 
-	ooo.core.Menu.on('resize', function (width, height)
+	ooo.core.Pool.on('resize', function (width, height)
 	{
 		ooo.core.Cell.prototype.events.on.resize.call(this, width, height);
 		this.cols = Math.floor(this.width / this.image.tile_w);
@@ -1268,7 +1328,7 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.core.Menu.on('draw', function (time, context)
+	ooo.core.Pool.on('draw', function (time, context)
 	{
 		context.translate(this.init_x, this.init_y);
 		context.save();
@@ -1276,7 +1336,7 @@ var OOO_DELETE = 46;
 		for (var i = 0; i < this.data.length;)
 		{
 			context.save();
-			this.drawButton(time, context, this.data[i], this.pick[i]);
+			this.drawItem(time, context, this.data[i], this.pick[i]);
 			context.restore();
 			context.translate(this.shift_x, this.shift_y);
 			i++;
@@ -1292,39 +1352,19 @@ var OOO_DELETE = 46;
 		context.restore();
 	});
 
-	ooo.core.Menu.on('mouse_click', function (button, down_x, down_y)
+	ooo.core.Pool.on('mouse_click', function (button, down_x, down_y)
 	{
-		if (this.style & OOO_BOTTOM)
-		{
-			var row = Math.floor((this.height - down_y) / this.image.tile_h);
-		}
-		else
-		{
-			var row = Math.floor(down_y / this.image.tile_h);
-		}
+		var index = this.getIndexAt(down_x, down_y);
 
-		if (this.style & OOO_REVERSED)
-		{
-			var col = Math.floor((this.width - down_x) / this.image.tile_w);
-		}
-		else
-		{
-			var col = Math.floor(down_x / this.image.tile_w);
-		}
-
-		if (this.style & OOO_VERTICAL)
-		{
-			var index = col * this.rows + row;
-		}
-		else
-		{
-			var index = row * this.cols + col;
-		}
-
-		if ((this.data[index] != undefined) && (col < this.cols) && (row < this.rows))
+		if ((index != null) && (this.data[index] != undefined))
 		{
 			var argv = this.preparePick(this.data[index], index);
-			this.trigger('pick_item', argv);
+
+			if (Array.isArray(argv))
+			{
+				this.trigger('pick_item', argv);
+			}
+
 			return false;
 		}
 	});
@@ -1766,18 +1806,18 @@ var OOO_DELETE = 46;
 		context.fillText(this.options[this.pick], 0, 0);
 	});*/
 
-	ooo.extra.SingleMenu = ooo.core.Menu.extend();
+	ooo.extra.SinglePool = ooo.core.Pool.extend();
 
-	ooo.extra.SingleMenu.method('preparePick', function (data, index)
+	ooo.extra.SinglePool.method('preparePick', function (data, index)
 	{
 		this.pick = {};
 		this.pick[index] = true;
 		return [data, index];
 	});
 
-	ooo.extra.MultiMenu = ooo.core.Menu.extend();
+	ooo.extra.MultiPool = ooo.core.Pool.extend();
 
-	ooo.extra.MultiMenu.method('preparePick', function (data, index)
+	ooo.extra.MultiPool.method('preparePick', function (data, index)
 	{
 		if (this.pick[index])
 		{
@@ -1798,14 +1838,14 @@ var OOO_DELETE = 46;
 		return [select, data, index];
 	});
 
-	ooo.extra.TabMenu = ooo.core.Menu.extend(function (target, layer, asset, style, layout)
+	ooo.extra.TabPool = ooo.core.Pool.extend(function (target, layer, asset, style, layout)
 	{
-		ooo.core.Menu.call(this, asset, style, [], layout);
+		ooo.core.Pool.call(this, asset, style, [], layout);
 		this.target = target;
 		this.layer = layer;
 	});
 
-	ooo.extra.TabMenu.method('drawButton', function (time, context, data, pick)
+	ooo.extra.TabPool.method('drawItem', function (time, context, data, pick)
 	{
 		if (pick)
 		{
@@ -1818,7 +1858,7 @@ var OOO_DELETE = 46;
 		}
 	});
 
-	ooo.extra.TabMenu.method('preparePick', function (data, index)
+	ooo.extra.TabPool.method('preparePick', function (data, index)
 	{
 		this.pick = {};
 		this.pick[index] = true;
@@ -1826,7 +1866,7 @@ var OOO_DELETE = 46;
 		return [data, index];
 	});
 
-	ooo.extra.TabMenu.method('open', function (type, actor)
+	ooo.extra.TabPool.method('open', function (type, actor)
 	{
 		if (this.data.length == 0)
 		{
@@ -1837,7 +1877,7 @@ var OOO_DELETE = 46;
 		this.data.push([type, actor]);
 	});
 
-	ooo.extra.TabMenu.method('close', function (index)
+	ooo.extra.TabPool.method('close', function (index)
 	{
 		if (this.data.length > 1)
 		{
@@ -1913,7 +1953,7 @@ var OOO_DELETE = 46;
 		return 1;
 	});
 
-	ooo.extra.TileMap.method('drawTile', function (tile, time, context)
+	ooo.extra.TileMap.method('drawTile', function (tile, data, time, context)
 	{
 		context.drawImage(this.image, this.image.tile_x[tile.data.type], this.image.tile_y[tile.data.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 	});
@@ -2200,7 +2240,7 @@ var OOO_DELETE = 46;
 		return Math.min(dist1, dist2, dist3);
 	}
 
-	ooo.extra.HexMap = ooo.extra.TileMap.extend(function (size, tile_w, tile_h, type, layout)
+	ooo.extra.HexMap = ooo.extra.TileMap.extend(function (size, asset, layout)//tile_w, tile_h, type
 	{
 		ooo.extra.TileMap.apply(this, arguments);
 		this.tile_w2 = tile_w >>> 1;
@@ -2360,6 +2400,14 @@ var OOO_DELETE = 46;
 
 			for (var x = start_x; x <= end_x; x++)
 			{
+				var tile_x = x % this.size;
+				var tile = this.coords[tile_y][tile_x];
+				context.save();
+				this.drawTile(tile, tile.data, time, context);
+				context.restore();
+				context.translate(this.image.tile_w, 0);
+				continue;
+
 				var tile_x = x % this.size;
 				var tile = this.coords[tile_y][tile_x];
 				context.drawImage(this.image, this.coords[tile.type][0], this.coords[tile.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
