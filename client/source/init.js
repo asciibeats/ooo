@@ -5,14 +5,16 @@
 
 	var core = {};
 	core.title = '';
-	core.assets = [['buttons', 'assets/buttons.png', 96, 96], ['hints', 'assets/hints.png', 300, 50], ['tiles', 'assets/tiles.png', 96, 96]];
+	core.assets = [['buttons', 'assets/buttons.png', 96, 96], ['hints', 'assets/hints.png', 300, 50], ['tiles', 'assets/tiles.png', 96, 96], ['hexes', 'assets/hexes.png', 96, 96]];
 	//core.templates = [['custom.Box', 'core.Box', 'asdf', [['String', 'color', '#faa'], ['Layout', 'layout', []]], 'Super.call(this, color, layout); this.item = 21354;', {test: ['a', 'b', 'return a + b;']}, {on: {mouse_click: ['button', 'down_x', 'down_y', 'this.color = "#af0"; console.log(this.instance.name, this.template.name);return false;']}}]];
 	core.templates = [];
 	//var form_args = [['Integer', ['count', 0, 10, 5, {top: 0, height: 18}]], ['String', ['name', 'my_name', {top: 18, height: 18}]], ['Options', ['option', [16, 32, 64], 1, {top: 36, height: 18}]], ['Options', ['do it', [0, 1], 0, {top: 54, height: 18}]]];
 	core.instances = [['Background', 'core.Box', ['#333']]];//, ['MyForm', 'core.Form', [form_args, null]]
 
+	//var WorldMap = ooo.extra.HexMap.extend(function (size, terrain, home, spawns)
 	var WorldMap = ooo.extra.TileMap.extend(function (size, terrain, home, spawns)
 	{
+		//ooo.extra.HexMap.call(this, size, 'hexes');
 		ooo.extra.TileMap.call(this, size, 'tiles');
 		this.home = this.tiles[home];
 		this.spawns = spawns;

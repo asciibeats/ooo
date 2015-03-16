@@ -17,6 +17,7 @@ var ooo = {};
 //keyboard input eingrenzen (keyset = {})
 //retrieve constructor name on error
 //core.Pool: max_lines bestimmen und bei überschreitung neue seite oder so!!!???
+//do i need mid_x/y??? what for?
 var OOO_TOP = 0;
 var OOO_BOTTOM = 1;
 var OOO_REVERSED = 2;
@@ -2231,29 +2232,16 @@ var OOO_DELETE = 46;
 
 	var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
 
-	//HexMap
-	function wrapDist (dx, dy, dz)
-	{
-		var dist1 = Math.max(Math.abs(this.size2 + dx), this.size - dy, Math.abs(this.size2 + dz));
-		var dist2 = Math.max(Math.abs(this.size2 - dx), this.size - dy, Math.abs(this.size32 + dz));
-		var dist3 = Math.max(Math.abs(this.size - dx), dy, Math.abs(this.size + dz));
-		return Math.min(dist1, dist2, dist3);
-	}
-
 	ooo.extra.HexMap = ooo.extra.TileMap.extend(function (size, asset, layout)//tile_w, tile_h, type
 	{
-		ooo.extra.TileMap.apply(this, arguments);
-		this.tile_w2 = tile_w >>> 1;
-		this.tile_h2 = tile_h >>> 1;
-		this.tile_h4 = tile_h >>> 2;
-		this.tile_3h4 = this.tile_h2 + this.tile_h4;
-		this.patch_h = size * this.tile_3h4;
-		var hex_d = Math.sqrt(this.tile_w2 * this.tile_w2 + this.tile_3h4 * this.tile_3h4);//hex diagonale
-		this.hex_r = hex_d / 2;//radius
-		this.hex_x = this.tile_w2 / hex_d;
-		this.hex_y = this.tile_3h4 / hex_d;
-		this.size2 = size >>> 1;
-		this.size32 = size + this.size2;
+		ooo.core.Cell.call(this, layout);
+		this.ignore('mouse_drag', 'mouse_drop');
+		this.size = size;
+		this.asset = asset;
+		this.drag_x = 0;
+		this.drag_y = 0;
+		this.drop_x = 0;
+		this.drop_y = 0;
 		this.coords = [];
 		this.tiles = [];
 
@@ -2265,11 +2253,14 @@ var OOO_DELETE = 46;
 			for (var x = 0; x < size; x++, i++)
 			{
 				var tile = {};
+				tile.map = this;
 				tile.i = i;
+				tile.tx = x;
+				tile.ty = y;
 				tile.x = x - (y >> 1);
 				tile.y = y;
 				tile.z = -tile.x - y;
-				tile.type = 0;
+				tile.data = this.initData(i, tile.x, y, tile.z);
 				this.coords[y][x] = tile;
 				this.tiles[i] = tile;
 			}
@@ -2295,6 +2286,20 @@ var OOO_DELETE = 46;
 			}
 		}
 	});
+
+	ooo.extra.HexMap.method('initData', function (i, x, y, z)
+	{
+		return {type: 0};
+	});
+
+	//HexMap
+	function wrapDist (dx, dy, dz)
+	{
+		var dist1 = Math.max(Math.abs(this.size2 + dx), this.size - dy, Math.abs(this.size2 + dz));
+		var dist2 = Math.max(Math.abs(this.size2 - dx), this.size - dy, Math.abs(this.size32 + dz));
+		var dist3 = Math.max(Math.abs(this.size - dx), dy, Math.abs(this.size + dz));
+		return Math.min(dist1, dist2, dist3);
+	}
 
 	ooo.extra.HexMap.method('calcDistance', function (a, b)
 	{
@@ -2336,7 +2341,7 @@ var OOO_DELETE = 46;
 		return (dist > quad ? quad : dist);
 	});
 
-	ooo.extra.HexMap.on('mouse_click', function (button, down_x, down_y)
+	ooo.extra.HexMap.method('getTileAt', function (down_x, down_y)
 	{
 		var raw_x = (this.drop_x + down_x) % this.patch_w;
 		var raw_y = (this.drop_y + down_y) % this.patch_h;
@@ -2372,20 +2377,52 @@ var OOO_DELETE = 46;
 			}
 		}
 
-		this.trigger('pick_tile', [this.coords[tile_y][tile_x], button, tile_x, tile_y]);
-		return false;
+		return this.coords[tile_y][tile_x];
+	});
+
+	ooo.extra.TileMap.method('viewTile', function (tile)
+	{
+		//console.log(tile.x, tile.y);
+		this.drop_x = (tile.x * this.image.tile_w) + (this.image.tile_w >>> 1);
+		this.drop_y = (tile.y * this.image.tile_h) + (this.image.tile_h >>> 1);
+	});
+
+	ooo.extra.HexMap.method('viewTile', function (tile)
+	{
+		console.log(tile.tx, tile.ty, this.tile_3h4, this.tile_h2, this.tile_w2);
+		this.drop_x = (tile.tx * this.image.tile_w) + ((tile.ty & 1) ? this.image.tile_w : this.tile_w2);
+		this.drop_y = (tile.ty * this.tile_3h4) + this.tile_h2;
+	});
+
+	ooo.extra.HexMap.on('show', function (root, parent)
+	{
+		ooo.core.Cell.prototype.events.on.show.call(this, root, parent);
+		this.image = root.images[this.asset];
+		this.patch_w = this.size * this.image.tile_w;
+		this.patch_h = this.size * this.image.tile_h;
+		this.tile_w2 = this.image.tile_w >>> 1;
+		this.tile_h2 = this.image.tile_h >>> 1;
+		this.tile_h4 = this.image.tile_h >>> 2;
+		this.tile_3h4 = this.tile_h2 + this.tile_h4;
+		this.patch_h = this.size * this.tile_3h4;
+		var hex_d = Math.sqrt(this.tile_w2 * this.tile_w2 + this.tile_3h4 * this.tile_3h4);//hex diagonale
+		this.hex_r = hex_d / 2;//radius
+		this.hex_x = this.tile_w2 / hex_d;
+		this.hex_y = this.tile_3h4 / hex_d;
+		this.size2 = this.size >>> 1;
+		this.size32 = this.size + this.size2;
 	});
 
 	ooo.extra.HexMap.on('draw', function (time, context)
 	{
 		var drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
 		var drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
-		var start_x = Math.floor(drop_x / this.tile_w);
+		var start_x = Math.floor(drop_x / this.image.tile_w);
 		var start_y = Math.floor(drop_y / this.tile_3h4);
-		var end_x = start_x + Math.ceil(this.width / this.tile_w) + 1;//besser berechnen als + 1 (width + tile_w2??)
+		var end_x = start_x + Math.ceil(this.width / this.image.tile_w) + 1;//besser berechnen als + 1 (width + tile_w2??)
 		var end_y = start_y + Math.ceil(this.height / this.tile_3h4) + 1;
 
-		context.translate(-((drop_x % this.tile_w) + this.tile_w2), -((drop_y % this.tile_3h4) + this.tile_h2));
+		context.translate(-((drop_x % this.image.tile_w) + this.tile_w2), -((drop_y % this.tile_3h4) + this.tile_h2));
 		//context.translate(-((drop_x % this.tile_w)), -((drop_y % this.tile_3h4)));
 
 		for (var y = start_y; y <= end_y; y++)
