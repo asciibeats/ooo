@@ -1,5 +1,5 @@
 # ooo
-Simple multiplayer game engine based on javascript canvas and nodejs intended primarily to create boardgame style games
+A simple multiplayer game engine based on javascript canvas and nodejs intended primarily as a framework for boardgame style games
 
 ## For the demo do
 ```
