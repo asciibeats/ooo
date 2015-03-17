@@ -1,5 +1,9 @@
 {
   "name": "ooo",
+  "repository": {
+	"type": "git",
+	"url": "http://github.com/asciibeats/ooo.git"
+  },
   "window": {
     "toolbar": false
   },
