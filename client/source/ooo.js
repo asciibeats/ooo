@@ -2343,8 +2343,8 @@ var OOO_DELETE = 46;
 
 	ooo.extra.HexMap.method('getTileAt', function (down_x, down_y)
 	{
-		var raw_x = (this.drop_x + down_x) % this.patch_w;
-		var raw_y = (this.drop_y + down_y) % this.patch_h;
+		var raw_x = ooc.wrap(this.drop_x - this.mid_x + down_x, this.patch_w);
+		var raw_y = ooc.wrap(this.drop_y - this.mid_y + down_y, this.patch_h);
 		var rel_x = raw_x % this.tile_w2;
 		var rel_y = raw_y % this.tile_3h4;
 		var min_x = Math.round((raw_x - rel_x) / this.tile_w2);
@@ -2389,9 +2389,8 @@ var OOO_DELETE = 46;
 
 	ooo.extra.HexMap.method('viewTile', function (tile)
 	{
-		console.log(tile.tx, tile.ty, this.tile_3h4, this.tile_h2, this.tile_w2);
-		this.drop_x = (tile.tx * this.image.tile_w) + ((tile.ty & 1) ? this.image.tile_w : this.tile_w2);
-		this.drop_y = (tile.ty * this.tile_3h4) + this.tile_h2;
+		this.drop_x = (tile.tx * this.image.tile_w) + ((tile.ty & 1) ? this.image.tile_w : this.tile_w2) - this.tile_w2;
+		this.drop_y = (tile.ty * this.tile_3h4) + this.tile_h2 - this.tile_h2;
 	});
 
 	ooo.extra.HexMap.on('show', function (root, parent)
@@ -2415,15 +2414,14 @@ var OOO_DELETE = 46;
 
 	ooo.extra.HexMap.on('draw', function (time, context)
 	{
-		var drop_x = ooc.wrap(this.drop_x - this.drag_x, this.patch_w);
-		var drop_y = ooc.wrap(this.drop_y - this.drag_y, this.patch_h);
+		var drop_x = ooc.wrap(this.drop_x - this.drag_x - this.mid_x, this.patch_w);
+		var drop_y = ooc.wrap(this.drop_y - this.drag_y - this.mid_y, this.patch_h);
 		var start_x = Math.floor(drop_x / this.image.tile_w);
 		var start_y = Math.floor(drop_y / this.tile_3h4);
-		var end_x = start_x + Math.ceil(this.width / this.image.tile_w) + 1;//besser berechnen als + 1 (width + tile_w2??)
+		var end_x = start_x + Math.ceil(this.width / this.image.tile_w) + 1;
 		var end_y = start_y + Math.ceil(this.height / this.tile_3h4) + 1;
 
 		context.translate(-((drop_x % this.image.tile_w) + this.tile_w2), -((drop_y % this.tile_3h4) + this.tile_h2));
-		//context.translate(-((drop_x % this.tile_w)), -((drop_y % this.tile_3h4)));
 
 		for (var y = start_y; y <= end_y; y++)
 		{
@@ -2443,19 +2441,6 @@ var OOO_DELETE = 46;
 				this.drawTile(tile, tile.data, time, context);
 				context.restore();
 				context.translate(this.image.tile_w, 0);
-				continue;
-
-				var tile_x = x % this.size;
-				var tile = this.coords[tile_y][tile_x];
-				context.drawImage(this.image, this.coords[tile.type][0], this.coords[tile.type][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
-
-				if ('mark' in tile)
-				{
-					context.drawImage(this.image, this.coords[tile.mark][0], this.coords[tile.mark][1], this.tile_w, this.tile_h, 0, 0, this.tile_w, this.tile_h);
-				}
-
-				//context.fillText(tile.group.i, 10, 10);
-				context.translate(this.tile_w, 0);
 			}
 
 			context.restore();
