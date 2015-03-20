@@ -14,8 +14,8 @@
 	var WorldMap = ooo.extra.HexMap.extend(function (size, terrain, home, spawns)
 	//var WorldMap = ooo.extra.TileMap.extend(function (size, terrain, home, spawns)
 	{
-		ooo.extra.HexMap.call(this, size, 'hexes');
-		//ooo.extra.TileMap.call(this, size, 'tiles');
+		ooo.extra.HexMap.call(this, size, 'hexes', 2, 750);
+		//ooo.extra.TileMap.call(this, size, 'tiles', 2, 750);
 		this.home = this.tiles[home];
 		this.spawns = spawns;
 		this.marks = {};
@@ -40,21 +40,21 @@
 		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 	}
 
-	WorldMap.method('drawTile', function (tile, data, time, context)
+	WorldMap.method('drawTile', function (tile, data, frame, time, context)
 	{
-		renderTile.call(this, context, tile.data.type);
+		renderTile.call(this, context, tile.data.type * this.frameCount + frame);
 
 		if (tile == this.home)
 		{
-			renderTile.call(this, context, 3);
+			renderTile.call(this, context, 3 * this.frameCount + frame);
 		}
 		else if (tile.i in this.steps)
 		{
-			renderTile.call(this, context, 4);
+			renderTile.call(this, context, 4 * this.frameCount + frame);
 		}
 		else if (tile.i in this.marks)
 		{
-			renderTile.call(this, context, 5);
+			renderTile.call(this, context, 5 * this.frameCount + frame);
 		}
 	});
 
@@ -96,9 +96,9 @@
 		this.root.trigger('show_move');
 	});
 
-	var TurnButton = ooo.core.Sprite.extend(function ()
+	var TurnButton = ooo.core.Animation.extend(function ()
 	{
-		ooo.core.Sprite.call(this, 'buttons', 0, {right: 20, width: 64, bottom: 20, height: 64});
+		ooo.core.Animation.call(this, 'buttons', 0, 2, 200, {right: 20, width: 64, bottom: 20, height: 64});
 	});
 
 	TurnButton.on('mouse_click', function (button, down_x, down_y)

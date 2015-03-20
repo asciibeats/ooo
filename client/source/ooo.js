@@ -354,6 +354,19 @@ var OOO_DELETE = 46;
 		context.drawImage(this.image, this.image.tile_x[this.type], this.image.tile_y[this.type], this.image.tile_w, this.image.tile_h, 0, 0, this.width, this.height);
 	});
 
+	ooo.core.Animation = ooo.core.Sprite.extend(function (asset, type, frameCount, timePerFrame, layout)
+	{
+		ooo.core.Sprite.call(this, asset, type, layout);
+		this.frameCount = frameCount;
+		this.framesPerMs = 1 / timePerFrame;
+	});
+
+	ooo.core.Animation.on('draw', function (time, context)
+	{
+		var type = this.type + (Math.floor(time * this.framesPerMs) % this.frameCount);
+		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.width, this.height);
+	});
+
 	//Simple Textbox
 	ooo.core.Text = ooo.core.Cell.extend(function (layout, fill_style, font_size, font_face, text_align, text_baseline)//switch to ooo.core.Button.extend
 	{
@@ -1894,12 +1907,15 @@ var OOO_DELETE = 46;
 
 	var SQR_NMASK = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
-	ooo.extra.TileMap = ooo.core.Cell.extend(function (size, asset, layout)
+	ooo.extra.TileMap = ooo.core.Cell.extend(function (size, asset, frameCount, timePerFrame, layout)
 	{
 		ooo.core.Cell.call(this, layout);
 		this.ignore('mouse_drag', 'mouse_drop');
 		this.size = size;
 		this.asset = asset;
+		this.frameCount = frameCount;
+		this.framesPerMs = 1 / timePerFrame;
+
 		this.drag_x = 0;
 		this.drag_y = 0;
 		this.drop_x = 0;
@@ -1954,9 +1970,10 @@ var OOO_DELETE = 46;
 		return 1;
 	});
 
-	ooo.extra.TileMap.method('drawTile', function (tile, data, time, context)
+	ooo.extra.TileMap.method('drawTile', function (tile, data, frame, time, context)
 	{
-		context.drawImage(this.image, this.image.tile_x[tile.data.type], this.image.tile_y[tile.data.type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
+		var type = tile.data.type * this.frameCount + frame;
+		context.drawImage(this.image, this.image.tile_x[type], this.image.tile_y[type], this.image.tile_w, this.image.tile_h, 0, 0, this.image.tile_w, this.image.tile_h);
 	});
 
 	ooo.extra.TileMap.method('calcDistance', function (a, b)
@@ -2169,6 +2186,7 @@ var OOO_DELETE = 46;
 
 	ooo.extra.TileMap.on('draw', function (time, context)
 	{
+		var frame = Math.floor(time * this.framesPerMs) % this.frameCount;
 		var drop_x = ooc.wrap(this.drop_x - this.drag_x - this.mid_x, this.patch_w);
 		var drop_y = ooc.wrap(this.drop_y - this.drag_y - this.mid_y, this.patch_h);
 		var start_x = Math.floor(drop_x / this.image.tile_w);
@@ -2188,7 +2206,7 @@ var OOO_DELETE = 46;
 				var tile_x = x % this.size;
 				var tile = this.coords[tile_y][tile_x];
 				context.save();
-				this.drawTile(tile, tile.data, time, context);
+				this.drawTile(tile, tile.data, frame, time, context);
 				context.restore();
 				context.translate(this.image.tile_w, 0);
 			}
@@ -2232,12 +2250,15 @@ var OOO_DELETE = 46;
 
 	var HEX_NMASK = [[[0, -1], [1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1]], [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 0], [0, -1]]];
 
-	ooo.extra.HexMap = ooo.extra.TileMap.extend(function (size, asset, layout)//tile_w, tile_h, type
+	ooo.extra.HexMap = ooo.extra.TileMap.extend(function (size, asset, frameCount, timePerFrame, layout)
 	{
 		ooo.core.Cell.call(this, layout);
 		this.ignore('mouse_drag', 'mouse_drop');
 		this.size = size;
 		this.asset = asset;
+		this.frameCount = frameCount;
+		this.framesPerMs = 1 / timePerFrame;
+
 		this.drag_x = 0;
 		this.drag_y = 0;
 		this.drop_x = 0;
@@ -2414,6 +2435,7 @@ var OOO_DELETE = 46;
 
 	ooo.extra.HexMap.on('draw', function (time, context)
 	{
+		var frame = Math.floor(time * this.framesPerMs) % this.frameCount;
 		var drop_x = ooc.wrap(this.drop_x - this.drag_x - this.mid_x, this.patch_w);
 		var drop_y = ooc.wrap(this.drop_y - this.drag_y - this.mid_y, this.patch_h);
 		var start_x = Math.floor(drop_x / this.image.tile_w);
@@ -2438,7 +2460,7 @@ var OOO_DELETE = 46;
 				var tile_x = x % this.size;
 				var tile = this.coords[tile_y][tile_x];
 				context.save();
-				this.drawTile(tile, tile.data, time, context);
+				this.drawTile(tile, tile.data, frame, time, context);
 				context.restore();
 				context.translate(this.image.tile_w, 0);
 			}
